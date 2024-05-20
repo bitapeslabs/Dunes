@@ -1,0 +1,20 @@
+{
+  "name": "runeapes.runedexer",
+  "version": "1.0.0",
+  "description": "![alt text](https://i.ibb.co/hdfS3k8/rundexer-Banner-1.png)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.1",
+    "bitcoin-core": "^4.2.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mariadb": "^3.3.0",
+    "runelib": "^1.0.6",
+    "sequelize": "^6.37.3"
+  }
+}
