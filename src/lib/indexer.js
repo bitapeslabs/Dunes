@@ -48,65 +48,80 @@
     People wanting to create their own indexer can download a common ledger and build from that, or rebuild with their own bitcoin node. They can check for sync by
     checking the hases.
 
-    hash(JSON.stringify([prevHash, 'etch', {}])) -> hash(JSON.stringify([prevHash, 'mint', {}])) -> hash(JSON.stringify([prevHash, 'transfer', {}])) -> hash(JSON.stringify([prevHash, 'burn', {}]))
 
-    etches and mints NEED a transfer
+    Apedexer has two protocol messages: "etch" and "transfer"
+
+    burn and mint are replaced by Transfer events where
+    'coinbase' is set as the input for a transfer_output in mints
+    'coinbase' is set as the output for a transfer_output in burns
 
     transferOutputs are as follows: 
     {   
         txid: string,
-        utxo_in: string, (0:0)
-        address_in: string; (ETCH and MINTS are 'COINBASE' for address_in)
-        rune_id: string,
+        creator: address,
         value: string,
-        utxo_out: string; (COINBASE for burn)
-        address_out: string; (COINBASE for burn)
-        raw: (raw utxo created)
+        rune_id: string,
+        input: COINBASE | { address, utxo_id },
+        output: COINBASE | { address, utxo_id }
     }
 
     etch bodies (SAME AS ORD SPEC WITH BLOCK AND INDEX) + has transfer output:
     {
-        divisibility: number,
-        rune: {
-          value: string,
-          name: string
+        decimals: number,
+        rune_id: string,
+        premine: string,
+        mint_limits: {
+            amount,
+            cap,
+            start_block,
+            end_block
         },
         spacers: number,
         symbol: string,
-        terms: {
-          "height": {
-
-          },
-          "offset": {
-
-          },
-          "amount": "",
-          "cap": ""
-        },
-        "turbo": true,
-        "premine": ""
-        "block": ""
-        "index": "",
         transfer_output: transfer_output
-    }
-
-    mint bodies: -> transferred to creation
-    {
-        rune_protocol_id: string,
-        value: string,
-        transfer_output: transfer_output
-    }
-
-    burn bodies: -> transferred to creation
-    {
-        rune_protocol_id: string,
-        value: string,
-        transfer_output: transfer_output
-    
     }
 
     transfer bodies:
     transfer_output
+
+    final apedexer body:
+    [{ type, body, prev_hash }, { type, body, prev_hash }]
+
+    Then these are serialized into "blocks"
+    block = {
+        block: number,
+        prev_hash: string,
+        body: [{ type, body, prev_hash }]
+        chain_state
+    }
+
+    prev_hash would be JSON.stringify(block)
+
+    chain_state is a copy of all balances and rune balances at the end of the block
+    {
+        rune_id: {terms, balances: { address_balances, utxo_balances, coinbase_balance },
+        rune_id: {terms, balances: { address_balances, utxo_balances, coinbase_balance }
+    }
+
+
+    This allows anyone building an indexer to check the prevHash of the next block to see if it matches what they have.
+    If it does not match, they can check the chain state and rebuild the block from the last valid hash
+
+    The final ledger looks like this:
+    [
+        block,
+        block,
+        block,
+        block,
+        block
+    ]
+
+    File is then saved as (.ape format because why tf not lmfao). Blocks are saved as individual files. You only need the last block to rebuild the entire ledger
+    Ledger_FULL_blk840000.ape (3GiB) -> containts chain_state
+    Ledger_LIGHT_blk840000.ape (1MiB) -> does not contain chain_state, just events for a block
+
+
+    With the ledger file, anybody can rebuild the entire Runes State from whatever block they choose
 
 */
 
