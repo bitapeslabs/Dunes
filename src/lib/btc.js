@@ -1,38 +1,54 @@
 
-const { Runestone } = require('runelib');
+const { Runestone } = require( '@ordjs/runestone' );
 const { stripValue, stripObject } = require('./helpers');
 
 
+const DecipherRunestone = (txJson) => {
+
+    try{
+        return {
+            ...stripObject(Runestone.decipher({
+                output: txJson.vout.map(utxo => {
+
+                    return {
+                        script_pubkey: utxo.scriptPubKey.hex
+                    }
+                })
+            })),
+            cenotaph: false
+        }
+    }catch(e){
+
+        //If no op_return, it's not a cenotaph as its transferred to first output
+        //if op_return present and deciphering failed, it is a cenotaph. Input runes would be burnt.
+
+        // !!0 = false
+        return {
+            cenotaph: !!txJson.vout.filter(utxo => utxo.scriptPubKey.asm.includes('OP_RETURN')).length
+        }
+    }
+
+
+}
 
   
 const getRunestonesInBlock = async (blockNumber, RpcClient) => {
-    const transactions = (await RpcClient.getVerboseBlock(blockNumber))
-    .tx;
+    console.log(blockNumber)
+    const block = await RpcClient.getVerboseBlock(blockNumber)
+    const transactions = block.tx
 
-    const runestones = transactions.reduce((acc, tx) => {
-        let runestone;
-        try{
-            runestone = Runestone.decipher(tx.hex)
-            
-        }catch(e){
-            console.log(e)
-            //skip (cenotaph or not a runestone)
-            return acc
-        }
-        runestone = stripObject(runestone)
+    const runestones = transactions.reduce((acc, txJson) => {
+        let runestone = DecipherRunestone(txJson)
 
-        if(Object.values(runestone).length){
-            runestone = stripValue(runestone)
-
-            acc.push(
-                {
-                    runeStone: runestone, 
-                    txHash: tx.txid, 
-                    hasEdict: runestone.edicts.length > 0 ? "doeshaveedict" : "noedict",
-                    txJson: tx
-                }
-            )
-        }
+        acc.push(
+            {
+                runestone: runestone, 
+                hash: txJson.txid,
+                vout: txJson.vout,
+                vin: txJson.vin
+            }
+        )
+        
         return acc
 
         

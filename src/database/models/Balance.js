@@ -11,16 +11,16 @@ module.exports = (sequelize) => {
                 type: Sequelize.INTEGER,
                 allowNull: false
             },
-            utxo_id: {
-                type: Sequelize.INTEGER,
-                allowNull: false
-            },
             account_id: {
                 type: Sequelize.INTEGER,
                 allowNull: false
             },
+            address: {
+                type: Sequelize.TEXT('long'),
+                allowNull: false
+            },
             balance: {
-                type: Sequelize.INTEGER,
+                type: Sequelize.TEXT('medium'),
                 allowNull: false
             }
         }, {

@@ -10,10 +10,6 @@ module.exports = (sequelize) => {
         address: {
             type: Sequelize.TEXT('tiny')	,
             allowNull: false
-        },
-        btcBalance: {
-            type: Sequelize.INTEGER,
-            allowNull: false
         }
     }, {
         tableName: 'accounts',

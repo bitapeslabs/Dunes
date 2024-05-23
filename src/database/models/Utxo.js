@@ -15,9 +15,21 @@ module.exports = (sequelize) => {
             type: Sequelize.INTEGER,
             allowNull: false
         },
+        value_sats: {
+            type: Sequelize.INTEGER,
+            allowNull: false
+        },
         hash: {
             type: Sequelize.TEXT('medium'),
             allowNull: true
+        },
+        rune_balances: {
+            type: Sequelize.TEXT('medium'),
+            allowNull: true
+        },
+        vout_index: {
+            type: Sequelize.INTEGER,
+            allowNull: false
         },
         data: {
             type: Sequelize.TEXT('long'),

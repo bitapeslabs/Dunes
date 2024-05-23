@@ -24,7 +24,10 @@ module.exports = (sequelize) => {
             allowNull: true
         },
         value: {
-            type: Sequelize.INTEGER,
+
+            //We dont know the potential length of a rune, so its best to save directly as a string and do processing
+
+            type: Sequelize.TEXT('medium'),
             allowNull: false
         }
     }, {

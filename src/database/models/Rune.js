@@ -15,11 +15,19 @@ module.exports = (sequelize) => {
             type: Sequelize.TEXT('tiny')	,
             allowNull: false
         },
+        raw_name: {
+            type: Sequelize.TEXT('tiny')	,
+            allowNull: false
+        },
         symbol: {
             type: Sequelize.STRING(1),
             allowNull: false
         },
-        totalSupply: {
+        spacers: {
+            type: Sequelize.INTEGER,
+            allowNull: false
+        },
+        total_supply: {
             type: Sequelize.INTEGER,
             allowNull: false
         },
@@ -27,7 +35,7 @@ module.exports = (sequelize) => {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        mintCap: {
+        mint_cap: {
             type: Sequelize.INTEGER,
             allowNull: false
         },
@@ -35,15 +43,15 @@ module.exports = (sequelize) => {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        totalHolders: {
+        total_holders: {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        mintStartBlock: {
+        mint_start_block: {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        mintEndBlock: {
+        mint_end_block: {
             type: Sequelize.INTEGER,
             allowNull: false
         }

@@ -11,28 +11,24 @@ module.exports = (sequelize) => {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        value: {
+        value_sats: {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        isCenotaph: {
-            type: Sequelize.INTEGER,
-            allowNull: false
-        },
-        stoneHex: {
+        tx_json: {
             type: Sequelize.TEXT('long'),
             allowNull: true
         },
-        stoneJson: {
-            type: Sequelize.TEXT('long'),
-            allowNull: true
-        },
-        scanData: {
+        runestone: {
             type: Sequelize.TEXT('long'),
             allowNull: true
         },
         hash: {
             type: Sequelize.TEXT('medium'),
+            allowNull: true
+        },
+        data: {
+            type: Sequelize.TEXT('long'),
             allowNull: true
         }
     }, {

@@ -20,12 +20,16 @@ const createRpcClient =  (rpcConfig) => {
     
     const callRpc = async (method, params = []) => {
         try {
+        let startTime = Date.now()
         const response = await rpcClient.post('', {
             jsonrpc: '1.0',
             id: new Date().getTime(),
             method: method,
             params: params
         });
+
+        let processingTime = Date.now() - startTime
+        console.log(`RPC call ${method} took ${processingTime/1000}s`)
         return response.data.result;
         } catch (error) {
             console.log(error.toJSON())
@@ -37,10 +41,12 @@ const createRpcClient =  (rpcConfig) => {
 
     const getVerboseBlock = async (blockNumber) => {
         try {
+            let startTime = Date.now()
             const blockHash = await callRpc('getblockhash', [parseInt(blockNumber)]);
-            console.log(Date.now())
+            console.log(`blockHash ${blockHash}`)
             const block = await callRpc('getblock', [blockHash, 2]);
-            console.log(Date.now())
+            let processingTime = Date.now() - startTime
+            console.log(`verboseBlock call took ${processingTime/1000}s`)
             return block;
         } catch (error) {
             console.log(error.toJSON())

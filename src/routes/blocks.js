@@ -39,10 +39,21 @@ router.get('/runestones/:id', async function(req, res){
 
 })
 
+router.get('/tx/:id', async function(req, res){
+    
+        const {
+            QuickRpcClient,
+        } = req;
+    
+        const txHash = req.params.id;
+        const tx = await QuickRpcClient.callRpc('getrawtransaction', [txHash, false])
+        res.send(tx)
+})
+
 router.get('/:id', async function(req, res){
 
     const {
-        QuickRpcClient,
+        RpcClient,
     } = req;
 
     const blockHeight = parseInt(req.params.id, 10);
@@ -51,7 +62,7 @@ router.get('/:id', async function(req, res){
     if (isNaN(blockHeight) || blockHeight < 0) {
         return res.status(400).send({ error: 'Invalid block height' });
     }
-    const transactions = await QuickRpcClient.getVerboseBlock(blockHeight)
+    const transactions = await RpcClient.getVerboseBlock(blockHeight)
    
     res.send(transactions)
 })
