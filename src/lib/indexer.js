@@ -173,7 +173,7 @@ const processRunestone = async(Transaction, db) => {
         Utxo
     } = db;
 
-    const SpenderAccount = await _getAccount(Transaction, db)
+   // const SpenderAccount = await _getAccount(Transaction, db)
 
     let UtxoFilter = vin.map(vin => vin.txid)
     let EdictAllocations = (
@@ -183,6 +183,9 @@ const processRunestone = async(Transaction, db) => {
         //Get allocated runes and store them in an array
         .map(utxo => JSON.parse(utxo.rune_balances))
     )
+
+    let SpenderAccount = await Utxo.findOne({hash: {$in: UtxoFilter}})
+
 
 
     //These are processed at the end incase there are any burnt runes
@@ -196,14 +199,7 @@ const processRunestone = async(Transaction, db) => {
     let newUtxos = vout.map((utxo, index) => {
         return {
 
-
-
-    if(runestone.cenotaph){
-        //Cenotaphs are burnt runes
-        await _burnRunes(EdictAllocations, db)
-
-        EdictAllocations = []
-    }
+        })
 
     /*
 

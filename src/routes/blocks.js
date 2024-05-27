@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router();
 const { getRunestonesInBlock } = require('../lib/btc')
-
+const fs = require('fs')
 
 router.get('/headers/:id', async function(req, res){
 
@@ -63,7 +63,7 @@ router.get('/:id', async function(req, res){
         return res.status(400).send({ error: 'Invalid block height' });
     }
     const transactions = await RpcClient.getVerboseBlock(blockHeight)
-   
+    fs.writeFileSync('block_' + blockHeight + '.json', JSON.stringify(transactions, null, 2))
     res.send(transactions)
 })
 

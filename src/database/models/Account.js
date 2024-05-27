@@ -8,9 +8,18 @@ module.exports = (sequelize) => {
             autoIncrement: true
         },
         address: {
-            type: Sequelize.TEXT('tiny')	,
+            type: Sequelize.TEXT('tiny'),
+            allowNull: false
+        },
+        utxo_list: {
+
+            //JSON that contains array of all utxo ids and identifiers belonging to an address
+            type: Sequelize.TEXT('long'),
             allowNull: false
         }
+
+
+        //Balances from balances model
     }, {
         tableName: 'accounts',
         timestamps: true,
