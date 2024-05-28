@@ -10,10 +10,13 @@ const getRunestonesInBlock = async (blockNumber, RpcClient) => {
         {
             runestone: decipherRunestoneWithOrdJS(tx),
             hash: tx.txid,
+            block: blockNumber,
             vout: tx.vout,
-            vin: tx.vin
+            vin: tx.vin,
+            hex: tx.hex
         }
     ))
+    
     
     return runestones
 }

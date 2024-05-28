@@ -11,23 +11,19 @@ module.exports = (sequelize) => {
             type: Sequelize.INTEGER,
             allowNull: false
         },
+        address_id: {
+            type: Sequelize.INTEGER,
+            allowNull: false
+        },
         value_sats: {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        tx_json: {
+        hex: {
             type: Sequelize.TEXT('long'),
             allowNull: true
         },
         runestone: {
-            type: Sequelize.TEXT('long'),
-            allowNull: true
-        },
-        hash: {
-            type: Sequelize.TEXT('medium'),
-            allowNull: true
-        },
-        data: {
             type: Sequelize.TEXT('long'),
             allowNull: true
         }

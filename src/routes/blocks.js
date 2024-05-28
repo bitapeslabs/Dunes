@@ -35,6 +35,7 @@ router.get('/runestones/:id', async function(req, res){
     }
 
     const runestones = await getRunestonesInBlock(req.params.id, QuickRpcClient)
+    fs.writeFileSync('runestones_' + blockHeight + '.json', JSON.stringify(runestones, null, 2))
     res.send(runestones)
 
 })

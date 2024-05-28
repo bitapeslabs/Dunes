@@ -1,3 +1,13 @@
+
+const {
+    fromBigInt,
+    toBigInt,
+    runes
+} = require('./tools')
+
+const { SpacedRune, Rune: OrdRune } = require( '@ordjs/runestone' );
+
+
 /*
 
     Runestone in format:
@@ -129,21 +139,15 @@
 require('dotenv').config({ path: '../../.env' })
 const { databaseConnection } = require('../database/createConnection')
 
-function getReservedName(block, tx) {
-    const baseValue = BigInt("6402364363415443603228541259936211926");
-    const combinedValue = (BigInt(block) << 32n) | BigInt(tx);
-    return baseValue + combinedValue;
-  }
 
-const _createUtxoWithRunes = async (Transaction, db) => {
 
-}
 
-const _burnRunes = async (Allocations, db) => {
 
-}
+//Conversions
 
-const _getAccount = async (address, db) => {
+
+
+const getAccount = async (address, db) => {
     const {
         Account
     } = db;
@@ -154,6 +158,108 @@ const _getAccount = async (address, db) => {
     })
 
     return account
+}
+
+const createTransaction = async (
+    Transction,
+    Account, 
+    db
+) => {
+
+    /*
+
+    Rune Balances:
+    {
+        rune_id,
+        amount
+    }
+    */
+
+    const {
+        Transactions
+    } = db;
+
+    const {
+        runestone,
+        hash,
+        block,
+        hex
+    } = Transaction;
+    
+
+    let transaction = await Transactions.findOneOrCreate({hash: Transaction.hash}, {
+        block_id: block,
+        address_id: Account.id,
+        value_sats: (
+            //Get all vout values and convert them to a big integer string
+            vout.map(vout => toBigInt(vout.value, 8))
+
+            //Add big ints of all items to get sum
+            .reduce((a, b) => BigInt(a) + BigInt(b), BigInt(0))
+            
+            //Convert back to string0
+            .toString()
+        ),
+        hex,
+        runestone: JSON.stringify(runestone),
+        hash: hash
+    })
+
+    return transaction
+}
+
+const findTransaction = async (hash, db) => {
+    const {
+        Transactions
+    } = db;
+
+    return await Transactions.findOne({hash: hash})
+}
+
+const processEtching = async (InputAllocations, Transaction, db) => {
+
+    const {
+        block, 
+        hash,
+        runestone
+    } = Transaction;
+
+    const {
+        etching
+    } = runestone
+
+    const {
+        Rune
+    } = db;
+
+    //If no etching, return the input allocations
+    if(!runestone.etching){ return InputAllocations; }
+
+    //If rune name already taken, it is non standard, return the input allocations
+    if(await Rune.findOne({name: etching.rune.name})){ return InputAllocations; }
+    
+    let spacedRune;
+
+    if(etching.spacers){ 
+        spacedRune = new SpacedRune(Rune.fromString(etching.rune.name), etching.spacers);
+    }
+    
+    await Rune.create({
+        rune_protocol_id: '0:0',
+        name: spacedRune ? spacedRune.toString() : etching.rune.name,
+        raw_name: etching.rune.name,
+        symbol: etching.symbol ?? '¤',
+        spacers: etching.spacers ?? 0,
+        total_supply: 0, //This is updated on transfer edict
+        premine: etching.premine ?? 0,
+        total_holders: 0,
+        mint_cap: 0,
+        mint_amount: 0,
+        mint_start: 0,
+        mint_end: 0,
+        turbo: etching.turbo
+    })
+
 }
 
 const processRunestone = async(Transaction, db) => {
@@ -168,6 +274,7 @@ const processRunestone = async(Transaction, db) => {
     const {
         Account,
         Balance,
+        Rune,
         Runestone: RunestoneModel,
         Transactions,
         Utxo
@@ -176,31 +283,84 @@ const processRunestone = async(Transaction, db) => {
    // const SpenderAccount = await _getAccount(Transaction, db)
 
     let UtxoFilter = vin.map(vin => vin.txid)
-    let EdictAllocations = (
+
+    let InputUtxos = await Utxo.find({hash: {$in: UtxoFilter}})
+
+    let RuneAllocations = (
         //Get all utxos that are being spent
-        (await Utxo.findAll({hash: {$in: UtxoFilter}}))
+        InputUtxos
 
         //Get allocated runes and store them in an array
-        .map(utxo => JSON.parse(utxo.rune_balances))
+        .reduce((acc, utxo) => {
+            let RuneBalances = JSON.parse(utxo.rune_balances)
+
+            RuneBalances.forEach(rune => {
+                if(!acc[rune.rune_id]){ acc[rune.rune_id] = 0; }
+                acc[rune.rune_id] += rune.amount
+            })
+            return acc
+        }), {}
     )
 
-    let SpenderAccount = await Utxo.findOne({hash: {$in: UtxoFilter}})
-
-
-
-    //These are processed at the end incase there are any burnt runes
-
+    let SpenderAccount = await getAccount(InputUtxos[0].address)
 
     //Delete UTXOs as they are being spent
     await Utxo.deleteMany({hash: {$in: UtxoFilter}})
 
-
+    let MappedTransactions = (await Transactions.findMany({hash: {$in: UtxoFilter}}))
+    .reduce((acc, Transaction) => {
+        acc[Transaction.hash] = Transaction
+        return acc
+    }, {})
 
     let newUtxos = vout.map((utxo, index) => {
+
         return {
+            account: SpenderAccount.id,
+            transaction_id: MappedTransactionsp[utxo.hash].id,
+            value_sats: toBigInt(utxo.value, 8),
+            hash: utxo.hash,   
+            vout_index: index,
+            rune_balances: {}
+        }
+    })
 
-        })
 
+    //Process etches
+
+    /*
+    "divisibility": 2,
+        "rune": {
+          "value": "67090369340599840949",
+          "name": "ZZZZZFEHUZZZZZ"
+        },
+        "spacers": 7967,
+        "symbol": "ᚠ",
+        "terms": {
+          "height": {
+
+          },
+          "offset": {
+
+          },
+          "amount": "100",
+          "cap": "1111111"
+        },
+        "turbo": true,
+        "premine": "11000000000"
+      },
+    */
+   RuneAllocations = await processEtching(RuneAllocations, Transaction, db)
+    
+
+    //These are processed at the end incase there are any burnt runes
+
+
+    
+
+
+    
+        
     /*
 
         decimals embedded to prevent excessive database lookups for each rune

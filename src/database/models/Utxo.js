@@ -30,10 +30,6 @@ module.exports = (sequelize) => {
         vout_index: {
             type: Sequelize.INTEGER,
             allowNull: false
-        },
-        data: {
-            type: Sequelize.TEXT('long'),
-            allowNull: true
         }
     }, {
         tableName: 'utxos',
