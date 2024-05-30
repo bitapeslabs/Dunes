@@ -11,12 +11,16 @@ module.exports = (sequelize) => {
             type: Sequelize.INTEGER,
             allowNull: false
         },
+        tx_index: {
+            type: Sequelize.INTEGER,
+            allowNull: false
+        },
         address_id: {
             type: Sequelize.INTEGER,
             allowNull: false
         },
         value_sats: {
-            type: Sequelize.INTEGER,
+            type: Sequelize.TEXT('tiny'),
             allowNull: false
         },
         hex: {
@@ -26,7 +30,11 @@ module.exports = (sequelize) => {
         runestone: {
             type: Sequelize.TEXT('long'),
             allowNull: true
-        }
+        },
+        hash: {
+            type: Sequelize.TEXT('long'),
+            allowNull: true
+        },
     }, {
         tableName: 'transactions',
         timestamps: true,

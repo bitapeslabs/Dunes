@@ -6,10 +6,11 @@ const getRunestonesInBlock = async (blockNumber, RpcClient) => {
     const block = await RpcClient.getVerboseBlock(blockNumber)
     const transactions = block.tx
     
-    const runestones = transactions.map(tx => (
+    const runestones = transactions.map((tx, txIndex) => (
         {
             runestone: decipherRunestoneWithOrdJS(tx),
             hash: tx.txid,
+            txIndex,
             block: blockNumber,
             vout: tx.vout,
             vin: tx.vin,

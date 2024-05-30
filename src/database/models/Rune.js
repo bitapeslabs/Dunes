@@ -7,7 +7,7 @@ module.exports = (sequelize) => {
             primaryKey: true,
             autoIncrement: true
         },
-        runeId: {
+        rune_protocol_id: {
             type: Sequelize.TEXT('tiny')	,
             allowNull: false
         },
@@ -35,25 +35,37 @@ module.exports = (sequelize) => {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        mint_cap: {
-            type: Sequelize.INTEGER,
-            allowNull: false
-        },
         premine: {
-            type: Sequelize.INTEGER,
+            type: Sequelize.TEXT('tiny'),
             allowNull: false
         },
         total_holders: {
             type: Sequelize.INTEGER,
             allowNull: false
         },
-        mint_start_block: {
-            type: Sequelize.INTEGER,
-            allowNull: false
+        mint_cap: {
+            type: Sequelize.TEXT('tiny'),
+            allowNull: true
         },
-        mint_end_block: {
+        mint_start: {
             type: Sequelize.INTEGER,
-            allowNull: false
+            allowNull: true
+        },
+        mint_end: {
+            type: Sequelize.INTEGER,
+            allowNull: true
+        },
+        mint_offset_start: {
+            type: Sequelize.INTEGER,
+            allowNull: true
+        },
+        mint_offset_end: {
+            type: Sequelize.INTEGER,
+            allowNull: true
+        },
+        mint_amount: {
+            type: Sequelize.TEXT('tiny'),
+            allowNull: true
         }
     }, {
         tableName: 'runes',

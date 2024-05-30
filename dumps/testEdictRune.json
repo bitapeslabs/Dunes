@@ -1,0 +1,78 @@
+{
+    "runestone": {
+      "etching": {
+        "divisibility": 18,
+        "rune": {
+          "value": "46716859282853274468",
+          "name": "RUNEAPESSHARES"
+        },
+        "spacers": 128,
+        "symbol": "🍌",
+        "terms": {
+          "height": {},
+          "offset": {},
+          "amount": "1000000000000000000",
+          "cap": "0"
+        },
+        "turbo": true,
+        "premine": "150000000000000000000000000"
+      },
+      "pointer": 1,
+      "edicts": [],
+      "cenotaph": false
+    },
+    "hash": "d055fa45367a25be9a6007b43c14b7cd2fcb560e04af28e1b45e4496f4a352cc",
+    "txIndex": 159,
+    "block": "841675",
+    "vout": [
+      {
+        "value": 0.00000546,
+        "n": 0,
+        "scriptPubKey": {
+          "asm": "1 0ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d",
+          "desc": "rawtr(0ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d)#dvhksfet",
+          "hex": "51200ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d",
+          "address": "bc1pphwjuufrx6aalsvmv5uujnprsw0wpz4rtjra4f0quys2cylugxws5gz7wc",
+          "type": "witness_v1_taproot"
+        }
+      },
+      {
+        "value": 0.00000546,
+        "n": 1,
+        "scriptPubKey": {
+          "asm": "1 0ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d",
+          "desc": "rawtr(0ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d)#dvhksfet",
+          "hex": "51200ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d",
+          "address": "bc1pphwjuufrx6aalsvmv5uujnprsw0wpz4rtjra4f0quys2cylugxws5gz7wc",
+          "type": "witness_v1_taproot"
+        }
+      },
+      {
+        "value": 0,
+        "n": 2,
+        "scriptPubKey": {
+          "asm": "OP_RETURN 13 020704e4c684838580e8a98805011203800105cce60706808080b0c5e78496cbf8cee0070a808090bbbad6adf00d08001601",
+          "desc": "raw(6a5d32020704e4c684838580e8a98805011203800105cce60706808080b0c5e78496cbf8cee0070a808090bbbad6adf00d08001601)#6s0y0v0x",
+          "hex": "6a5d32020704e4c684838580e8a98805011203800105cce60706808080b0c5e78496cbf8cee0070a808090bbbad6adf00d08001601",
+          "type": "nulldata"
+        }
+      }
+    ],
+    "vin": [
+      {
+        "txid": "6ed77714b3a82fec20368cdaffea705e6bcd09c8751221276a413ce748dd60c0",
+        "vout": 0,
+        "scriptSig": {
+          "asm": "",
+          "hex": ""
+        },
+        "txinwitness": [
+          "70e7d3ea97ed1dcf602951d9fae22b32b5144c71c5ee75ecfc1f3ac7b4e44d0eac642177eb9f89ae98b86319813a9182f031e1d250087527a760842aa28f6abf",
+          "0x",
+          "c12be9526f82410c9d324907cc5a544c3b1c8a1bc25b5dcd0845a06f954723ec7e"
+        ],
+        "sequence": 5
+      }
+    ],
+    "hex": "0x"
+  }
