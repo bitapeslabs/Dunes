@@ -1,78 +1,77 @@
 {
     "runestone": {
       "etching": {
-        "divisibility": 18,
+        "divisibility": 0,
         "rune": {
-          "value": "46716859282853274468",
-          "name": "RUNEAPESSHARES"
+          "value": "45531761919624925066",
+          "name": "RICHARDDAWKINS"
         },
-        "spacers": 128,
-        "symbol": "🍌",
+        "spacers": 64,
         "terms": {
           "height": {},
           "offset": {},
-          "amount": "1000000000000000000",
-          "cap": "0"
+          "amount": "31250",
+          "cap": "31360"
         },
-        "turbo": true,
-        "premine": "150000000000000000000000000"
+        "turbo": false,
+        "premine": "20000000"
       },
       "pointer": 1,
       "edicts": [],
       "cenotaph": false
     },
-    "hash": "d055fa45367a25be9a6007b43c14b7cd2fcb560e04af28e1b45e4496f4a352cc",
-    "txIndex": 159,
-    "block": "841675",
+    "hash": "be3802fa3ae440fefe68da02ca837df0cbb9c2fb5624cc0da0e97dee58f4f551",
+    "txIndex": 211,
+    "block": "843000",
     "vout": [
       {
-        "value": 0.00000546,
+        "value": 0,
         "n": 0,
         "scriptPubKey": {
-          "asm": "1 0ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d",
-          "desc": "rawtr(0ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d)#dvhksfet",
-          "hex": "51200ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d",
-          "address": "bc1pphwjuufrx6aalsvmv5uujnprsw0wpz4rtjra4f0quys2cylugxws5gz7wc",
-          "type": "witness_v1_taproot"
+          "asm": "OP_RETURN 13 0203048a9f9b87a787d4f0f704010003400680dac4090a92f4010880f5011601",
+          "desc": "raw(6a5d200203048a9f9b87a787d4f0f704010003400680dac4090a92f4010880f5011601)#wmx6q6ce",
+          "hex": "6a5d200203048a9f9b87a787d4f0f704010003400680dac4090a92f4010880f5011601",
+          "type": "nulldata"
         }
       },
       {
         "value": 0.00000546,
         "n": 1,
         "scriptPubKey": {
-          "asm": "1 0ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d",
-          "desc": "rawtr(0ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d)#dvhksfet",
-          "hex": "51200ddd2e712336bbdfc19b6539c94c23839ee08aa35c87daa5e0e120ac13fc419d",
-          "address": "bc1pphwjuufrx6aalsvmv5uujnprsw0wpz4rtjra4f0quys2cylugxws5gz7wc",
+          "asm": "1 dcd080a6c9d1fe919fc37da4d2ade923a40719b3706a5a936a3c33aa73a3d3b0",
+          "desc": "rawtr(dcd080a6c9d1fe919fc37da4d2ade923a40719b3706a5a936a3c33aa73a3d3b0)#7jgjwpth",
+          "hex": "5120dcd080a6c9d1fe919fc37da4d2ade923a40719b3706a5a936a3c33aa73a3d3b0",
+          "address": "bc1pmnggpfkf68lfr87r0kjd9t0fywjqwxdnwp494ym28se65uar6wcqgurty9",
           "type": "witness_v1_taproot"
         }
       },
       {
-        "value": 0,
+        "value": 0.00001693,
         "n": 2,
         "scriptPubKey": {
-          "asm": "OP_RETURN 13 020704e4c684838580e8a98805011203800105cce60706808080b0c5e78496cbf8cee0070a808090bbbad6adf00d08001601",
-          "desc": "raw(6a5d32020704e4c684838580e8a98805011203800105cce60706808080b0c5e78496cbf8cee0070a808090bbbad6adf00d08001601)#6s0y0v0x",
-          "hex": "6a5d32020704e4c684838580e8a98805011203800105cce60706808080b0c5e78496cbf8cee0070a808090bbbad6adf00d08001601",
-          "type": "nulldata"
+          "asm": "0 ca96b14fb3535ede19084447b61510145d94b0a9",
+          "desc": "addr(bc1qe2ttznan2d0duxggg3rmv9gsz3wefv9ff22vxp)#vjmep4rh",
+          "hex": "0014ca96b14fb3535ede19084447b61510145d94b0a9",
+          "address": "bc1qe2ttznan2d0duxggg3rmv9gsz3wefv9ff22vxp",
+          "type": "witness_v0_keyhash"
         }
       }
     ],
     "vin": [
       {
-        "txid": "6ed77714b3a82fec20368cdaffea705e6bcd09c8751221276a413ce748dd60c0",
+        "txid": "16375078346443b38f2312bbd6d53754c175be521f209d2679bcdadbd596c216",
         "vout": 0,
         "scriptSig": {
           "asm": "",
           "hex": ""
         },
         "txinwitness": [
-          "70e7d3ea97ed1dcf602951d9fae22b32b5144c71c5ee75ecfc1f3ac7b4e44d0eac642177eb9f89ae98b86319813a9182f031e1d250087527a760842aa28f6abf",
-          "0x",
-          "c12be9526f82410c9d324907cc5a544c3b1c8a1bc25b5dcd0845a06f954723ec7e"
+          "074c049c50318e57eceb06eada5ffd54c6b08c0a9a473d75e091a1c1fddaee371905fa29709525e398d67d6ec8b41b23d206bb1590df01aea383443b93912899",
+          "20c7db4948d8405e8589721da0114b8eda8073b001ac0ce14bc7b26f147963e0e7ac0063098acfe6703a50e1770268",
+          "c192732f74b022a1e77316865f175f00cbde670b8de635ad8c22474131976cf480"
         ],
-        "sequence": 5
+        "sequence": 4294967293
       }
     ],
-    "hex": "0x"
+    "hex": "0200000000010116c296d5dbdabc79269d201f52be75c15437d5d6bb12238fb3436434785037160000000000fdffffff030000000000000000236a5d200203048a9f9b87a787d4f0f704010003400680dac4090a92f4010880f50116012202000000000000225120dcd080a6c9d1fe919fc37da4d2ade923a40719b3706a5a936a3c33aa73a3d3b09d06000000000000160014ca96b14fb3535ede19084447b61510145d94b0a90340074c049c50318e57eceb06eada5ffd54c6b08c0a9a473d75e091a1c1fddaee371905fa29709525e398d67d6ec8b41b23d206bb1590df01aea383443b939128992f20c7db4948d8405e8589721da0114b8eda8073b001ac0ce14bc7b26f147963e0e7ac0063098acfe6703a50e177026821c192732f74b022a1e77316865f175f00cbde670b8de635ad8c22474131976cf48000000000"
   }

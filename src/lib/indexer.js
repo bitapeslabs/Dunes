@@ -199,7 +199,10 @@ const processEtching = async (
     if(!runestone.etching){ return InputAllocations; }
     console.log(etching.rune.name)
     //If rune name already taken, it is non standard, return the input allocations
-    if(await Rune.findOne({name: etching.rune.name})){ return InputAllocations; }
+
+    const isRuneNameTaken = await Rune.findOne({where: {name: etching.rune.name}})
+
+    if(isRuneNameTaken) { return InputAllocations; }
     
     //Check if a rune name was provided, and if not, generate one
     let runeName = etching.rune.name ?? getReservedName(block, txIndex)
@@ -308,9 +311,9 @@ const testEdictRune = JSON.parse(fs.readFileSync(path.join(__dirname, '../../dum
 const test  = async () => {
     const db = await databaseConnection()
 
-
-    const rune = await db.Rune.findOne({where: {name: 'RUNEAPES•SHARES'}})
-    console.log(isMintOpen(840000, rune))
+    
+    const rune = await db.Rune.findOne({where: {name: 'FIAT•IS•HELL•MONEY'}})
+    console.log(isMintOpen(844000, rune))
 
     //processRunestone(testEdictRune, db)
 }
