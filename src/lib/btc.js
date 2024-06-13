@@ -1,5 +1,5 @@
 
-const { decipherRunestoneWithOrdJS } = require('./decoder');
+const { decipherRunestone } = require('./decoder');
 
 const getRunestonesInBlock = async (blockNumber, RpcClient) => {
     console.log(blockNumber)
@@ -8,7 +8,7 @@ const getRunestonesInBlock = async (blockNumber, RpcClient) => {
     
     const runestones = transactions.map((tx, txIndex) => (
         {
-            runestone: decipherRunestoneWithOrdJS(tx),
+            runestone: decipherRunestone(tx),
             hash: tx.txid,
             txIndex,
             block: blockNumber,

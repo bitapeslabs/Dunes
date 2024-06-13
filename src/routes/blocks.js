@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router();
 const { getRunestonesInBlock } = require('../lib/btc')
 const fs = require('fs')
+const path = require('path')
 
 router.get('/headers/:id', async function(req, res){
 
@@ -35,7 +36,12 @@ router.get('/runestones/:id', async function(req, res){
     }
 
     const runestones = await getRunestonesInBlock(req.params.id, QuickRpcClient)
-    fs.writeFileSync('runestones_' + blockHeight + '.json', JSON.stringify(runestones, null, 2))
+    
+    
+    // FOR TESTING
+    fs.writeFileSync(path.join(__dirname, '../../bin/runestones_' + blockHeight + '.json'), JSON.stringify(runestones, null, 2))
+    //
+
     res.send(runestones)
 
 })

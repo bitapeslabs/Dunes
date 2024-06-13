@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "@ordjs/runestone": "^1.6.0",
+    "@runeapes/apeutils": "^1.0.1",
     "axios": "^1.7.1",
     "bitcoin-core": "^4.2.0",
     "dotenv": "^16.4.5",
