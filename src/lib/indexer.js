@@ -7,7 +7,11 @@ const { fromBigInt, toBigInt } = require("./tools");
 
 const { Op } = require("sequelize");
 
-const { isMintOpen, getReservedName } = require("./runeutils");
+const {
+  isMintOpen,
+  getReservedName,
+  updateAllocations,
+} = require("./runeutils");
 
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 
@@ -149,6 +153,51 @@ const createNewUtxoBodies = (vout, MappedTransactions, SpenderAccount) => {
   });
 };
 
+const processMint = async (InputAllocations, Transaction, db) => {
+  const { block, txIndex, runestone } = Transaction;
+  const { mint } = runestone;
+
+  const { Rune } = db;
+
+  if (!mint) {
+    console.log("no mint");
+
+    return InputAllocations;
+  }
+  //We use the same  process used to calculate the Rune Id in the etch function if "0:0" is referred to
+  const runeToMint = await Rune.findOne({
+    where: {
+      rune_protocol_id: mint === "0:0" ? `${block}:${txIndex}` : mint,
+    },
+  });
+
+  if (!runeToMint) {
+    //The rune requested to be minted does not exist.
+    console.log("rune does not exist");
+    return InputAllocations;
+  }
+
+  if (isMintOpen(block, runeToMint, true)) {
+    //Update new mints to count towards cap
+    runeToMint.mints = BigInt(runeToMint.mints) + BigInt(1);
+    await runeToMint.save();
+
+    if (runestone.cenotaph) {
+      //If the mint is a cenotaph, the minted amount is burnt
+      return InputAllocations;
+    }
+
+    return updateAllocations(InputAllocations, {
+      rune_id: runeToMint.rune_protocol_id,
+      amount: BigInt(runeToMint.mint_amount),
+    });
+  } else {
+    //Minting is closed
+    console.log("mint closed");
+    return InputAllocations;
+  }
+};
+
 const processEtching = async (InputAllocations, Transaction, db) => {
   const { block, txIndex, runestone } = Transaction;
 
@@ -156,13 +205,10 @@ const processEtching = async (InputAllocations, Transaction, db) => {
 
   const { Rune } = db;
 
-  console.log(etching);
-
   //If no etching, return the input allocations
   if (!runestone.etching) {
     return InputAllocations;
   }
-  console.log(etching.rune);
   //If rune name already taken, it is non standard, return the input allocations
 
   //Check if a rune name was provided, and if not, generate one
@@ -182,6 +228,14 @@ const processEtching = async (InputAllocations, Transaction, db) => {
     return InputAllocations;
   }
 
+  /*
+    Runespec: Runes etched in a transaction with a cenotaph are set as unmintable.
+
+    If the runestone decoded has the cenotaph flag set to true, the rune should be created with no allocationg created
+
+    see unminable flag in rune model
+  */
+
   const EtchedRune = await Rune.create({
     rune_protocol_id: `${block}:${txIndex}`,
     name: spacedRune ? spacedRune.name : runeName,
@@ -192,9 +246,9 @@ const processEtching = async (InputAllocations, Transaction, db) => {
     //ORD describes no decimals being set as default 0
     decimals: etching.divisibility ?? 0,
 
-    total_supply: 0, //This is updated on transfer edict
+    total_supply: etching.premine ?? 0,
     total_holders: 0, //This is updated on transfer edict
-
+    mints: "0",
     premine: etching.premine ?? "0",
 
     /*
@@ -214,13 +268,22 @@ const processEtching = async (InputAllocations, Transaction, db) => {
     mint_offset_start: etching.terms?.offset?.[0] ?? null,
     mint_offset_end: etching.terms?.offset?.[1] ?? null,
     turbo: etching.turbo,
+
+    //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the rune spec (see above)
+    unmintable: runestone.cenotaph ? 1 : 0,
   });
 
   //Add premine runes to input allocations
-  return {
-    ...InputAllocations,
-    [EtchedRune.rune_protocol_id]: BigInt(etching.premine ?? "0"),
-  };
+
+  if (runestone.cenotaph) {
+    //No runes are premined if the tx is a cenotaph.
+    return InputAllocations;
+  }
+
+  return updateAllocations(InputAllocations, {
+    rune_id: EtchedRune.rune_protocol_id,
+    amount: BigInt(etching.premine),
+  });
 };
 
 const processRunestone = async (Transaction, db) => {
@@ -262,8 +325,9 @@ const processRunestone = async (Transaction, db) => {
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
-  //TODO: Add mints as described abover
+  RuneAllocations = await processMint(RuneAllocations, Transaction, db);
 
+  //TODO: process edicts (and include processing with the pointer field)
   console.log(RuneAllocations);
 };
 
