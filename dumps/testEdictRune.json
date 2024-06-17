@@ -9,13 +9,21 @@
         "terms": {
           "amount": "31250",
           "cap": "31360",
-          "height": [null, null],
-          "offset": [null, null]
+          "height": [
+            null,
+            null
+          ],
+          "offset": [
+            null,
+            null
+          ]
         },
         "turbo": false
       },
+      "mint": "0:0",
+
       "pointer": 1,
-      "cenotaph": true
+      "cenotaph": false
     },
     "hash": "be3802fa3ae440fefe68da02ca837df0cbb9c2fb5624cc0da0e97dee58f4f551",
     "txIndex": 211,
