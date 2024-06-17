@@ -1,24 +1,21 @@
 {
     "runestone": {
+      "edicts": [],
       "etching": {
         "divisibility": 0,
-        "rune": {
-          "value": "45531761919624925066",
-          "name": "RICHARDDAWKINS"
-        },
+        "premine": "20000000",
+        "rune": "RICHARDDAWKINS",
         "spacers": 64,
         "terms": {
-          "height": {},
-          "offset": {},
           "amount": "31250",
-          "cap": "31360"
+          "cap": "31360",
+          "height": [null, null],
+          "offset": [null, null]
         },
-        "turbo": false,
-        "premine": "20000000"
+        "turbo": false
       },
       "pointer": 1,
-      "edicts": [],
-      "cenotaph": false
+      "cenotaph": true
     },
     "hash": "be3802fa3ae440fefe68da02ca837df0cbb9c2fb5624cc0da0e97dee58f4f551",
     "txIndex": 211,
