@@ -4,7 +4,7 @@ const getReservedName = (block, tx) => {
   return baseValue + combinedValue;
 };
 
-const updateAllocations = (prevAllocations, Allocation) => {
+const updateUnallocated = (prevUnallocatedRunes, Allocation) => {
   /*
     An "Allocation" looks like the following:
     {
@@ -13,9 +13,9 @@ const updateAllocations = (prevAllocations, Allocation) => {
     }
   */
 
-  prevAllocations[Allocation.rune_id] =
-    BigInt(prevAllocations[Allocation.rune_id] ?? "0") + Allocation.amount;
-  return prevAllocations;
+  prevUnallocatedRunes[Allocation.rune_id] =
+    BigInt(prevUnallocatedRunes[Allocation.rune_id] ?? "0") + Allocation.amount;
+  return prevUnallocatedRunes;
 };
 
 const isMintOpen = (block, Rune, mint_offset = false) => {
@@ -111,5 +111,5 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
 module.exports = {
   getReservedName,
   isMintOpen,
-  updateAllocations,
+  updateUnallocated,
 };

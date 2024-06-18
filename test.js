@@ -1,34 +1,12 @@
-const { SpacedRune, Rune } = require( '@ordjs/runestone' );
-const { replacer } = require( './src/lib/helpers' );
-const tx = {
-    output: [
-    	{
-	        "script_pubkey": "6a5d32160000c2a233b0028080c1dfc9b7b8040100008080c1dfc9b7b8040200008080c1dfc9b7b8040300008080c1dfc9b7b80404"
-	    },
-	    {
-	        "script_pubkey": "00149c31f941dd74a2f38f1880f9f3d58d068018f999"
-	    },
-	    {
-	        "script_pubkey": "00149c31f941dd74a2f38f1880f9f3d58d068018f999"
-	    },
-	    {
-	        "script_pubkey": "00149c31f941dd74a2f38f1880f9f3d58d068018f999"
-	    },
-	    {
-	        "script_pubkey": "00149c31f941dd74a2f38f1880f9f3d58d068018f999"
-	    },
-	    {
-	        "script_pubkey": "00149c31f941dd74a2f38f1880f9f3d58d068018f999"
-	    },
-	    
-	    {
-	        "script_pubkey": "00149c31f941dd74a2f38f1880f9f3d58d068018f999"
-	    }
-	]
-}
-  
+const { runestone } = require("@runeapes/apeutils");
+const { Rune } = require("@ordjs/runestone");
 
-  const rune = Rune.fromString('DOGGOTOTHEMOON')
-  const runestone = new SpacedRune(rune, 596);
-
-  console.log(runestone)
+let rune = new Rune(BigInt("2055900680524219742"));
+console.log(rune.toJSON());
+/*
+console.log(
+  runestone.decipher(
+    "02000000000101a2bcf8516f0d06f25a41dd5d3a32ae8aff6737a8c8e465a392610dc3125bb2590000000000fdffffff030000000000000000176a5d14020304de8a85e1ebd881c41c038006000a01080422020000000000001600143536bb237388b0366f74811671e11de5731135bcd250000000000000160014cea13cfd48e2fe823c0fcd06e2000bf6840b28a60340c4cb7c3240ebf90626cade3796bed0ef58ed44c2d0732a82ca78ea583c183b9a05931cde868677d48c23f40f754427dcfa03a3c2d5e64e501a19d1106ca80cc62e2054ce8c25aa339a03e91abe09c1155d3980b824d033b1014da252001a1631a0fcac0063085e4521bcc606881c6821c1c598ec0ffb550be1d255430784cc159eb95bb8fe9a346ac4170b46251929337e00000000"
+  )
+);
+*/

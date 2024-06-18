@@ -10,7 +10,7 @@ const { Op } = require("sequelize");
 const {
   isMintOpen,
   getReservedName,
-  updateAllocations,
+  updateUnallocated,
 } = require("./runeutils");
 
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
@@ -42,13 +42,10 @@ const getAccount = async (address, db) => {
     return account;
   }
 
-  account = await Account.create(
-    { address: address },
-    {
-      address: address,
-      utxo_list: "[]",
-    }
-  );
+  account = await Account.create({
+    address: address,
+    utxo_list: "[]",
+  });
 
   return account;
 };
@@ -99,7 +96,7 @@ const createTransaction = async (Transaction, Account, db) => {
   return transaction;
 };
 
-const getRuneAllocationsFromUtxos = (InputUtxos) => {
+const getUnallocatedRunesFromUtxos = (InputUtxos) => {
   /*
         Important: Rune Balances from this function are returned in big ints in the following format
         {
@@ -119,10 +116,8 @@ const getRuneAllocationsFromUtxos = (InputUtxos) => {
 
         //Sum up all Rune balances for each input UTXO
         RuneBalances.forEach((rune) => {
-          if (!acc[rune.rune_protocol_id]) {
-            acc[rune.rune_protocol_id] = BigInt("0");
-          }
-          acc[rune.rune_protocol_id] += BigInt(rune.amount);
+          acc[rune.rune_protocol_id] =
+            (acc[rune.rune_protocol_id] ?? BigInt("0")) + BigInt(rune.amount);
         });
 
         return acc;
@@ -130,39 +125,81 @@ const getRuneAllocationsFromUtxos = (InputUtxos) => {
   );
 };
 
-const getParentTransactionsMapFromUtxos = async (UtxoFilter, db) => {
-  return (await db.Transactions.findAll({ hash: { $in: UtxoFilter } })).reduce(
-    (acc, Transaction) => {
-      acc[Transaction.hash] = Transaction;
-      return acc;
-    },
+const createNewUtxoBodies = async (vout, Transaction, db) => {
+  const { Account } = db;
+
+  const recipientAddresses = vout
+    .map((utxo) => utxo.scriptPubKey.address)
+    //remove the OP_RETURN
+    .filter((address) => address);
+
+  //Get all recipient addresses already in db and create a hash map
+  const ignoreCreate = (
+    await Account.findAll({
+      where: { address: { [Op.in]: recipientAddresses } },
+    })
+  ).reduce((Acc, account) => ({ ...Acc, [account.address]: account }), {});
+
+  //If an address is not in db, we should get it
+  const toCreate = recipientAddresses.filter(
+    (address) => !ignoreCreate[address]
+  );
+
+  //Create promises creating the new accounts
+  const accountCreationPromises = toCreate.map((address) =>
+    getAccount(address, db)
+  );
+
+  //Resolve promises and create a hash map of the new accounts
+  const newAccounts = (await Promise.all(accountCreationPromises)).reduce(
+    (Acc, account) => ({ ...Acc, [account.address]: account }),
     {}
   );
-};
 
-const createNewUtxoBodies = (vout, MappedTransactions, SpenderAccount) => {
+  //Finally concatenate the two account lists into voutAccounts for linkage to UTXOs
+  const voutAccounts = { ...ignoreCreate, ...newAccounts };
+
   return vout.map((utxo, index) => {
+    const voutAddress = utxo.scriptPubKey.address;
+
     return {
-      account: SpenderAccount.id,
-      transaction_id: MappedTransactions[utxo.hash]?.id ?? -1,
+      /*
+        SEE: https://docs.ordinals.com/runes.html#Burning
+        "Runes may be burned by transferring them to an OP_RETURN output with an edict or pointer."
+
+        This means that an OP_RETURN vout must be saved for processing edicts and unallocated runes,
+        however mustnt be saved as a UTXO in the database as they are burnt.
+
+        Therefore, we mark a utxo as an OP_RETURN by giving it an account id of 0
+      */
+      account: voutAddress ? voutAccounts[voutAddress].id : 0,
+      transaction_id: Transaction.id,
       value_sats: toBigInt(utxo.value.toString(), 8),
-      hash: utxo.hash,
+      hash: Transaction.hash,
       vout_index: index,
       rune_balances: {},
     };
   });
 };
 
-const processMint = async (InputAllocations, Transaction, db) => {
+const processEdicts = async (
+  UnallocatedRunes,
+  pendingUtxos,
+  Transaction,
+  db
+) => {
+  const { block, txIndex, runestone } = Transaction;
+  const { Rune } = db;
+};
+
+const processMint = async (UnallocatedRunes, Transaction, db) => {
   const { block, txIndex, runestone } = Transaction;
   const { mint } = runestone;
 
   const { Rune } = db;
 
   if (!mint) {
-    console.log("no mint");
-
-    return InputAllocations;
+    return UnallocatedRunes;
   }
   //We use the same  process used to calculate the Rune Id in the etch function if "0:0" is referred to
   const runeToMint = await Rune.findOne({
@@ -173,8 +210,7 @@ const processMint = async (InputAllocations, Transaction, db) => {
 
   if (!runeToMint) {
     //The rune requested to be minted does not exist.
-    console.log("rune does not exist");
-    return InputAllocations;
+    return UnallocatedRunes;
   }
 
   if (isMintOpen(block, runeToMint, true)) {
@@ -184,21 +220,20 @@ const processMint = async (InputAllocations, Transaction, db) => {
 
     if (runestone.cenotaph) {
       //If the mint is a cenotaph, the minted amount is burnt
-      return InputAllocations;
+      return UnallocatedRunes;
     }
 
-    return updateAllocations(InputAllocations, {
+    return updateUnallocated(UnallocatedRunes, {
       rune_id: runeToMint.rune_protocol_id,
       amount: BigInt(runeToMint.mint_amount),
     });
   } else {
     //Minting is closed
-    console.log("mint closed");
-    return InputAllocations;
+    return UnallocatedRunes;
   }
 };
 
-const processEtching = async (InputAllocations, Transaction, db) => {
+const processEtching = async (UnallocatedRunes, Transaction, db) => {
   const { block, txIndex, runestone } = Transaction;
 
   const { etching } = runestone;
@@ -207,7 +242,7 @@ const processEtching = async (InputAllocations, Transaction, db) => {
 
   //If no etching, return the input allocations
   if (!runestone.etching) {
-    return InputAllocations;
+    return UnallocatedRunes;
   }
   //If rune name already taken, it is non standard, return the input allocations
 
@@ -225,7 +260,7 @@ const processEtching = async (InputAllocations, Transaction, db) => {
   });
 
   if (isRuneNameTaken) {
-    return InputAllocations;
+    return UnallocatedRunes;
   }
 
   /*
@@ -277,10 +312,10 @@ const processEtching = async (InputAllocations, Transaction, db) => {
 
   if (runestone.cenotaph) {
     //No runes are premined if the tx is a cenotaph.
-    return InputAllocations;
+    return UnallocatedRunes;
   }
 
-  return updateAllocations(InputAllocations, {
+  return updateUnallocated(UnallocatedRunes, {
     rune_id: EtchedRune.rune_protocol_id,
     amount: BigInt(etching.premine),
   });
@@ -303,32 +338,40 @@ const processRunestone = async (Transaction, db) => {
   let UtxoFilter = vin.map((vin) => vin.txid);
 
   //Setup Transaction for processing
+
+  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
   let InputUtxos = await Utxo.findAll({
     where: { hash: { [Op.in]: UtxoFilter } },
   });
+
   let SpenderAccount = await getAccount(
     InputUtxos[0]?.address ?? "GENESIS",
     db
   );
-  let RuneAllocations = getRuneAllocationsFromUtxos(InputUtxos);
+  let UnallocatedRunes = getUnallocatedRunesFromUtxos(InputUtxos);
   //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
 
   //Create A New Transaction to store UTXOs
   let NewTransaction = await createTransaction(Transaction, SpenderAccount, db);
 
-  let NewUtxos = createNewUtxoBodies(vout, "", SpenderAccount);
+  let pendingUtxos = await createNewUtxoBodies(vout, NewTransaction, db);
 
   //Delete UTXOs as they are being spent
   // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
 
-  RuneAllocations = await processEtching(RuneAllocations, Transaction, db);
+  UnallocatedRunes = await processEtching(UnallocatedRunes, Transaction, db);
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
-  RuneAllocations = await processMint(RuneAllocations, Transaction, db);
+  UnallocatedRunes = await processMint(
+    UnallocatedRunes,
+    pendingUtxos,
+    Transaction,
+    db
+  );
 
   //TODO: process edicts (and include processing with the pointer field)
-  console.log(RuneAllocations);
+  console.log(NewUtxos);
 };
 
 const testEdictRune = JSON.parse(
