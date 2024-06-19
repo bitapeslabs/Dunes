@@ -10,7 +10,7 @@ const decipherRunestone = (txJson) => {
     ...decodedBlob?.Runestone,
     ...decodedBlob?.Cenotaph,
     cenotaph:
-      decodedBlob?.Cenotaph ||
+      !!decodedBlob?.Cenotaph ||
       (!decodedBlob?.Runestone &&
         !!txJson.vout.filter((utxo) =>
           utxo.scriptPubKey.asm.includes("OP_RETURN")

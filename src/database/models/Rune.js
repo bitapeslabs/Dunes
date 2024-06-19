@@ -30,7 +30,7 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       total_supply: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
       decimals: {

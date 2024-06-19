@@ -190,11 +190,13 @@ const processEdicts = async (
 ) => {
   const { block, txIndex, runestone } = Transaction;
   const { Rune } = db;
+
+  const { edicts } = runestone;
 };
 
 const processMint = async (UnallocatedRunes, Transaction, db) => {
   const { block, txIndex, runestone } = Transaction;
-  const { mint } = runestone;
+  const mint = runestone?.mint;
 
   const { Rune } = db;
 
@@ -236,7 +238,7 @@ const processMint = async (UnallocatedRunes, Transaction, db) => {
 const processEtching = async (UnallocatedRunes, Transaction, db) => {
   const { block, txIndex, runestone } = Transaction;
 
-  const { etching } = runestone;
+  const etching = runestone?.etching;
 
   const { Rune } = db;
 
@@ -246,17 +248,20 @@ const processEtching = async (UnallocatedRunes, Transaction, db) => {
   }
   //If rune name already taken, it is non standard, return the input allocations
 
-  //Check if a rune name was provided, and if not, generate one
-  let runeName = etching.rune ?? getReservedName(block, txIndex);
+  //Cenotaphs dont have any other etching properties other than their name
+  //If not a cenotaph, check if a rune name was provided, and if not, generate one
+  let runeName = runestone.cenotaph
+    ? etching
+    : etching.rune ?? getReservedName(block, txIndex);
 
   let spacedRune;
 
-  if (etching.spacers) {
+  if (etching.spacers && !runestone.cenotaph) {
     spacedRune = new SpacedRune(OrdRune.fromString(runeName), etching.spacers);
   }
 
   const isRuneNameTaken = await Rune.findOne({
-    where: { name: spacedRune.name },
+    where: { name: spacedRune?.name ?? runeName },
   });
 
   if (isRuneNameTaken) {
@@ -281,7 +286,7 @@ const processEtching = async (UnallocatedRunes, Transaction, db) => {
     //ORD describes no decimals being set as default 0
     decimals: etching.divisibility ?? 0,
 
-    total_supply: etching.premine ?? 0,
+    total_supply: etching.premine ?? "0",
     total_holders: 0, //This is updated on transfer edict
     mints: "0",
     premine: etching.premine ?? "0",
@@ -371,7 +376,7 @@ const processRunestone = async (Transaction, db) => {
   );
 
   //TODO: process edicts (and include processing with the pointer field)
-  console.log(NewUtxos);
+  console.log(pendingUtxos);
 };
 
 const testEdictRune = JSON.parse(

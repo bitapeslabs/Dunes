@@ -1,8 +1,8 @@
 const { runestone } = require("@runeapes/apeutils");
 const { Rune } = require("@ordjs/runestone");
 
-let rune = new Rune(BigInt("2055900680524219742"));
-console.log(rune.toJSON());
+let rune = new Rune(BigInt("7215718024213452000"));
+console.log(rune);
 /*
 console.log(
   runestone.decipher(

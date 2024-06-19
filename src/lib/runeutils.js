@@ -1,7 +1,9 @@
+const { Rune } = require("@ordjs/runestone");
+
 const getReservedName = (block, tx) => {
   const baseValue = BigInt("6402364363415443603228541259936211926");
   const combinedValue = (BigInt(block) << 32n) | BigInt(tx);
-  return baseValue + combinedValue;
+  return Rune(baseValue + combinedValue)?.name;
 };
 
 const updateUnallocated = (prevUnallocatedRunes, Allocation) => {
