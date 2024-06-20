@@ -11,6 +11,7 @@ const {
   isMintOpen,
   getReservedName,
   updateUnallocated,
+  minimumLengthAtHeight,
 } = require("./runeutils");
 
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
@@ -275,6 +276,10 @@ const processEtching = async (UnallocatedRunes, Transaction, db) => {
 
     see unminable flag in rune model
   */
+
+  if (minimumLengthAtHeight(block) > runeName.length) {
+    return UnallocatedRunes;
+  }
 
   const EtchedRune = await Rune.create({
     rune_protocol_id: `${block}:${txIndex}`,

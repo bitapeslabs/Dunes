@@ -1,9 +1,23 @@
 const { Rune } = require("@ordjs/runestone");
+const {
+  RUNE_GENESIS_BLOCK,
+  UNLOCK_INTERVAL,
+  INITIAL_AVAILABLE,
+  STEPS,
+} = require("./constants");
 
 const getReservedName = (block, tx) => {
   const baseValue = BigInt("6402364363415443603228541259936211926");
   const combinedValue = (BigInt(block) << 32n) | BigInt(tx);
   return Rune(baseValue + combinedValue)?.name;
+};
+
+const minimumLengthAtHeight = (block) => {
+  const stepsPassed = Math.floor(
+    (block - RUNE_GENESIS_BLOCK) / UNLOCK_INTERVAL
+  );
+
+  return INITIAL_AVAILABLE - stepsPassed - 1;
 };
 
 const updateUnallocated = (prevUnallocatedRunes, Allocation) => {
