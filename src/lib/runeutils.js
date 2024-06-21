@@ -1,8 +1,14 @@
-const { Rune } = require("@ordjs/runestone");
+const { Rune: OrdJSRune } = require("@ordjs/runestone");
+const { Script } = require("@cmdcode/tapscript");
+
 const {
   RUNE_GENESIS_BLOCK,
   UNLOCK_INTERVAL,
   INITIAL_AVAILABLE,
+  TAPROOT_ANNEX_PREFIX,
+  COMMIT_CONFIRMATIONS,
+  TAPROOT_SCRIPT_PUBKEY_TYPE,
+
   STEPS,
 } = require("./constants");
 
@@ -17,7 +23,100 @@ const minimumLengthAtHeight = (block) => {
     (block - RUNE_GENESIS_BLOCK) / UNLOCK_INTERVAL
   );
 
-  return INITIAL_AVAILABLE - stepsPassed - 1;
+  return INITIAL_AVAILABLE - stepsPassed;
+};
+
+const checkCommitment = async (runeName, Transaction, block, rpc) => {
+  //Credits to @me-foundation/runestone-lib for this function.
+  //Modified to fit this indexer.
+
+  const commitment = getCommitment(runeName).toString("hex");
+
+  for (const input of Transaction.vin) {
+    if ("coinbase" in input) {
+      console.log("coinbase");
+      continue;
+    }
+
+    const witnessStack = input.txinwitness.map((item) =>
+      Buffer.from(item, "hex")
+    );
+
+    const lastWitnessElement = witnessStack[witnessStack.length - 1];
+    const offset =
+      witnessStack.length >= 2 && lastWitnessElement[0] === TAPROOT_ANNEX_PREFIX
+        ? 3
+        : 2;
+    if (offset > witnessStack.length) {
+      console.log("bs1");
+      continue;
+    }
+
+    const potentiallyTapscript = witnessStack[witnessStack.length - offset];
+    if (potentiallyTapscript === undefined) {
+      console.log("bs2");
+      continue;
+    }
+
+    const witnessStackDecompiled = input.txinwitness
+      .map((hex) => {
+        try {
+          let decoded = Script.decode(hex);
+          return decoded;
+        } catch (e) {
+          return false;
+        }
+      })
+
+      .filter((stack) => stack) //remove compilation errors
+      .filter((stack) => stack.includes(commitment)); //decode witness scripts and search for commitment endian
+
+    if (!witnessStackDecompiled.length) {
+      continue;
+    }
+
+    //valid commitment, check for confirmations
+
+    let inputTx;
+
+    try {
+      inputTx = await rpc.getVerboseTransaction(input.txid);
+    } catch (e) {
+      throw "RPC Error during commitment check";
+    }
+
+    const isTaproot =
+      inputTx.vout[input.vout].scriptPubKey.type === TAPROOT_SCRIPT_PUBKEY_TYPE;
+
+    if (!isTaproot) {
+      console.log("bs4");
+      continue;
+    }
+
+    const blockHeight = await rpc.getBlockHeadersFromHash(inputTx.blockhash);
+
+    const confirmations = block - blockHeight + 1;
+
+    if (confirmations >= COMMIT_CONFIRMATIONS) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const getCommitment = (runeName) => {
+  const value = OrdJSRune.fromString(runeName).value;
+  const bytes = Buffer.alloc(16);
+  bytes.writeBigUInt64LE(0xffffffff_ffffffffn & value, 0);
+  bytes.writeBigUInt64LE(value >> 64n, 8);
+
+  let end = bytes.length;
+  while (end > 0 && bytes.at(end - 1) === 0) {
+    end--;
+  }
+
+  return bytes.subarray(0, end);
 };
 
 const updateUnallocated = (prevUnallocatedRunes, Allocation) => {
@@ -128,4 +227,7 @@ module.exports = {
   getReservedName,
   isMintOpen,
   updateUnallocated,
+  minimumLengthAtHeight,
+  getCommitment,
+  checkCommitment,
 };

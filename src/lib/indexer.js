@@ -1,6 +1,9 @@
+require("dotenv").config({ path: "../../.env" });
+
 //Test libs
 const fs = require("fs");
 const path = require("path");
+const { createRpcClient } = require("./rpcapi");
 // ======
 
 const { fromBigInt, toBigInt } = require("./tools");
@@ -12,11 +15,11 @@ const {
   getReservedName,
   updateUnallocated,
   minimumLengthAtHeight,
+  checkCommitment,
 } = require("./runeutils");
 
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 
-require("dotenv").config({ path: "../../.env" });
 const { databaseConnection } = require("../database/createConnection");
 
 //Conversions
@@ -178,7 +181,9 @@ const createNewUtxoBodies = async (vout, Transaction, db) => {
       value_sats: toBigInt(utxo.value.toString(), 8),
       hash: Transaction.hash,
       vout_index: index,
+      block: Transaction.block_id,
       rune_balances: {},
+      block_spent: null,
     };
   });
 };
@@ -236,7 +241,7 @@ const processMint = async (UnallocatedRunes, Transaction, db) => {
   }
 };
 
-const processEtching = async (UnallocatedRunes, Transaction, db) => {
+const processEtching = async (UnallocatedRunes, Transaction, rpc, db) => {
   const { block, txIndex, runestone } = Transaction;
 
   const etching = runestone?.etching;
@@ -247,13 +252,21 @@ const processEtching = async (UnallocatedRunes, Transaction, db) => {
   if (!runestone.etching) {
     return UnallocatedRunes;
   }
+
   //If rune name already taken, it is non standard, return the input allocations
 
   //Cenotaphs dont have any other etching properties other than their name
   //If not a cenotaph, check if a rune name was provided, and if not, generate one
+
   let runeName = runestone.cenotaph
     ? etching
     : etching.rune ?? getReservedName(block, txIndex);
+
+  //Check for valid commitment before doing anything (incase non reserved name)
+
+  if (minimumLengthAtHeight(block) > runeName.length) {
+    return UnallocatedRunes;
+  }
 
   let spacedRune;
 
@@ -261,12 +274,28 @@ const processEtching = async (UnallocatedRunes, Transaction, db) => {
     spacedRune = new SpacedRune(OrdRune.fromString(runeName), etching.spacers);
   }
 
-  const isRuneNameTaken = await Rune.findOne({
-    where: { name: spacedRune?.name ?? runeName },
-  });
+  const isRuneNameTaken = !!(await Rune.findOne({
+    where: { raw_name: runeName },
+  }));
 
   if (isRuneNameTaken) {
     return UnallocatedRunes;
+  }
+
+  //This is processed last since it is the most computationally expensive call (we have to call RPC twice)
+  const isReserved = !etching.rune;
+
+  if (!isReserved) {
+    const hasValidCommitment = await checkCommitment(
+      runeName,
+      Transaction,
+      block,
+      rpc
+    );
+
+    if (!hasValidCommitment) {
+      return UnallocatedRunes;
+    }
   }
 
   /*
@@ -276,10 +305,6 @@ const processEtching = async (UnallocatedRunes, Transaction, db) => {
 
     see unminable flag in rune model
   */
-
-  if (minimumLengthAtHeight(block) > runeName.length) {
-    return UnallocatedRunes;
-  }
 
   const EtchedRune = await Rune.create({
     rune_protocol_id: `${block}:${txIndex}`,
@@ -331,7 +356,7 @@ const processEtching = async (UnallocatedRunes, Transaction, db) => {
   });
 };
 
-const processRunestone = async (Transaction, db) => {
+const processRunestone = async (Transaction, rpc, db) => {
   const { runestone, hash, vout, vin } = Transaction;
 
   const {
@@ -369,7 +394,12 @@ const processRunestone = async (Transaction, db) => {
   //Delete UTXOs as they are being spent
   // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
 
-  UnallocatedRunes = await processEtching(UnallocatedRunes, Transaction, db);
+  UnallocatedRunes = await processEtching(
+    UnallocatedRunes,
+    Transaction,
+    rpc,
+    db
+  );
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
@@ -381,7 +411,7 @@ const processRunestone = async (Transaction, db) => {
   );
 
   //TODO: process edicts (and include processing with the pointer field)
-  console.log(pendingUtxos);
+  console.log(UnallocatedRunes);
 };
 
 const testEdictRune = JSON.parse(
@@ -392,12 +422,17 @@ const testEdictRune = JSON.parse(
 );
 
 const test = async () => {
+  const rpc_client = createRpcClient({
+    url: process.env.BTC_RPC_URL,
+    username: process.env.BTC_RPC_USERNAME,
+    password: process.env.BTC_RPC_PASSWORD,
+  });
   const db = await databaseConnection();
 
   //const rune = await db.Rune.findOne({where: {name: 'FIAT•IS•HELL•MONEY'}})
   //console.log(isMintOpen(844000, rune))
 
-  processRunestone(testEdictRune, db);
+  processRunestone(testEdictRune, rpc_client, db);
 };
 
 test();

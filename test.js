@@ -1,8 +1,33 @@
 const { runestone } = require("@runeapes/apeutils");
 const { Rune } = require("@ordjs/runestone");
+const { getCommitment } = require("./src/lib/runeutils");
+const { Script } = require("@cmdcode/tapscript");
+const fs = require("fs");
+const path = require("path");
 
-let rune = new Rune(BigInt("6402364363415443603228541259936211926"));
-console.log(rune);
+const testEdictRune = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "./dumps/testEdictRune.json"), "utf8")
+);
+
+const batchDecode = async () => {
+  let decodedScripts = testEdictRune.vin[0].txinwitness.map((item) => {
+    try {
+      let script = Script.decode(item);
+      return script;
+    } catch (e) {
+      console.log(e);
+      return false;
+    }
+  });
+
+  console.log(decodedScripts);
+};
+//let commitment = getCommitment("RUNEAPESSHARES").toString("hex");
+//console.log(getCommitment("RUNEAPESSHARES").toString("hex"));
+
+//console.log(decoded);
+batchDecode();
+//let rune = Rune.fromString("ANEWRUNE");
 /*
 console.log(
   runestone.decipher(
