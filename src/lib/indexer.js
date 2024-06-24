@@ -198,6 +198,95 @@ const processEdicts = async (
   const { Rune } = db;
 
   const { edicts } = runestone;
+
+  if (runestone.cenotaph) {
+    //Transaction is a cenotaph, input runes are burnt.
+    //https://docs.ordinals.com/runes/specification.html#Transferring
+    return {};
+  }
+
+  const transactionRuneId = `${block}:${txIndex}`;
+
+  //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
+  let existingRunes = await Rune.findAll({
+    where: {
+      rune_protocol_id: {
+        [Op.in]: Object.keys(edicts.map((edict) => edict.id)),
+      },
+    },
+  }).reduce((acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }), {});
+
+  //Replace all references of 0:0 with the actual rune id which we have stored on db (Transferring#5)
+  edicts = edicts.map(
+    (edict) => (edict.id = edict.id === "0:0" ? transactionRuneId : edict.id)
+  );
+
+  let allocate = (utxo, amount) => {
+    //Allocate a rune to a utxo
+
+    UnallocatedRunes[edict.id] =
+      (UnallocatedRunes[edict.id] ?? BigInt(0)) - BigInt(amount);
+
+    utxo.rune_balances[edict.id] =
+      (utxo.rune_balances[edict.id] ?? BigInt(0)) + BigInt(amount);
+  };
+
+  //References are kept because filter does not clone the array
+  let nonOpReturnOutputs = pendingUtxos.filter((utxo) => utxo.account !== 0);
+
+  for (let edict in edicts) {
+    //A runestone may contain any number of edicts, which are processed in sequence.
+
+    if (!existingRunes[edict.id]) {
+      //If the rune does not exist, the edict is ignored
+      continue;
+    }
+
+    if (!UnallocatedRunes[edict.id]) {
+      //If the rune is not in the unallocated runes, it is ignored
+      continue;
+    }
+
+    if (edict.output === pendingUtxos.length) {
+      //If an edict attempts to allocate more runes than in UnallocatedRunes while recursively allocating to all non-OP_RETURN outputs, the amount is replaced with Unallocated runes
+      //This means that they are split evenly, so behavior is the same as edict.amount === 0
+      if (
+        edict.amount === 0 ||
+        BigInt(edict.amount) * BigInt(edict.output) >
+          BigInt(UnallocatedRunes[edict.id])
+      ) {
+        /*
+            An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of rune id between each non OP_RETURN output.
+        */
+
+        const amountOutputs = BigInt(nonOpReturnOutputs.length);
+        //By default all txs have exactly one OP_RETURN, because they are needed for runestones. More than 1 OP_RETURN is considered non-standard and ignored by btc nodes.
+
+        const amount = BigInt(UnallocatedRunes[edict.id]) / amountOutputs;
+        const remainder = BigInt(UnallocatedRunes[edict.id]) % amountOutputs;
+
+        nonOpReturnOutputs.forEach((utxo, index) =>
+          allocate(utxo, amount + (index < remainder ? BigInt(1) : BigInt(0)))
+        );
+
+        if (remainder !== BigInt(0)) {
+          //If the number of unallocated runes is not divisible by the number of non-OP_RETURN outputs, 1 additional rune is assigned to the first R non-OP_RETURN outputs
+
+          nonOpReturnOutputs
+            //Get the first R outputs
+            .slice(0, remainder)
+            //Allocate 1 rune to each
+            .forEach((utxo) => allocate(utxo, BigInt(1)));
+        }
+      }
+      //If an edict would allocate more runes than are currently unallocated, the amount is reduced to the number of currently unallocated runes. In other words, the edict allocates all remaining unallocated units of rune id.
+
+      nonOpReturnOutputs.forEach((utxo) =>
+        allocate(utxo, BigInt(edict.amount))
+      );
+      continue;
+    }
+  }
 };
 
 const processMint = async (UnallocatedRunes, Transaction, db) => {
