@@ -14,11 +14,13 @@
     "@runeapes/apeutils": "^1.0.1",
     "axios": "^1.7.1",
     "bitcoin-core": "^4.2.0",
+    "bitcoinjs-lib": "^6.1.6",
     "dotenv": "^16.4.5",
     "execa": "^9.1.0",
     "express": "^4.19.2",
     "mariadb": "^3.3.0",
     "runelib": "^1.0.6",
-    "sequelize": "^6.37.3"
+    "sequelize": "^6.37.3",
+    "tiny-secp256k1": "^2.2.3"
   }
 }

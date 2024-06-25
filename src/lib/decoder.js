@@ -13,7 +13,8 @@ const decipherRunestone = (txJson) => {
       !!decodedBlob?.Cenotaph ||
       (!decodedBlob?.Runestone &&
         !!txJson.vout.filter((utxo) =>
-          utxo.scriptPubKey.asm.includes("OP_RETURN")
+          //PUSHNUM_13 is CRUCIAL for defining a cenotaph, if just an "OP_RETURN" is present, its treated as a normal tx
+          utxo.scriptPubKey.asm.includes("OP_RETURN 13")
         ).length),
   };
 };

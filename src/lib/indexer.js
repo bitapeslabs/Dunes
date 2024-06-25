@@ -197,7 +197,7 @@ const processEdicts = async (
   const { block, txIndex, runestone } = Transaction;
   const { Rune } = db;
 
-  const { edicts } = runestone;
+  let { edicts, pointer } = runestone;
 
   if (runestone.cenotaph) {
     //Transaction is a cenotaph, input runes are burnt.
@@ -207,36 +207,50 @@ const processEdicts = async (
 
   const transactionRuneId = `${block}:${txIndex}`;
 
-  //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
-  let existingRunes = await Rune.findAll({
-    where: {
-      rune_protocol_id: {
-        [Op.in]: Object.keys(edicts.map((edict) => edict.id)),
-      },
-    },
-  }).reduce((acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }), {});
-
   //Replace all references of 0:0 with the actual rune id which we have stored on db (Transferring#5)
-  edicts = edicts.map(
+  edicts.forEach(
     (edict) => (edict.id = edict.id === "0:0" ? transactionRuneId : edict.id)
   );
 
-  let allocate = (utxo, amount) => {
-    //Allocate a rune to a utxo
+  let edictFilter = edicts.map((edict) => edict.id);
 
-    UnallocatedRunes[edict.id] =
-      (UnallocatedRunes[edict.id] ?? BigInt(0)) - BigInt(amount);
+  //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
+  let existingRunes = (
+    await Rune.findAll({
+      where: {
+        rune_protocol_id: {
+          [Op.in]: edictFilter,
+        },
+      },
+    })
+  ).reduce((acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }), {});
 
-    utxo.rune_balances[edict.id] =
-      (utxo.rune_balances[edict.id] ?? BigInt(0)) + BigInt(amount);
+  let allocate = (utxo, runeId, amount) => {
+    /*
+        See: https://docs.ordinals.com/runes/specification.html#Trasnferring
+        
+        An edict with amount zero allocates all remaining units of rune id.
+       
+        If an edict would allocate more runes than are currently unallocated, the amount is reduced to the number of currently unallocated runes. In other words, the edict allocates all remaining unallocated units of rune id.
+
+
+    */
+    let unallocated = UnallocatedRunes[runeId];
+    let withDefault =
+      unallocated < amount || amount === 0 ? unallocated : amount;
+
+    UnallocatedRunes[runeId] = (unallocated ?? BigInt(0)) - withDefault;
+
+    utxo.rune_balances[runeId] =
+      (utxo.rune_balances[runeId] ?? BigInt(0)) + withDefault;
   };
 
   //References are kept because filter does not clone the array
   let nonOpReturnOutputs = pendingUtxos.filter((utxo) => utxo.account !== 0);
 
-  for (let edict in edicts) {
+  for (let edictIndex in edicts) {
+    let edict = edicts[edictIndex];
     //A runestone may contain any number of edicts, which are processed in sequence.
-
     if (!existingRunes[edict.id]) {
       //If the rune does not exist, the edict is ignored
       continue;
@@ -248,13 +262,7 @@ const processEdicts = async (
     }
 
     if (edict.output === pendingUtxos.length) {
-      //If an edict attempts to allocate more runes than in UnallocatedRunes while recursively allocating to all non-OP_RETURN outputs, the amount is replaced with Unallocated runes
-      //This means that they are split evenly, so behavior is the same as edict.amount === 0
-      if (
-        edict.amount === 0 ||
-        BigInt(edict.amount) * BigInt(edict.output) >
-          BigInt(UnallocatedRunes[edict.id])
-      ) {
+      if (edict.amount === "0") {
         /*
             An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of rune id between each non OP_RETURN output.
         */
@@ -265,28 +273,34 @@ const processEdicts = async (
         const amount = BigInt(UnallocatedRunes[edict.id]) / amountOutputs;
         const remainder = BigInt(UnallocatedRunes[edict.id]) % amountOutputs;
 
+        const withRemainder = amount + BigInt(1);
+
         nonOpReturnOutputs.forEach((utxo, index) =>
-          allocate(utxo, amount + (index < remainder ? BigInt(1) : BigInt(0)))
+          allocate(utxo, edict.id, index < remainder ? withRemainder : amount)
         );
+      } else {
+        //If an edict would allocate more runes than are currently unallocated, the amount is reduced to the number of currently unallocated runes. In other words, the edict allocates all remaining unallocated units of rune id.
 
-        if (remainder !== BigInt(0)) {
-          //If the number of unallocated runes is not divisible by the number of non-OP_RETURN outputs, 1 additional rune is assigned to the first R non-OP_RETURN outputs
-
-          nonOpReturnOutputs
-            //Get the first R outputs
-            .slice(0, remainder)
-            //Allocate 1 rune to each
-            .forEach((utxo) => allocate(utxo, BigInt(1)));
-        }
+        nonOpReturnOutputs.forEach((utxo) =>
+          allocate(utxo, edict.id, BigInt(edict.amount))
+        );
       }
-      //If an edict would allocate more runes than are currently unallocated, the amount is reduced to the number of currently unallocated runes. In other words, the edict allocates all remaining unallocated units of rune id.
-
-      nonOpReturnOutputs.forEach((utxo) =>
-        allocate(utxo, BigInt(edict.amount))
-      );
       continue;
     }
+
+    //Transferring directly to op_return is allowed
+    allocate(pendingUtxos[edict.output], edict.id, BigInt(edict.amount));
   }
+
+  //Transfer remaining runes to the first non-opreturn output
+  let pointerOutput = nonOpReturnOutputs[pointer ?? 0];
+
+  //move Unallocated runes to pointer output
+  Object.entries(UnallocatedRunes).forEach((allocationData) =>
+    allocate(pointerOutput, allocationData[0], allocationData[1])
+  );
+
+  return;
 };
 
 const processMint = async (UnallocatedRunes, Transaction, db) => {
@@ -483,24 +497,20 @@ const processRunestone = async (Transaction, rpc, db) => {
   //Delete UTXOs as they are being spent
   // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
 
-  UnallocatedRunes = await processEtching(
-    UnallocatedRunes,
-    Transaction,
-    rpc,
-    db
-  );
+  //Reference of UnallocatedRunes and pendingUtxos is passed around in follwoing functions
+  await processEtching(UnallocatedRunes, Transaction, rpc, db);
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
-  UnallocatedRunes = await processMint(
-    UnallocatedRunes,
-    pendingUtxos,
-    Transaction,
-    db
-  );
+  await processMint(UnallocatedRunes, pendingUtxos, Transaction, db);
 
-  //TODO: process edicts (and include processing with the pointer field)
+  await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, db);
+
+  console.log("Rune processed:");
   console.log(UnallocatedRunes);
+  console.log(pendingUtxos);
+
+  //TODO: save utxos to db, update accounts, etc
 };
 
 const testEdictRune = JSON.parse(

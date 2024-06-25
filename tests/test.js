@@ -1,12 +1,12 @@
 //const { runestone } = require("@runeapes/apeutils");
 const { Rune, RuneId, Runestone, u32, u128 } = require("@ordjs/runestone");
-const { getCommitment } = require("./src/lib/runeutils");
+const { getCommitment } = require("../src/lib/runeutils");
 const { Script } = require("@cmdcode/tapscript");
 const fs = require("fs");
 const path = require("path");
 
 const testEdictRune = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "./dumps/testEdictRune.json"), "utf8")
+  fs.readFileSync(path.join(__dirname, "../dumps/testEdictRune.json"), "utf8")
 );
 
 const batchDecode = async () => {
@@ -27,6 +27,9 @@ const batchDecode = async () => {
 
 //console.log(decoded);
 const runestone = new Runestone({
-  edicts: [{ id: new RuneId(113n, 1), amount: BigInt("600"), output: 0 }],
+  edicts: [{ id: new RuneId(113n, 1), amount: BigInt("300"), output: 3 }],
 });
+
+//007101d80400
+
 console.log(runestone.encipher());

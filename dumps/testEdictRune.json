@@ -1,6 +1,25 @@
 {
     "runestone": {
-      "edicts": [],
+      "edicts": [{
+        "id": "0:0",
+        "amount": "900",
+        "output": 3
+      },
+      {
+        "id": "0:0",
+        "amount": "900",
+        "output": 3
+      },
+      {
+        "id": "0:0",
+        "amount": "0",
+        "output": 3
+      },
+      {
+        "id": "0:0",
+        "amount": "900",
+        "output": 3
+      }],
       "etching": {
         "divisibility": 18,
         "premine": "150000000000000000000000000",
