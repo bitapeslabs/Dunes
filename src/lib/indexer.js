@@ -8,8 +8,6 @@ const { createRpcClient } = require("./rpcapi");
 
 const { fromBigInt, toBigInt } = require("./tools");
 
-const { Op } = require("sequelize");
-
 const {
   isMintOpen,
   getReservedName,
@@ -18,14 +16,11 @@ const {
   checkCommitment,
 } = require("./runeutils");
 
+const { storage: newStorage } = require("./storage");
+
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 
-const { databaseConnection } = require("../database/createConnection");
-
-//Conversions
-
-const getAccount = async (address, db) => {
-  //New runes minted from coinbase, or UTXO is not known
+const findAccountOrCreate = async (address, storage) => {
   /*
 
         The indexer starts keeping track of Utxos at RUNE GENESIS block 840,000. Any utxo before this in the explorer will be seen as genesis for inputs.
@@ -34,49 +29,22 @@ const getAccount = async (address, db) => {
 
         Any edicts with Genesis as an input should be ignored.
     */
+
+  const { findOrCreate } = storage;
+
   if (address === "GENESIS") {
     return { id: -1 };
   }
 
-  const { Account } = db;
-
-  let account = await Account.findOne({ where: { address: address } });
-
-  if (account) {
-    return account;
-  }
-
-  account = await Account.create({
-    address: address,
-    utxo_list: "[]",
-  });
-
-  return account;
+  return await findOrCreate("Account", address, { address, utxo_list: "[]" });
 };
 
-const createTransaction = async (Transaction, Account, db) => {
-  /*
-
-    Rune Balances:
-    {
-        rune_id,
-        amount
-    }
-    */
-
-  const { Transactions } = db;
+const findTransactionOrCreate = async (Transaction, Account, storage) => {
+  const { findOrCreate } = storage;
 
   const { runestone, hash, block, hex, vout, txIndex } = Transaction;
 
-  let transaction = await Transactions.findOne({
-    where: { hash: Transaction.hash },
-  });
-
-  if (transaction) {
-    return transaction;
-  }
-
-  let NewTransactionData = {
+  let transaction = await findOrCreate("Transaction", Transaction.hash, {
     block_id: block,
     tx_index: txIndex,
     address_id: Account.id,
@@ -93,9 +61,7 @@ const createTransaction = async (Transaction, Account, db) => {
     hex,
     runestone: JSON.stringify(runestone),
     hash: hash,
-  };
-
-  transaction = await Transactions.create(NewTransactionData);
+  });
 
   return transaction;
 };
@@ -129,8 +95,8 @@ const getUnallocatedRunesFromUtxos = (InputUtxos) => {
   );
 };
 
-const createNewUtxoBodies = async (vout, Transaction, db) => {
-  const { Account } = db;
+const createNewUtxoBodies = async (vout, Transaction, storage) => {
+  const { findManyInFilter } = storage;
 
   const recipientAddresses = vout
     .map((utxo) => utxo.scriptPubKey.address)
@@ -139,9 +105,7 @@ const createNewUtxoBodies = async (vout, Transaction, db) => {
 
   //Get all recipient addresses already in db and create a hash map
   const ignoreCreate = (
-    await Account.findAll({
-      where: { address: { [Op.in]: recipientAddresses } },
-    })
+    await findManyInFilter("Account", recipientAddresses)
   ).reduce((Acc, account) => ({ ...Acc, [account.address]: account }), {});
 
   //If an address is not in db, we should get it
@@ -151,7 +115,7 @@ const createNewUtxoBodies = async (vout, Transaction, db) => {
 
   //Create promises creating the new accounts
   const accountCreationPromises = toCreate.map((address) =>
-    getAccount(address, db)
+    findAccountOrCreate(address, storage)
   );
 
   //Resolve promises and create a hash map of the new accounts
@@ -192,10 +156,10 @@ const processEdicts = async (
   UnallocatedRunes,
   pendingUtxos,
   Transaction,
-  db
+  storage
 ) => {
   const { block, txIndex, runestone } = Transaction;
-  const { Rune } = db;
+  const { findManyInFilter } = storage;
 
   let { edicts, pointer } = runestone;
 
@@ -215,15 +179,10 @@ const processEdicts = async (
   let edictFilter = edicts.map((edict) => edict.id);
 
   //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
-  let existingRunes = (
-    await Rune.findAll({
-      where: {
-        rune_protocol_id: {
-          [Op.in]: edictFilter,
-        },
-      },
-    })
-  ).reduce((acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }), {});
+  let existingRunes = (await findManyInFilter("Rune", edictFilter)).reduce(
+    (acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }),
+    {}
+  );
 
   let allocate = (utxo, runeId, amount) => {
     /*
@@ -303,21 +262,20 @@ const processEdicts = async (
   return;
 };
 
-const processMint = async (UnallocatedRunes, Transaction, db) => {
+const processMint = async (UnallocatedRunes, Transaction, storage) => {
   const { block, txIndex, runestone } = Transaction;
   const mint = runestone?.mint;
 
-  const { Rune } = db;
+  const { findOne } = storage;
 
   if (!mint) {
     return UnallocatedRunes;
   }
   //We use the same  process used to calculate the Rune Id in the etch function if "0:0" is referred to
-  const runeToMint = await Rune.findOne({
-    where: {
-      rune_protocol_id: mint === "0:0" ? `${block}:${txIndex}` : mint,
-    },
-  });
+  const runeToMint = await findOne(
+    "Rune",
+    mint === "0:0" ? `${block}:${txIndex}` : mint
+  );
 
   if (!runeToMint) {
     //The rune requested to be minted does not exist.
@@ -326,8 +284,14 @@ const processMint = async (UnallocatedRunes, Transaction, db) => {
 
   if (isMintOpen(block, runeToMint, true)) {
     //Update new mints to count towards cap
-    runeToMint.mints = BigInt(runeToMint.mints) + BigInt(1);
-    await runeToMint.save();
+
+    let newMints = (BigInt(runeToMint.mints) + BigInt(1)).toString();
+    await updateAttribute(
+      "Rune",
+      runeToMint.rune_protocol_id,
+      "mints",
+      newMints
+    );
 
     if (runestone.cenotaph) {
       //If the mint is a cenotaph, the minted amount is burnt
@@ -344,12 +308,12 @@ const processMint = async (UnallocatedRunes, Transaction, db) => {
   }
 };
 
-const processEtching = async (UnallocatedRunes, Transaction, rpc, db) => {
+const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
   const { block, txIndex, runestone } = Transaction;
 
   const etching = runestone?.etching;
 
-  const { Rune } = db;
+  const { findOneWithAttribute, create } = storage;
 
   //If no etching, return the input allocations
   if (!runestone.etching) {
@@ -377,9 +341,11 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, db) => {
     spacedRune = new SpacedRune(OrdRune.fromString(runeName), etching.spacers);
   }
 
-  const isRuneNameTaken = !!(await Rune.findOne({
-    where: { raw_name: runeName },
-  }));
+  const isRuneNameTaken = !!(await findOneWithAttribute(
+    "Rune",
+    "raw_name",
+    runeName
+  ));
 
   if (isRuneNameTaken) {
     return UnallocatedRunes;
@@ -409,7 +375,7 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, db) => {
     see unminable flag in rune model
   */
 
-  const EtchedRune = await Rune.create({
+  const EtchedRune = create("Rune", {
     rune_protocol_id: `${block}:${txIndex}`,
     name: spacedRune ? spacedRune.name : runeName,
     raw_name: runeName,
@@ -459,56 +425,52 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, db) => {
   });
 };
 
-const processRunestone = async (Transaction, rpc, db) => {
-  const { runestone, hash, vout, vin } = Transaction;
+const processRunestone = async (Transaction, rpc, storage) => {
+  const { vout, vin } = Transaction;
 
-  const {
-    Account,
-    Balance,
-    Rune,
-    Runestone: RunestoneModel,
-    Transactions,
-    Utxo,
-  } = db;
+  // const SpenderAccount = await _findAccountOrCreate(Transaction, db)
 
-  // const SpenderAccount = await _getAccount(Transaction, db)
+  const { findManyInFilter } = storage;
 
   let UtxoFilter = vin.map((vin) => vin.txid);
 
   //Setup Transaction for processing
 
   //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
-  let InputUtxos = await Utxo.findAll({
-    where: { hash: { [Op.in]: UtxoFilter } },
-  });
+  let InputUtxos = await findManyInFilter("Utxo", UtxoFilter);
 
-  let SpenderAccount = await getAccount(
+  let SpenderAccount = await findAccountOrCreate(
     InputUtxos[0]?.address ?? "GENESIS",
-    db
+    storage
   );
   let UnallocatedRunes = getUnallocatedRunesFromUtxos(InputUtxos);
   //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
 
   //Create A New Transaction to store UTXOs
-  let NewTransaction = await createTransaction(Transaction, SpenderAccount, db);
+  let NewTransaction = await findTransactionOrCreate(
+    Transaction,
+    SpenderAccount,
+    storage
+  );
 
-  let pendingUtxos = await createNewUtxoBodies(vout, NewTransaction, db);
+  let pendingUtxos = await createNewUtxoBodies(vout, NewTransaction, storage);
 
   //Delete UTXOs as they are being spent
   // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
 
   //Reference of UnallocatedRunes and pendingUtxos is passed around in follwoing functions
-  await processEtching(UnallocatedRunes, Transaction, rpc, db);
+  await processEtching(UnallocatedRunes, Transaction, rpc, storage);
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
-  await processMint(UnallocatedRunes, pendingUtxos, Transaction, db);
+  await processMint(UnallocatedRunes, pendingUtxos, Transaction, storage);
 
-  await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, db);
+  await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
 
   console.log("Rune processed:");
   console.log(UnallocatedRunes);
   console.log(pendingUtxos);
+  console.log(storage.local);
 
   //TODO: save utxos to db, update accounts, etc
 };
@@ -526,12 +488,12 @@ const test = async () => {
     username: process.env.BTC_RPC_USERNAME,
     password: process.env.BTC_RPC_PASSWORD,
   });
-  const db = await databaseConnection();
+  const storage = await newStorage();
 
   //const rune = await db.Rune.findOne({where: {name: 'FIAT•IS•HELL•MONEY'}})
   //console.log(isMintOpen(844000, rune))
 
-  processRunestone(testEdictRune, rpc_client, db);
+  processRunestone(testEdictRune, rpc_client, storage);
 };
 
 test();
