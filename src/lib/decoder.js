@@ -1,6 +1,6 @@
 require("dotenv").config({ path: "../../.env" });
 const { runestone } = require("@runeapes/apeutils");
-const { stripObject } = require("./helpers");
+const { stripObject } = require("./tools");
 
 const decipherRunestone = (txJson) => {
   let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});

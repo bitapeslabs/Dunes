@@ -313,7 +313,7 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
 
   const etching = runestone?.etching;
 
-  const { findOneWithAttribute, create } = storage;
+  const { findOne, create } = storage;
 
   //If no etching, return the input allocations
   if (!runestone.etching) {
@@ -341,11 +341,7 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
     spacedRune = new SpacedRune(OrdRune.fromString(runeName), etching.spacers);
   }
 
-  const isRuneNameTaken = !!(await findOneWithAttribute(
-    "Rune",
-    "raw_name",
-    runeName
-  ));
+  const isRuneNameTaken = !!(await findOne("Rune", runeName, "raw_name"));
 
   if (isRuneNameTaken) {
     return UnallocatedRunes;
@@ -430,7 +426,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   // const SpenderAccount = await _findAccountOrCreate(Transaction, db)
 
-  const { findManyInFilter } = storage;
+  const { findManyInFilter, commitChanges } = storage;
 
   let UtxoFilter = vin.map((vin) => vin.txid);
 
@@ -467,10 +463,11 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
 
-  console.log("Rune processed:");
-  console.log(UnallocatedRunes);
-  console.log(pendingUtxos);
-  console.log(storage.local);
+  console.log("Rune processed, pushing to db...");
+
+  await commitChanges();
+
+  console.log("Pushed to db");
 
   //TODO: save utxos to db, update accounts, etc
 };
