@@ -14,23 +14,18 @@ const storage = async () => {
     Utxo: "hash",
   };
 
-  // This object is mapped to the most common primary key queries for O(1) access
-  let local = {
-      // Indexed by "address"
-      Account: {},
-      // Indexed by "address"
-      Balance: {},
-      // Indexed by "rune_protocol_id"
-      Rune: {},
-      // Indexed by "hash"
-      Transaction: {},
-      // Indexed by "txid:vout"
-      Utxo: {},
-    },
+  const _genDefaultCache = () =>
+    Object.keys(LOCAL_PRIMARY_KEYS).reduce((acc, key) => {
+      acc[key] = {};
+      return acc;
+    }, {});
+
+  // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
+  let local = _genDefaultCache(),
     db,
     rawConnection;
 
-  const cachedAutoIncrements = {};
+  let cachedAutoIncrements = {};
 
   const _getAutoIncrement = async (tableName) => {
     //Sequelize be default uses singular nouns, so the Cache library does also. Names need to be pluralized before querying the database.
@@ -277,10 +272,7 @@ const storage = async () => {
     }
 
     //Reset all local cache after commit
-    local = Object.keys(local).reduce((acc, modelName) => {
-      acc[modelName] = {};
-      return acc;
-    }, {});
+    local = _genDefaultCache();
   };
 
   await _init();
