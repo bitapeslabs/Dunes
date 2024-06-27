@@ -6,7 +6,7 @@ const path = require("path");
 const { createRpcClient } = require("./rpcapi");
 // ======
 
-const { fromBigInt, toBigInt } = require("./tools");
+const { fromBigInt, toBigInt, stripObject } = require("./tools");
 
 const {
   isMintOpen,
@@ -148,8 +148,14 @@ const createNewUtxoBodies = async (vout, Transaction, storage) => {
       block: Transaction.block_id,
       rune_balances: {},
       block_spent: null,
+      utxo_hash: Transaction.hash + ":" + index,
     };
   });
+};
+
+const updateOrCreateBalances = async (pendingUtxos, storage) => {
+  //TODO: Implement balance map to addresses
+  //const {findOrCreate} = storage
 };
 
 const processEdicts = async (
@@ -426,9 +432,9 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   // const SpenderAccount = await _findAccountOrCreate(Transaction, db)
 
-  const { findManyInFilter, commitChanges } = storage;
+  const { findManyInFilter, updateAttribute, create } = storage;
 
-  let UtxoFilter = vin.map((vin) => vin.txid);
+  let UtxoFilter = vin.map((vin) => vin.txid + ":" + vin.vout);
 
   //Setup Transaction for processing
 
@@ -463,13 +469,21 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
 
-  console.log("Rune processed, pushing to db...");
+  //Update all input UTXOs as spent
+  InputUtxos.forEach((utxo) =>
+    updateAttribute("Utxo", utxo.utxo_hash, "block_spent", Transaction.block_id)
+  );
 
-  await commitChanges();
+  //parse rune_balances for all pendingUtxos
+  pendingUtxos.forEach((utxo) => {
+    utxo.rune_balances = JSON.stringify(stripObject(utxo.rune_balances));
+  });
 
-  console.log("Pushed to db");
+  //Create all UTXOs
+  pendingUtxos.forEach((utxo) => create("Utxo", utxo));
 
-  //TODO: save utxos to db, update accounts, etc
+  console.log(storage.local);
+  return;
 };
 
 const testEdictRune = JSON.parse(

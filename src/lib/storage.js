@@ -11,7 +11,7 @@ const storage = async () => {
     Balance: "address",
     Rune: "rune_protocol_id",
     Transaction: "hash",
-    Utxo: "hash",
+    Utxo: "utxo_hash",
   };
 
   const _genDefaultCache = () =>
@@ -71,7 +71,17 @@ const storage = async () => {
     }
   };
 
-  const updateAttribute = async (modelName, primary, attribute, value) => {
+  const updateAttribute = async (
+    modelName,
+    primary,
+    attribute,
+    value,
+    /*
+      Optional, uses the template to create a row rather than fetching from db. 
+      Useful if we are updating many rows we already have stored in memory somewhere else
+    */
+    template
+  ) => {
     const { [modelName]: LocalModel } = local;
 
     let primaryKey = LOCAL_PRIMARY_KEYS[modelName];
@@ -82,7 +92,7 @@ const storage = async () => {
     }
 
     try {
-      let liveModel = await findOne(modelName, primary);
+      let liveModel = template ?? (await findOne(modelName, primary));
       let newPrimary = liveModel[primaryKey];
 
       LocalModel[newPrimary] = { ...liveModel, [attribute]: value };
