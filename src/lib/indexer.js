@@ -148,7 +148,6 @@ const createNewUtxoBodies = async (vout, Transaction, storage) => {
       block: Transaction.block_id,
       rune_balances: {},
       block_spent: null,
-      utxo_hash: Transaction.hash + ":" + index,
     };
   });
 };
@@ -434,7 +433,10 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   const { findManyInFilter, updateAttribute, create } = storage;
 
-  let UtxoFilter = vin.map((vin) => vin.txid + ":" + vin.vout);
+  let UtxoFilter = vin.map((vin) => [
+    { hash: vin.txid },
+    { vout_index: vin.vout },
+  ]);
 
   //Setup Transaction for processing
 
@@ -471,7 +473,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   //Update all input UTXOs as spent
   InputUtxos.forEach((utxo) =>
-    updateAttribute("Utxo", utxo.utxo_hash, "block_spent", Transaction.block_id)
+    updateAttribute("Utxo", utxo.id, "block_spent", Transaction.block_id)
   );
 
   //parse rune_balances for all pendingUtxos
@@ -505,6 +507,19 @@ const test = async () => {
   //console.log(isMintOpen(844000, rune))
 
   processRunestone(testEdictRune, rpc_client, storage);
+  /*
+  const { findManyInFilter, create } = storage;
+
+  create("Account", { address: "test_address_1", utxo_list: "[]" });
+  create("Account", { address: "test_address_2", utxo_list: "[]" });
+
+  console.log(
+    await findManyInFilter("Account", [
+      "bc1pphwjuufrx6aalsvmv5uujnprsw0wpz4rtjra4f0quys2cylugxws5gz7wc",
+      [{ utxo_list: "[]" }, ["test_address_2", { id: 24 }]],
+    ])
+  );
+  */
 };
 
 test();

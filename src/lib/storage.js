@@ -1,6 +1,6 @@
 const { databaseConnection } = require("../database/createConnection");
 const { Op } = require("sequelize");
-const { pluralize } = require("./tools");
+const { pluralize, removeItemsWithDuplicateProp } = require("./tools");
 const mariadb = require("mariadb");
 
 const storage = async () => {
@@ -11,7 +11,7 @@ const storage = async () => {
     Balance: "address",
     Rune: "rune_protocol_id",
     Transaction: "hash",
-    Utxo: "utxo_hash",
+    Utxo: "id",
   };
 
   const _genDefaultCache = () =>
@@ -142,81 +142,113 @@ const storage = async () => {
 
     if (!filterArr.length) return [];
 
-    const getValueAndAttribute = (filterItem) => {
-      const hasTypeAttribute = Array.isArray(filterItem);
-      //If an empty string is passed, the attribute will be defaulted to primary
-      //if an array is passed, item one is value and item 2 is attribute
+    const primary = LOCAL_PRIMARY_KEYS[modelName];
 
-      //defaults to "filterItem"
-      let value = (hasTypeAttribute ? filterItem[0] : filterItem) ?? filterItem;
+    const isObject = (obj) =>
+      obj !== null && typeof obj === "object" && !Array.isArray(obj);
 
-      //defaults to primary key
-      let attribute =
-        (hasTypeAttribute ? filterItem[1] : LOCAL_PRIMARY_KEYS[modelName]) ??
-        LOCAL_PRIMARY_KEYS[modelName];
+    const getFilterType = (filterItem) => {
+      if (Array.isArray(filterItem)) return "array";
 
-      return [value, attribute];
+      if (typeof filterItem === "string") return "string";
+
+      if (isObject(filterItem)) return "object";
+
+      throw new Error("(storage) Unknown filter type");
     };
 
-    const processFilter = (filterItem) => {
-      const hasTypeAttribute = Array.isArray(filterItem);
-      const [value, attribute] = getValueAndAttribute(filterItem);
+    const testWithAttributeFilter = (row, attributeFilter) => {
+      /*
+        An attribute array can contain any nested number of items like this
+        {"id", "rune_protocol_id"}
+        [{"id", "rune_protocol_id"}, ...]
+        [{"id", "rune_protocol_id}], ["id", "rune_protocol_id"]]
+        
+        every array in the attribute array should always have exactly 2 items, the value and the attribute
 
-      let rowFound = !hasTypeAttribute
-        ? LocalModel[value]
-        : Object.values(LocalModel).find((row) => row[attribute] === value);
+        an attribute can also be a string. When only string is provided the fallback is the primary key of the model. if no
+        primary is provided "id" is used as default primary
+      */
 
-      return rowFound;
+      //Check if last leaf and string
+
+      const filterType = getFilterType(attributeFilter);
+
+      if (filterType === "string") return row[primary] === attributeFilter;
+
+      //Check if last leaf and object
+      if (filterType === "object") {
+        if (Object.keys(attributeFilter).length !== 1)
+          throw new Error(
+            "(storage) An object in the attribute array must have exactly one key"
+          );
+
+        const [attribute, value] = Object.entries(attributeFilter).flat();
+
+        return row[attribute] === value;
+      }
+
+      //Test leaves if branch (array)
+      return attributeFilter.every((leaf) =>
+        testWithAttributeFilter(row, leaf)
+      );
     };
 
     //Get local rows and generate a filter array with the rows not found in local cache.
-    const { localRows, nonLocalFilterArr } = filterArr.reduce(
-      (acc, filterItem) => {
-        const rowFound = processFilter(filterItem);
-
-        acc[rowFound ? "localRows" : "nonLocalFilterArr"].push(
-          rowFound ?? filterItem
-        );
-
-        return acc;
-      },
-      { localRows: [], nonLocalFilterArr: [] }
-    );
-
-    //If local cache fulfilled all the filter, return it
-    if (!nonLocalFilterArr.length) return localRows;
-
-    /*
-      If any items were not found in the local cache, we need to search for it in db. The way we do this is by
-      creating a sequelize filter with the nonLocalFilter objects and then querying the db with it.
-    */
-    let sequelizeFilter = nonLocalFilterArr
-
-      //Transform filter to be used in sequelize
-      .reduce((acc, filterItem) => {
-        const [value, attribute] = getValueAndAttribute(filterItem);
-
-        acc[attribute] = acc[attribute] ?? { [Op.in]: [] };
-        acc[attribute][Op.in].push(value);
-
-        return acc;
-      }, {});
-
-    //Create an Op.or filter with the sequelize filter
-    sequelizeFilter = Object.entries(sequelizeFilter).reduce((acc, entry) => {
-      const [key, value] = entry;
-
-      acc.push({ [key]: value });
+    const localRows = Object.values(LocalModel).reduce((acc, row) => {
+      for (let attributeFilter of filterArr) {
+        if (testWithAttributeFilter(row, attributeFilter)) {
+          acc.push(row);
+          return acc;
+        }
+      }
       return acc;
     }, []);
 
+    /*
+      Now we must test the db with the same filter array
+    */
+    let sequelizeFilter = filterArr
+
+      //Transform filter to be used in sequelize
+      .reduce((acc, filterItem) => {
+        let type = getFilterType(filterItem);
+
+        const getAttributesAndPush = (array, filterItem) => {
+          let type = getFilterType(filterItem);
+
+          const [attribute, value] =
+            type === "string"
+              ? [LOCAL_PRIMARY_KEYS[modelName], filterItem]
+              : Object.entries(filterItem).flat();
+
+          return [...array, { [attribute]: value }];
+        };
+
+        if (type !== "array") return getAttributesAndPush(acc, filterItem);
+
+        //The hierarchy of Ands dont matter because the end rsult requires all of them to be true, so we can flatten recursively for simplicity
+        const flatAttributes = filterItem.flat(Infinity);
+        //Here we add every attribute we want in the specific Op.and filter (any item in the array)
+        const andOperations = flatAttributes.reduce(
+          (acc, filterItem) => getAttributesAndPush(acc, filterItem),
+          []
+        );
+
+        //We add a new Op.and to the final sequelize array
+        acc.push({ [Op.and]: andOperations });
+
+        return acc;
+      }, []);
+
     try {
       const nonLocalRows = await Model.findAll({
+        raw: true,
         where: { [Op.or]: sequelizeFilter },
       });
 
       //Because of the checks made above there will never be duplicates
-      return localRows.concat(nonLocalRows);
+      return removeItemsWithDuplicateProp(localRows.concat(nonLocalRows), "id");
     } catch (error) {
       console.error(`(storage) Failed to retrieve ${modelName}:`, error);
       throw error;
@@ -232,14 +264,16 @@ const storage = async () => {
     cachedAutoIncrements[modelName] =
       (cachedAutoIncrements[modelName] || 0) + 1;
 
-    //Add the model with the ID that would be generated in the database to cache
-    LocalModel[data[primaryKey]] = {
+    data = {
       id: cachedAutoIncrements[modelName],
       ...data,
     };
 
+    //Add the model with the ID that would be generated in the database to cache
+    LocalModel[data[primaryKey]] = data;
+
     //Return the model created
-    return LocalModel[data[primaryKey]];
+    return data;
   };
 
   const findOrCreate = async (modelName, key, defaults) => {

@@ -37,11 +37,6 @@ module.exports = (sequelize) => {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
-      utxo_hash: {
-        //txid:vout
-        type: Sequelize.TEXT("medium"),
-        allowNull: false,
-      },
       block_spent: {
         /*
                 This exists so that the scanner can give insight into what account balances were at a specific block. 

@@ -74,6 +74,16 @@ function stripObject(obj) {
   return JSON.parse(JSON.stringify(obj, replacer, 2));
 }
 
+const removeItemsWithDuplicateProp = (array, prop) => {
+  return array.reduce(function (acc, item) {
+    // if the next object's id is not found in the output array
+    // push the object into the output array
+    if (!acc.some((testElement) => testElement[prop] === item[prop]))
+      acc.push(item);
+    return acc;
+  }, []);
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = {
@@ -84,4 +94,5 @@ module.exports = {
   sleep,
   replacer,
   stripValue,
+  removeItemsWithDuplicateProp,
 };

@@ -25,7 +25,6 @@ async function databaseConnection() {
     models.Rune = require("./models/Rune")(sequelize);
     models.Account = require("./models/Account")(sequelize);
     models.Balance = require("./models/Balance")(sequelize);
-    models.Runestone = require("./models/Runestone")(sequelize);
     models.Transaction = require("./models/Transaction")(sequelize);
     models.Utxo = require("./models/Utxo")(sequelize);
 
