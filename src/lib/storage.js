@@ -8,7 +8,7 @@ const storage = async () => {
 
   const LOCAL_PRIMARY_KEYS = {
     Account: "address",
-    Balance: "address",
+    Balance: "id",
     Rune: "rune_protocol_id",
     Transaction: "hash",
     Utxo: "id",
@@ -295,10 +295,12 @@ const storage = async () => {
 
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
-
+        console.log(`(storage) Committing ${modelName}...`);
         rows = Object.values(rows);
 
-        for (let row of rows) {
+        for (let rowIndex in rows) {
+          let row = rows[rowIndex];
+          console.log(`(storage) Committing ${modelName} row ${rowIndex}...`);
           try {
             await db[modelName].upsert(row, { transaction });
           } catch (error) {

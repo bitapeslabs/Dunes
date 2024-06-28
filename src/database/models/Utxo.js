@@ -25,6 +25,10 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("medium"),
         allowNull: true,
       },
+      address: {
+        type: Sequelize.TEXT("medium"),
+        allowNull: true,
+      },
       rune_balances: {
         type: Sequelize.TEXT("medium"),
         allowNull: true,
