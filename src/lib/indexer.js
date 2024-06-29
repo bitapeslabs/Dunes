@@ -151,7 +151,7 @@ const createNewUtxoBodies = async (vout, Transaction, storage) => {
       account_id: voutAddress ? voutAccounts[voutAddress].id : 0,
       address: voutAddress,
       transaction_id: Transaction.id,
-      value_sats: toBigInt(utxo.value.toString(), 8),
+      value_sats: toBigInt(utxo.value.toString(), 8).toString(),
       hash: Transaction.hash,
       vout_index: index,
       block: Transaction.block_id,
