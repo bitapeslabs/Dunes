@@ -91,17 +91,12 @@ const storage = async () => {
       return;
     }
 
-    try {
-      let liveModel = template ?? (await findOne(modelName, primary));
-      let newPrimary = liveModel[primaryKey];
+    let liveModel = template ?? (await findOne(modelName, primary));
+    let newPrimary = liveModel[primaryKey];
 
-      LocalModel[newPrimary] = { ...liveModel, [attribute]: value };
+    LocalModel[newPrimary] = { ...liveModel, [attribute]: value };
 
-      return LocalModel[newPrimary];
-    } catch (error) {
-      console.error(`(storage) Failed to update ${modelName}:`, error);
-      throw error;
-    }
+    return LocalModel[newPrimary];
   };
 
   const findOne = async (modelName, value, attribute) => {
@@ -124,7 +119,10 @@ const storage = async () => {
       });
       return row;
     } catch (error) {
-      console.error(`(storage) Failed to retrieve ${modelName}:`, error);
+      console.error(
+        `(storage) Failed to retrieve ${modelName} in findOne:`,
+        error
+      );
       throw error;
     }
   };
@@ -250,7 +248,10 @@ const storage = async () => {
       //Because of the checks made above there will never be duplicates
       return removeItemsWithDuplicateProp(localRows.concat(nonLocalRows), "id");
     } catch (error) {
-      console.error(`(storage) Failed to retrieve ${modelName}:`, error);
+      console.error(
+        `(storage) Failed to retrieve ${modelName} in findManyInFilter:`,
+        error
+      );
       throw error;
     }
   };
@@ -278,7 +279,6 @@ const storage = async () => {
 
   const findOrCreate = async (modelName, key, defaults) => {
     const { [modelName]: LocalModel } = local;
-
     let model = await findOne(modelName, key);
     if (model) return model;
 

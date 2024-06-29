@@ -1,9 +1,14 @@
 require("dotenv").config({ path: "../../.env" });
 
+const { getRunestonesInBlock } = require("./btc");
 //Test libs
 const fs = require("fs");
 const path = require("path");
 const { createRpcClient } = require("./rpcapi");
+
+let config = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "../../config.json"), "UTF-8")
+);
 // ======
 
 const {
@@ -38,9 +43,8 @@ const findAccountOrCreate = async (address, storage) => {
   const { findOrCreate } = storage;
 
   if (address === "GENESIS") {
-    return { id: -1 };
+    return { id: -1, address: "GENESIS", utxo_list: "[]" };
   }
-
   return await findOrCreate("Account", address, { address, utxo_list: "[]" });
 };
 
@@ -52,7 +56,7 @@ const findTransactionOrCreate = async (Transaction, Account, storage) => {
   let transaction = await findOrCreate("Transaction", Transaction.hash, {
     block_id: block,
     tx_index: txIndex,
-    address_id: Account.id,
+    account_id: Account.id,
     value_sats:
       //Get all vout values and convert them to a big integer string
       vout
@@ -202,8 +206,10 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
       BigInt(amount) * BigInt(direction)
     ).toString();
 
-    updateAttribute("Balance", balanceFound.id, "balance", newBalance);
+    await updateAttribute("Balance", balanceFound.id, "balance", newBalance);
   }
+
+  return;
 };
 
 const processEdicts = async (
@@ -501,6 +507,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
     inputUtxos[0]?.address ?? "GENESIS",
     storage
   );
+
   let UnallocatedRunes = getUnallocatedRunesFromUtxos(inputUtxos);
   //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
 
@@ -526,8 +533,10 @@ const processRunestone = async (Transaction, rpc, storage) => {
   await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
 
   //Update all input UTXOs as spent
-  inputUtxos.forEach((utxo) =>
-    updateAttribute("Utxo", utxo.id, "block_spent", Transaction.block_id)
+  await Promise.all(
+    inputUtxos.map((utxo) =>
+      updateAttribute("Utxo", utxo.id, "block_spent", Transaction.block_id)
+    )
   );
 
   //parse rune_balances for all pendingUtxos
@@ -546,12 +555,15 @@ const processRunestone = async (Transaction, rpc, storage) => {
     : [];
 
   //Update account
-  updateAttribute(
-    "Account",
-    SpenderAccount.address,
-    "utxo_list",
-    JSON.stringify(oldUtxos.concat(newUtxos))
-  );
+
+  if (SpenderAccount.id !== -1) {
+    await updateAttribute(
+      "Account",
+      SpenderAccount.address,
+      "utxo_list",
+      JSON.stringify(oldUtxos.concat(newUtxos))
+    );
+  }
 
   //Finally update balance store with new Utxos
   for (let utxo of inputUtxos)
@@ -570,29 +582,44 @@ const testRunestoneBlock = JSON.parse(
   )
 );
 
-const test = async () => {
-  const rpc_client = createRpcClient({
-    url: process.env.BTC_RPC_URL,
-    username: process.env.BTC_RPC_USERNAME,
-    password: process.env.BTC_RPC_PASSWORD,
-  });
-  const storage = await newStorage();
-
-  for (let TransactionIndex in testRunestoneBlock) {
+const processBlock = async (block, rpc_client, storage) => {
+  const blockData = await getRunestonesInBlock(block, rpc_client);
+  for (let TransactionIndex in blockData) {
     console.log(
       "Processing Transaction: ",
-      TransactionIndex + "/" + testRunestoneBlock.length
+      TransactionIndex + "/" + blockData.length
     );
 
-    let Transaction = testRunestoneBlock[TransactionIndex];
+    let Transaction = blockData[TransactionIndex];
     console.log("hash: " + Transaction.hash);
 
     await processRunestone(Transaction, rpc_client, storage);
   }
 
   await storage.commitChanges();
+
+  return;
 };
 
-test();
+const start = async (startBlock, endBlock) => {
+  const rpc_client = createRpcClient({
+    url: process.env.BTC_RPC_URL,
+    username: process.env.BTC_RPC_USERNAME,
+    password: process.env.BTC_RPC_PASSWORD,
+  });
+  const storage = await newStorage();
+  for (let block = startBlock; block <= endBlock; block++) {
+    console.log("Processing block: ", startBlock + "/" + endBlock);
+
+    await processBlock(block, rpc_client, storage);
+    config.currentBlock = block;
+    fs.writeFileSync(
+      path.join(__dirname, "../../config.json"),
+      JSON.stringify(config, null, 2)
+    );
+  }
+};
+
+start(config.currentBlock, config.endBlock);
 
 module.exports = processRunestone;
