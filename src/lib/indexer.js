@@ -27,6 +27,7 @@ const {
 } = require("./runeutils");
 
 const { storage: newStorage } = require("./storage");
+const { Op } = require("sequelize");
 
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 
@@ -501,7 +502,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
   //Setup Transaction for processing
 
   //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
-  let inputUtxos = await findManyInFilter("Utxo", UtxoFilter);
+  let inputUtxos = await findManyInFilter("Utxo", UtxoFilter, true);
 
   let SpenderAccount = await findAccountOrCreate(
     inputUtxos[0]?.address ?? "GENESIS",
@@ -575,12 +576,53 @@ const processRunestone = async (Transaction, rpc, storage) => {
   return;
 };
 
-const testRunestoneBlock = JSON.parse(
-  fs.readFileSync(
-    path.join(__dirname, "../../bin/runestones_840000.json"),
-    "UTF-8"
-  )
-);
+const loadBlockIntoMemory = async (block, storage) => {
+  const { loadManyIntoMemory } = storage;
+
+  //Load all utxos in the block's vin into memory in one call
+  await loadManyIntoMemory("Utxo", {
+    hash: {
+      [Op.in]: block.map((transaction) =>
+        transaction.vin.map((utxo) => utxo.txid).filter((hash) => hash)
+      ),
+    },
+  });
+
+  //Load all runes that might be transferred into memory. This would be every Rune in a mint, edict or etch
+
+  await loadManyIntoMemory("Rune", {
+    raw_name: {
+      [Op.in]: block
+        .map((transaction) => transaction.runestone.etching?.raw_name)
+        .filter((raw_name) => raw_name),
+    },
+  });
+
+  await loadManyIntoMemory("Rune", {
+    [Op.or]: [
+      //Load all rune ids in every mint and edict mapped by "rune_protocol_id"
+      {
+        rune_protocol_id: {
+          [Op.in]: block
+            .map((transaction) => [
+              transaction.runestone.mint,
+              transaction.runestone.edicts?.map((edict) => edict.id),
+            ])
+            .flat(Infinity)
+            .filter((rune) => rune),
+        },
+      },
+      //Load all runes with "etch" as they are mapped by raw_name
+      {
+        raw_name: {
+          [Op.in]: block
+            .map((transaction) => transaction.runestone.etching?.raw_name)
+            .filter((raw_name) => raw_name),
+        },
+      },
+    ],
+  });
+};
 
 const processBlock = async (block, rpc_client, storage) => {
   const blockData = await getRunestonesInBlock(block, rpc_client);

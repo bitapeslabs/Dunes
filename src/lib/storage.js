@@ -71,6 +71,47 @@ const storage = async () => {
     }
   };
 
+  const loadManyIntoMemory = async (modelName, sequelizeQuery) => {
+    /*
+        A lot of the queries done to the database during block processing are unecessary and repetitive. By having
+        everything we know we will need for a block in memory, we can speed up the speed at which we load a block by
+        magnitudes of order. We can use sqls "IN" operator for this. documents's fetched from inMemory
+        have a flag indicating that its just a read copy. 
+
+        __memory: true
+        
+        This is to prevent unecessary upserts. 
+        
+        Once any attribute is changed from this document, the __memory field is deleted as the upset will be needed
+    */
+
+    const { [modelName]: LocalModel } = local;
+    const { [modelName]: Model } = db;
+
+    try {
+      const foundRows = await Model.findAll({
+        raw: true,
+        where: sequelizeFilter,
+      });
+
+      const primaryKey = LOCAL_PRIMARY_KEYS[modelName];
+
+      foundRows.forEach((row) => {
+        row.__memory = true;
+
+        LocalModel[row[primaryKey]] = row;
+      });
+
+      return foundRows;
+    } catch (error) {
+      console.error(
+        `(storage) Failed to retrieve ${modelName} in findOne:`,
+        error
+      );
+      throw error;
+    }
+  };
+
   const updateAttribute = async (
     modelName,
     primary,
@@ -84,12 +125,16 @@ const storage = async () => {
   ) => {
     const { [modelName]: LocalModel } = local;
 
-    let primaryKey = LOCAL_PRIMARY_KEYS[modelName];
-
     if (LocalModel[primary]) {
       LocalModel[primary][attribute] = value;
-      return;
+
+      //We have altered the document and therefore we should upsert when we commit changes
+      delete LocalModel[primary].__memory;
+
+      return LocalModel[primary];
     }
+
+    let primaryKey = LOCAL_PRIMARY_KEYS[modelName];
 
     let liveModel = template ?? (await findOne(modelName, primary));
     let newPrimary = liveModel[primaryKey];
@@ -127,7 +172,11 @@ const storage = async () => {
     }
   };
 
-  const findManyInFilter = async (modelName, filterArr) => {
+  const findManyInFilter = async (
+    modelName,
+    filterArr,
+    ignoreDatabase = false
+  ) => {
     /*
       There are two types of attributes "primary" and "custom". A primary attribute is searched for 
       if an item in filter array is a string, then the function assumes you are searching for an
@@ -202,6 +251,13 @@ const storage = async () => {
       }
       return acc;
     }, []);
+
+    /*
+        We would want to avoid querying the DB if we already have the copy of the document in __memory
+        This should only ever be used if we have already cloned documents into storage from the db. Otherwise
+        syncing issues will pop up because local and database are not synced.
+    */
+    if (ignoreDatabase) return localRows;
 
     /*
       Now we must test the db with the same filter array
@@ -300,6 +356,9 @@ const storage = async () => {
 
         for (let rowIndex in rows) {
           let row = rows[rowIndex];
+          if (row.__memory) {
+            continue;
+          }
           console.log(`(storage) Committing ${modelName} row ${rowIndex}...`);
           try {
             await db[modelName].upsert(row, { transaction });
@@ -332,6 +391,7 @@ const storage = async () => {
     findOrCreate,
     create,
     commitChanges,
+    loadManyIntoMemory,
   };
 };
 
