@@ -88,14 +88,14 @@ const getUnallocatedRunesFromUtxos = (inputUtxos) => {
       //Get allocated runes and store them in an array
       .reduce((acc, utxo) => {
         let RuneBalances = utxo.rune_balances
-          ? JSON.parse(utxo.rune_balances)
+          ? Object.entries(JSON.parse(utxo.rune_balances))
           : [];
 
-        console.log(RuneBalances);
         //Sum up all Rune balances for each input UTXO
         RuneBalances.forEach((rune) => {
-          acc[rune.rune_protocol_id] =
-            (acc[rune.rune_protocol_id] ?? BigInt("0")) + BigInt(rune.amount);
+          const [rune_protocol_id, amount] = rune;
+          acc[rune_protocol_id] =
+            (acc[rune_protocol_id] ?? BigInt("0")) + BigInt(amount);
         });
 
         return acc;
@@ -155,7 +155,7 @@ const createNewUtxoBodies = async (vout, Transaction, storage) => {
       hash: Transaction.hash,
       vout_index: index,
       block: Transaction.block_id,
-      rune_balances: [],
+      rune_balances: {},
       block_spent: null,
     };
   });

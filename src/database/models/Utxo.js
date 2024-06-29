@@ -18,7 +18,7 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       value_sats: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
       hash: {
