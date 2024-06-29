@@ -171,7 +171,7 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
 
   const balanceFilter = utxoRuneBalances.map((runeBalance) => [
     { account_id: utxo.account_id },
-    { rune_id: runeBalance[0] },
+    { rune_protocol_id: runeBalance[0] },
   ]);
 
   const existingBalanceEntries = await findManyInFilter(
