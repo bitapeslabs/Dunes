@@ -1,6 +1,6 @@
 require("dotenv").config();
 const axios = require("axios");
-const { sleep } = require("./helpers");
+const { sleep } = require("./tools");
 
 const createRpcClient = (rpcConfig) => {
   // ====== Create RPC client constructor ======

@@ -34,7 +34,6 @@ const checkCommitment = async (runeName, Transaction, block, rpc) => {
 
   for (const input of Transaction.vin) {
     if ("coinbase" in input) {
-      console.log("coinbase");
       continue;
     }
 
@@ -48,13 +47,11 @@ const checkCommitment = async (runeName, Transaction, block, rpc) => {
         ? 3
         : 2;
     if (offset > witnessStack.length) {
-      console.log("bs1");
       continue;
     }
 
     const potentiallyTapscript = witnessStack[witnessStack.length - offset];
     if (potentiallyTapscript === undefined) {
-      console.log("bs2");
       continue;
     }
 
@@ -89,7 +86,6 @@ const checkCommitment = async (runeName, Transaction, block, rpc) => {
       inputTx.vout[input.vout].scriptPubKey.type === TAPROOT_SCRIPT_PUBKEY_TYPE;
 
     if (!isTaproot) {
-      console.log("bs4");
       continue;
     }
 

@@ -18,10 +18,14 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       value_sats: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
       hash: {
+        type: Sequelize.TEXT("medium"),
+        allowNull: true,
+      },
+      address: {
         type: Sequelize.TEXT("medium"),
         allowNull: true,
       },
