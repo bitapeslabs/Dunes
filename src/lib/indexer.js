@@ -190,7 +190,7 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
 
     if (!balanceFound) {
       balanceFound = create("Balance", {
-        rune_id: rune_protocol_id,
+        rune_protocol_id: rune_protocol_id,
         account_id: utxo.account_id,
         address: utxo.address,
         balance: 0,
