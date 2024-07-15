@@ -9,10 +9,7 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
-      account_id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-      },
+
       transaction_id: {
         type: Sequelize.INTEGER,
         allowNull: false,

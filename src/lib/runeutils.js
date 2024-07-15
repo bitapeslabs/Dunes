@@ -1,17 +1,51 @@
-const { Rune: OrdJSRune } = require("@ordjs/runestone");
-const { Script } = require("@cmdcode/tapscript");
-
 const {
-  RUNE_GENESIS_BLOCK,
+  GENESIS_BLOCK,
   UNLOCK_INTERVAL,
   INITIAL_AVAILABLE,
   TAPROOT_ANNEX_PREFIX,
   COMMIT_CONFIRMATIONS,
   TAPROOT_SCRIPT_PUBKEY_TYPE,
-
-  STEPS,
 } = require("./constants");
 
+const { Rune: OrdJSRune } = require("@ordjs/runestone");
+const { Script } = require("@cmdcode/tapscript");
+const { runestone } = require("@runeapes/apeutils");
+const { stripObject } = require("./utils");
+
+const decipherRunestone = (txJson) => {
+  let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
+
+  //Cenotaph objects and Runestones are both treated as runestones, the differentiation in processing is done at the indexer level
+  return {
+    ...decodedBlob?.Runestone,
+    ...decodedBlob?.Cenotaph,
+    cenotaph:
+      !!decodedBlob?.Cenotaph ||
+      (!decodedBlob?.Runestone &&
+        !!txJson.vout.filter((utxo) =>
+          //PUSHNUM_13 is CRUCIAL for defining a cenotaph, if just an "OP_RETURN" is present, its treated as a normal tx
+          utxo.scriptPubKey.asm.includes("OP_RETURN 13")
+        ).length),
+  };
+};
+
+const getRunestonesInBlock = async (blockNumber, RpcClient) => {
+  console.log(blockNumber);
+  const block = await RpcClient.getVerboseBlock(blockNumber);
+  const transactions = block.tx;
+
+  const runestones = transactions.map((tx, txIndex) => ({
+    runestone: decipherRunestone(tx),
+    hash: tx.txid,
+    txIndex,
+    block: blockNumber,
+    vout: tx.vout,
+    vin: tx.vin,
+    hex: tx.hex,
+  }));
+
+  return runestones;
+};
 const getReservedName = (block, tx) => {
   const baseValue = BigInt("6402364363415443603228541259936211926");
   const combinedValue = (BigInt(block) << 32n) | BigInt(tx);
@@ -19,9 +53,7 @@ const getReservedName = (block, tx) => {
 };
 
 const minimumLengthAtHeight = (block) => {
-  const stepsPassed = Math.floor(
-    (block - RUNE_GENESIS_BLOCK) / UNLOCK_INTERVAL
-  );
+  const stepsPassed = Math.floor((block - GENESIS_BLOCK) / UNLOCK_INTERVAL);
 
   return INITIAL_AVAILABLE - stepsPassed;
 };
@@ -226,4 +258,5 @@ module.exports = {
   minimumLengthAtHeight,
   getCommitment,
   checkCommitment,
+  getRunestonesInBlock,
 };

@@ -1,17 +1,16 @@
 const { databaseConnection } = require("../database/createConnection");
 const { Op } = require("sequelize");
-const { pluralize, removeItemsWithDuplicateProp } = require("./tools");
-const mariadb = require("mariadb");
+const { pluralize, removeItemsWithDuplicateProp } = require("./utils");
+const { Client } = require("pg");
 
-const storage = async () => {
+const storage = async (useSync) => {
   //Configurations
 
   const LOCAL_PRIMARY_KEYS = {
-    Account: "address",
     Balance: "id",
     Rune: "rune_protocol_id",
-    Transaction: "hash",
     Utxo: "id",
+    Setting: "id",
   };
 
   const _genDefaultCache = () =>
@@ -30,9 +29,10 @@ const storage = async () => {
   const _getAutoIncrement = async (tableName) => {
     //Sequelize be default uses singular nouns, so the Cache library does also. Names need to be pluralized before querying the database.
     const pluralizedTableName = pluralize(tableName.toLowerCase());
+    console.log(pluralizedTableName);
     try {
-      const results = await rawConnection.query(
-        `SELECT AUTO_INCREMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = '${process.env.DB_NAME}' AND TABLE_NAME = '${pluralizedTableName}'`
+      const results = await db.sequelize.query(
+        `SELECT nextval('${pluralizedTableName}_id_seq'::regclass)`
       );
       return parseInt(results[0].AUTO_INCREMENT ?? 0n) - 1;
     } catch (error) {
@@ -48,12 +48,8 @@ const storage = async () => {
     try {
       db = await databaseConnection();
 
-      rawConnection = await mariadb.createConnection({
-        host: process.env.DB_HOST || "localhost",
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_NAME,
-      });
+      //useSync constructs the database from the models we have in /database/models
+      if (useSync) await db.sequelize.sync({ force: true });
 
       // Populate counts on memory to create an ID pk for each item
       await Promise.all(
@@ -61,7 +57,6 @@ const storage = async () => {
           cachedAutoIncrements[tableName] = await _getAutoIncrement(tableName);
         })
       );
-      await rawConnection.end();
     } catch (error) {
       console.error(
         "(storage) Failed to initialize database connection:",

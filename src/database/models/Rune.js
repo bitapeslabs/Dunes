@@ -17,6 +17,9 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
+
+
+      
       raw_name: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
