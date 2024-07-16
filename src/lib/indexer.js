@@ -72,7 +72,7 @@ const createNewUtxoBodies = (vout, Transaction) => {
 };
 
 const burnFromOpReturnEntry = async (entry, storage) => {
-  const { updateAttribute } = storage;
+  const { updateAttribute, findOne } = storage;
   const [runeId, amount] = entry;
 
   const rune = await findOne("Rune", runeId);
@@ -339,9 +339,9 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
   const isReserved = !etching.rune;
 
   if (!isReserved) {
-    const hasValidCommitment = true 
+    const hasValidCommitment = true;
     /* Disabled for now until BTC node is back up
-    
+
     await checkCommitment(
       runeName,
       Transaction,
