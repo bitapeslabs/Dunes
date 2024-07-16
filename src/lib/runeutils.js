@@ -186,6 +186,12 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
 
   let [creationBlock] = rune_protocol_id.split(":").map(parseInt);
 
+  if (creationBlock === block) {
+    //You can only mint a rune if its in the same transaction as the creation of the rune. Otherwise one confirmation is needed.
+    //Exception is the GENESIS rune
+    return false;
+  }
+
   /*
         Setup variable defs according to ord spec,
     */

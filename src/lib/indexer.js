@@ -13,6 +13,7 @@ const {
 const { Op } = require("sequelize");
 
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
+const { GENESIS_BLOCK, GENESIS_RUNESTONE } = require("./constants");
 
 const getUnallocatedRunesFromUtxos = (inputUtxos) => {
   /*
@@ -297,7 +298,13 @@ const processMint = async (UnallocatedRunes, Transaction, storage) => {
   }
 };
 
-const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
+const processEtching = async (
+  UnallocatedRunes,
+  Transaction,
+  rpc,
+  storage,
+  isGenesis
+) => {
   const { block, txIndex, runestone } = Transaction;
 
   const etching = runestone?.etching;
@@ -365,7 +372,7 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
   */
 
   const EtchedRune = create("Rune", {
-    rune_protocol_id: `${block}:${txIndex}`,
+    rune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
     name: spacedRune ? spacedRune.name : runeName,
     raw_name: runeName,
     symbol: etching.symbol ?? "¤",
@@ -482,10 +489,21 @@ const finalizeTransfers = async (
 };
 
 const processRunestone = async (Transaction, rpc, storage) => {
-  const { vout, vin } = Transaction;
+  const { vout, vin, block } = Transaction;
 
-  //Ignore the coinbase transaction
-  if (vin[0].coinbase) return;
+  //Ignore the coinbase transaction (unless genesis rune is being created)
+  if (vin[0].coinbase) {
+    if (block === GENESIS_BLOCK) {
+      await processEtching(
+        {},
+        { ...Transaction, runestone: GENESIS_RUNESTONE },
+        rpc,
+        storage,
+        true
+      );
+    }
+    return;
+  }
 
   // const SpenderAccount = await _findAccountOrCreate(Transaction, db)
 
@@ -531,10 +549,9 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   //Get a vector of all txHashes in the block
   const transactionHashesInBlock = block
-    .map((transaction) =>
-      transaction.vin.map((utxo) => utxo.txid).filter((hash) => hash)
-    )
-    .flat(Infinity);
+    .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
+    .flat(Infinity)
+    .filter((hash) => hash);
 
   //Get a vector of all recipients in the block utxo.scriptPubKey?.address
   const recipientsInBlock = block
@@ -592,6 +609,13 @@ const loadBlockIntoMemory = async (block, storage) => {
     },
   });
 
+  log("loaded: " + Object.keys(local.Utxo).length + "  utxos into memory");
+
+  log(
+    "loaded: " + Object.keys(local.Balance).length + "  balances into memory"
+  );
+  log("loaded: " + Object.keys(local.Rune).length + "  runes into memory");
+
   return;
 };
 
@@ -600,15 +624,15 @@ const processBlock = async (blockHeight, callRpc, storage) => {
 
   //Load all rows we will manipulate beforehand into memory
   await loadBlockIntoMemory(blockData, storage);
+  await sleep(2000);
+  log(
+    "Processing " + blockData.length + " transactions for block " + blockHeight
+  );
   for (let TransactionIndex in blockData) {
-    log("Processing Transaction: ", TransactionIndex + "/" + blockData.length);
-
     let Transaction = blockData[TransactionIndex];
-    log("hash: " + Transaction.hash);
 
     try {
       await processRunestone(Transaction, callRpc, storage);
-      //await sleep(2000);
     } catch (e) {
       log(
         "Indexer panic on the following transaction: " +

@@ -1,6 +1,6 @@
 const { databaseConnection } = require("../database/createConnection");
 const { Op } = require("sequelize");
-const { pluralize, removeItemsWithDuplicateProp } = require("./utils");
+const { pluralize, removeItemsWithDuplicateProp, log } = require("./utils");
 const { Client } = require("pg");
 
 const storage = async (useSync) => {
@@ -353,7 +353,7 @@ const storage = async (useSync) => {
 
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
-        console.log(`(storage) Committing ${modelName}...`);
+        log(`Committing ${modelName}...`, "stat");
         rows = Object.values(rows);
 
         for (let rowIndex in rows) {
@@ -361,11 +361,10 @@ const storage = async (useSync) => {
           if (row.__memory) {
             continue;
           }
-          console.log(`(storage) Committing ${modelName} row ${rowIndex}...`);
           try {
             await db[modelName].upsert(row, { transaction });
           } catch (error) {
-            console.error(`(storage) Failed to commit ${modelName}:`, error);
+            log(`Failed to commit ${modelName}: ` + error, "panic");
             throw error;
           }
         }
@@ -374,7 +373,8 @@ const storage = async (useSync) => {
       await transaction.commit();
     } catch (error) {
       await transaction.rollback();
-      console.error("(storage) Transaction failed and rolled back:", error);
+      log(`An error ocurred while comitting to db: ` + error, "panic");
+
       throw error;
     }
 
