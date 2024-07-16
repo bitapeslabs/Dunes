@@ -1,3 +1,4 @@
+const { type } = require("os");
 const { Sequelize } = require("sequelize");
 
 module.exports = (sequelize) => {
@@ -18,8 +19,6 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
 
-
-      
       raw_name: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
@@ -73,6 +72,10 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
       mint_amount: {
+        type: Sequelize.TEXT("tiny"),
+        allowNull: true,
+      },
+      burnt_amount: {
         type: Sequelize.TEXT("tiny"),
         allowNull: true,
       },

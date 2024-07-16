@@ -11,7 +11,7 @@ const { Rune: OrdJSRune } = require("@ordjs/runestone");
 const { Script } = require("@cmdcode/tapscript");
 const { runestone } = require("@runeapes/apeutils");
 const { stripObject } = require("./utils");
-
+const { log } = require("./utils");
 const decipherRunestone = (txJson) => {
   let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
 
@@ -29,9 +29,13 @@ const decipherRunestone = (txJson) => {
   };
 };
 
-const getRunestonesInBlock = async (blockNumber, RpcClient) => {
+const getRunestonesInBlock = async (blockNumber, callRpc) => {
   console.log(blockNumber);
-  const block = await RpcClient.getVerboseBlock(blockNumber);
+
+  const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
+
+  const block = await callRpc("getblock", [blockHash, 2]);
+
   const transactions = block.tx;
 
   const runestones = transactions.map((tx, txIndex) => ({
@@ -58,7 +62,7 @@ const minimumLengthAtHeight = (block) => {
   return INITIAL_AVAILABLE - stepsPassed;
 };
 
-const checkCommitment = async (runeName, Transaction, block, rpc) => {
+const checkCommitment = async (runeName, Transaction, block, callRpc) => {
   //Credits to @me-foundation/runestone-lib for this function.
   //Modified to fit this indexer.
 
@@ -105,28 +109,25 @@ const checkCommitment = async (runeName, Transaction, block, rpc) => {
     }
 
     //valid commitment, check for confirmations
-
-    let inputTx;
-
     try {
-      inputTx = await rpc.getVerboseTransaction(input.txid);
+      let inputTx = await callRpc("getrawtransaction", [input.txid, true]);
+
+      const isTaproot =
+        inputTx.vout[input.vout].scriptPubKey.type ===
+        TAPROOT_SCRIPT_PUBKEY_TYPE;
+
+      if (!isTaproot) {
+        continue;
+      }
+
+      const blockHeight = await callRpc("getblockheader", [inputTx.blockhash]);
+
+      const confirmations = block - blockHeight + 1;
+
+      if (confirmations >= COMMIT_CONFIRMATIONS) return true;
     } catch (e) {
+      log("RPC failed during commitment check", "panic");
       throw "RPC Error during commitment check";
-    }
-
-    const isTaproot =
-      inputTx.vout[input.vout].scriptPubKey.type === TAPROOT_SCRIPT_PUBKEY_TYPE;
-
-    if (!isTaproot) {
-      continue;
-    }
-
-    const blockHeight = await rpc.getBlockHeadersFromHash(inputTx.blockhash);
-
-    const confirmations = block - blockHeight + 1;
-
-    if (confirmations >= COMMIT_CONFIRMATIONS) {
-      return true;
     }
   }
 

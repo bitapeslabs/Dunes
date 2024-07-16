@@ -9,11 +9,6 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
-
-      transaction_id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-      },
       value_sats: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,

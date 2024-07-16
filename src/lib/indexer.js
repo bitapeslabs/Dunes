@@ -14,33 +14,6 @@ const { Op } = require("sequelize");
 
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 
-const findTransactionOrCreate = async (Transaction, Account, storage) => {
-  const { findOrCreate } = storage;
-
-  const { runestone, hash, block, hex, vout, txIndex } = Transaction;
-
-  let transaction = await findOrCreate("Transaction", Transaction.hash, {
-    block_id: block,
-    tx_index: txIndex,
-    account_id: Account.id,
-    value_sats:
-      //Get all vout values and convert them to a big integer string
-      vout
-        .map((vout) => toBigInt(vout.value.toString(), 8))
-
-        //Add big ints of all items to get sum
-        .reduce((a, b) => BigInt(a) + BigInt(b), BigInt(0))
-
-        //Convert back to string
-        .toString(),
-    hex,
-    runestone: JSON.stringify(runestone),
-    hash: hash,
-  });
-
-  return transaction;
-};
-
 const getUnallocatedRunesFromUtxos = (inputUtxos) => {
   /*
         Important: Rune Balances from this function are returned in big ints in the following format
@@ -73,28 +46,7 @@ const getUnallocatedRunesFromUtxos = (inputUtxos) => {
   );
 };
 
-const createNewUtxoBodies = async (vout, Transaction, storage) => {
-  const { findManyInFilter } = storage;
-
-  const recipientAddresses = vout
-    .map((utxo) => utxo.scriptPubKey.address)
-    //remove the OP_RETURN
-    .filter((address) => address);
-
-  //Get all recipient addresses already in db and create a hash map
-  const ignoreCreate = (
-    await findManyInFilter("Account", recipientAddresses)
-  ).reduce((Acc, account) => ({ ...Acc, [account.address]: account }), {});
-
-  //Resolve promises and create a hash map of the new accounts
-  const newAccounts = (await Promise.all(accountCreationPromises)).reduce(
-    (Acc, account) => ({ ...Acc, [account.address]: account }),
-    {}
-  );
-
-  //Finally concatenate the two account lists into voutAccounts for linkage to UTXOs
-  const voutAccounts = { ...ignoreCreate, ...newAccounts };
-
+const createNewUtxoBodies = (vout, Transaction) => {
   return vout.map((utxo, index) => {
     const voutAddress = utxo.scriptPubKey.address;
 
@@ -106,11 +58,9 @@ const createNewUtxoBodies = async (vout, Transaction, storage) => {
         This means that an OP_RETURN vout must be saved for processing edicts and unallocated runes,
         however mustnt be saved as a UTXO in the database as they are burnt.
 
-        Therefore, we mark a utxo as an OP_RETURN by giving it an account id of 0
+        Therefore, we mark a utxo as an OP_RETURN by setting its address to such
       */
-      account_id: voutAddress ? voutAccounts[voutAddress].id : 0,
-      address: voutAddress,
-      transaction_id: Transaction.id,
+      address: voutAddress ?? "OP_RETURN",
       value_sats: toBigInt(utxo.value.toString(), 8).toString(),
       hash: Transaction.hash,
       vout_index: index,
@@ -121,37 +71,50 @@ const createNewUtxoBodies = async (vout, Transaction, storage) => {
   });
 };
 
-const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
-  //removes op_returns
-  if (!utxo.account_id) return;
+const burnFromOpReturnEntry = async (entry, storage) => {
+  const { updateAttribute } = storage;
+  const [runeId, amount] = entry;
 
+  const rune = await findOne("Rune", runeId);
+
+  return updateAttribute(
+    "Rune",
+    runeId,
+    "burnt_amount",
+    (BigInt(rune.burnt_amount) + BigInt(amount)).toString()
+  );
+};
+
+const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
   const { findManyInFilter, create, updateAttribute } = storage;
 
   const utxoRuneBalances = Object.entries(JSON.parse(utxo.rune_balances));
 
+  //This filter is an OR filter passed to storagge, it fetches all corresponding Balances that the utxo is calling
+  //for example: [{address, proto_id}, {address, proto_id}...]. While address is the same for all, a utxo can have multiple proto ids
   const balanceFilter = utxoRuneBalances.map((runeBalance) => [
-    { account_id: utxo.account_id },
+    { address: utxo.address },
     { rune_protocol_id: runeBalance[0] },
   ]);
 
-  const existingBalanceEntries = await findManyInFilter(
-    "Balance",
-    balanceFilter
-  );
+  //Get the existing balance entries. We can create hashmap of these with proto_id since address is the same
+  const existingBalanceEntries = (
+    await findManyInFilter("Balance", balanceFilter)
+  )
+    //Create hashmap
+    .reduce((acc, balance) => {
+      acc[balance.rune_id] = balance;
+      return acc;
+    }, {});
 
   for (let entry of utxoRuneBalances) {
     const [rune_protocol_id, amount] = entry;
 
-    let balanceFound = existingBalanceEntries.find(
-      (Balance) =>
-        Balance.rune_id === rune_protocol_id &&
-        Balance.account_id === utxo.account_id
-    );
+    let balanceFound = existingBalanceEntries[rune_protocol_id];
 
     if (!balanceFound) {
       balanceFound = create("Balance", {
         rune_protocol_id: rune_protocol_id,
-        account_id: utxo.account_id,
         address: utxo.address,
         balance: 0,
       });
@@ -206,7 +169,9 @@ const processEdicts = async (
   };
 
   //References are kept because filter does not clone the array
-  let nonOpReturnOutputs = pendingUtxos.filter((utxo) => utxo.account_id !== 0);
+  let nonOpReturnOutputs = pendingUtxos.filter(
+    (utxo) => utxo.address !== "OP_RETURN"
+  );
 
   if (edicts) {
     const transactionRuneId = `${block}:${txIndex}`;
@@ -270,13 +235,18 @@ const processEdicts = async (
   }
 
   //Transfer remaining runes to the first non-opreturn output
-  let pointerOutput = nonOpReturnOutputs[pointer ?? 0];
+  //(edge case) If only an OP_RETURN output is present in the Transaction, transfer to the OP_RETURN
+
+  let pointerOutput =
+    nonOpReturnOutputs[pointer ?? 0] ??
+    pendingUtxos.find((utxo) => utxo.address === "OP_RETURN");
 
   //move Unallocated runes to pointer output
   Object.entries(UnallocatedRunes).forEach((allocationData) =>
     allocate(pointerOutput, allocationData[0], allocationData[1])
   );
 
+  //Function returns the burnt runes
   return;
 };
 
@@ -334,7 +304,7 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
   const { findOne, create } = storage;
 
   //If no etching, return the input allocations
-  if (!runestone.etching) {
+  if (!etching) {
     return UnallocatedRunes;
   }
 
@@ -421,7 +391,7 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
     mint_offset_start: etching.terms?.offset?.[0] ?? null,
     mint_offset_end: etching.terms?.offset?.[1] ?? null,
     turbo: etching.turbo,
-
+    burnt_amount: "0",
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the rune spec (see above)
     unmintable: runestone.cenotaph ? 1 : 0,
   });
@@ -439,54 +409,26 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
   });
 };
 
-const processRunestone = async (Transaction, rpc, storage) => {
-  const { vout, vin } = Transaction;
+const finalizeTransfers = async (
+  inputUtxos,
+  pendingUtxos,
+  Transaction,
+  storage
+) => {
+  const { updateAttribute, create } = storage;
 
-  //Ignore the coinbase transaction
-  if (vin[0].coinbase) return;
-
-  // const SpenderAccount = await _findAccountOrCreate(Transaction, db)
-
-  const { findManyInFilter, updateAttribute, create } = storage;
-
-  let UtxoFilter = vin.map((vin) => [
-    { hash: vin.txid },
-    { vout_index: vin.vout },
-  ]);
-
-  //Setup Transaction for processing
-
-  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
-  let inputUtxos = await findManyInFilter("Utxo", UtxoFilter, true);
-
-  let SpenderAccount = await findAccountOrCreate(
-    inputUtxos[0]?.address ?? "GENESIS",
-    storage
+  let opReturnOutput = pendingUtxos.find(
+    (utxo) => utxo.address === "OP_RETURN"
   );
 
-  let UnallocatedRunes = getUnallocatedRunesFromUtxos(inputUtxos);
-  //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
-
-  //Create A New Transaction to store UTXOs
-  let NewTransaction = await findTransactionOrCreate(
-    Transaction,
-    SpenderAccount,
-    storage
-  );
-
-  let pendingUtxos = await createNewUtxoBodies(vout, NewTransaction, storage);
-
-  //Delete UTXOs as they are being spent
-  // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
-
-  //Reference of UnallocatedRunes and pendingUtxos is passed around in follwoing functions
-  await processEtching(UnallocatedRunes, Transaction, rpc, storage);
-
-  //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
-
-  await processMint(UnallocatedRunes, pendingUtxos, Transaction, storage);
-
-  await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
+  if (opReturnOutput) {
+    //Burn all runes from the OP_RETURN output
+    await Promise.all(
+      Object.entries(opReturnOutput.rune_balances).map((entry) =>
+        burnFromOpReturnEntry(entry, storage)
+      )
+    );
+  }
 
   //Update all input UTXOs as spent
   await Promise.all(
@@ -500,75 +442,141 @@ const processRunestone = async (Transaction, rpc, storage) => {
     utxo.rune_balances = JSON.stringify(stripObject(utxo.rune_balances));
   });
 
-  //Create all UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt)
-  const newUtxos = pendingUtxos
-    .map((utxo) => utxo.account_id && create("Utxo", utxo).id)
-    .filter((id) => id);
+  //Create all new UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt)
+  pendingUtxos.forEach(
+    (utxo) => utxo.address !== "OP_RETURN" && create("Utxo", utxo).id
+  );
 
-  //Get all old UTXOs from spender account
-  const oldUtxos = SpenderAccount.utxo_list
-    ? JSON.parse(SpenderAccount.utxo_list)
-    : [];
+  //Create a vec of all UTXOs and their direction (1 for adding to balance, -1 for subtracting from balance)
+  const allUtxos = [
+    //Input utxos are spent, so they should be subtracted from balance
+    ...inputUtxos.map((utxo) => [utxo, -1]),
+    //New utxos are added to balance
+    ...pendingUtxos.map((utxo) => [utxo, 1]),
+  ];
 
-  //Update account
-
-  if (SpenderAccount.id !== -1) {
-    await updateAttribute(
-      "Account",
-      SpenderAccount.address,
-      "utxo_list",
-      JSON.stringify(oldUtxos.concat(newUtxos))
-    );
-  }
-
-  //Finally update balance store with new Utxos
-  for (let utxo of inputUtxos)
-    await updateOrCreateBalancesWithUtxo(utxo, storage, -1);
-
-  for (let utxo of pendingUtxos)
-    await updateOrCreateBalancesWithUtxo(utxo, storage, 1);
+  //Finally update balance store with new Utxos (we can call these at the same time because they are updated in memory, not on db)
+  await Promise.all(
+    allUtxos.map(([utxo, direction]) =>
+      updateOrCreateBalancesWithUtxo(utxo, storage, direction)
+    )
+  );
 
   return;
 };
 
+const processRunestone = async (Transaction, rpc, storage) => {
+  const { vout, vin } = Transaction;
+
+  //Ignore the coinbase transaction
+  if (vin[0].coinbase) return;
+
+  // const SpenderAccount = await _findAccountOrCreate(Transaction, db)
+
+  const { findManyInFilter } = storage;
+
+  let UtxoFilter = vin.map((vin) => [
+    { hash: vin.txid },
+    { vout_index: vin.vout },
+  ]);
+
+  //Setup Transaction for processing
+
+  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
+  let inputUtxos = await findManyInFilter("Utxo", UtxoFilter, true);
+
+  let pendingUtxos = createNewUtxoBodies(vout, Transaction);
+
+  let UnallocatedRunes = getUnallocatedRunesFromUtxos(inputUtxos);
+  //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
+
+  //Delete UTXOs as they are being spent
+  // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
+
+  //Reference of UnallocatedRunes and pendingUtxos is passed around in follwoing functions
+  await processEtching(UnallocatedRunes, Transaction, rpc, storage);
+
+  //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
+
+  await processMint(UnallocatedRunes, pendingUtxos, Transaction, storage);
+
+  //Allocate all transfers from unallocated payload to the pendingUtxos
+  await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
+
+  //Commit the utxos to storage and update Balances
+  await finalizeTransfers(inputUtxos, pendingUtxos, Transaction, storage);
+  return;
+};
+
 const loadBlockIntoMemory = async (block, storage) => {
-  const { loadManyIntoMemory } = storage;
+  const { loadManyIntoMemory, local } = storage;
 
   //Load all utxos in the block's vin into memory in one call
+
+  //Get a vector of all txHashes in the block
+  const transactionHashesInBlock = block
+    .map((transaction) =>
+      transaction.vin.map((utxo) => utxo.txid).filter((hash) => hash)
+    )
+    .flat(Infinity);
+
+  //Get a vector of all recipients in the block utxo.scriptPubKey?.address
+  const recipientsInBlock = block
+    .map((transaction) =>
+      transaction.vin
+        .map((utxo) => utxo.scriptPubKey?.address)
+        .filter((hash) => hash)
+    )
+    .flat(Infinity);
+
   await loadManyIntoMemory("Utxo", {
     hash: {
-      [Op.in]: block.map((transaction) =>
-        transaction.vin.map((utxo) => utxo.txid).filter((hash) => hash)
-      ),
+      [Op.in]: transactionHashesInBlock,
     },
   });
+
+  const utxosInBlock = local.Utxo;
+  const balancesInBlock = [
+    recipientsInBlock,
+    Object.values(utxosInBlock).map((utxo) => utxo.address),
+  ]
+    .flat(Infinity)
+    .filter((address) => address);
+
+  //Get all rune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
+  const runesInBlock = [
+    //Get all rune ids in edicts and mints
+
+    block.map((transaction) => [
+      transaction.runestone.mint,
+      transaction.runestone.edicts?.map((edict) => edict.id),
+    ]),
+
+    //Get all rune ids in all utxos balance
+    Object.values(utxosInBlock).map((utxo) =>
+      Object.keys(JSON.parse(utxo.rune_balances))
+    ),
+  ]
+
+    .flat(Infinity)
+    .filter((rune) => rune);
 
   //Load all runes that might be transferred into memory. This would be every Rune in a mint, edict or etch
 
   await loadManyIntoMemory("Rune", {
-    [Op.or]: [
-      //Load all rune ids in every mint and edict mapped by "rune_protocol_id"
-      {
-        rune_protocol_id: {
-          [Op.in]: block
-            .map((transaction) => [
-              transaction.runestone.mint,
-              transaction.runestone.edicts?.map((edict) => edict.id),
-            ])
-            .flat(Infinity)
-            .filter((rune) => rune),
-        },
-      },
-      //Load all runes with "etch" as they are mapped by raw_name
-      {
-        raw_name: {
-          [Op.in]: block
-            .map((transaction) => transaction.runestone.etching?.raw_name)
-            .filter((raw_name) => raw_name),
-        },
-      },
-    ],
+    rune_protocol_id: {
+      [Op.in]: runesInBlock,
+    },
   });
+
+  //Load the balances of all addresses owning a utxo or in a transactions vout
+  await loadManyIntoMemory("Balance", {
+    address: {
+      [Op.in]: balancesInBlock,
+    },
+  });
+
+  return;
 };
 
 const processBlock = async (block, callRpc, storage) => {
@@ -579,7 +587,23 @@ const processBlock = async (block, callRpc, storage) => {
     let Transaction = blockData[TransactionIndex];
     log("hash: " + Transaction.hash);
 
-    await processRunestone(Transaction, callRpc, storage);
+    try {
+      await processRunestone(Transaction, callRpc, storage);
+    } catch (e) {
+      log(
+        "Indexer panic on the following transaction: " +
+          "\nhash: " +
+          Transaction.hash +
+          "\nblock: " +
+          block +
+          "\nindex: " +
+          TransactionIndex +
+          "/" +
+          blockData.length,
+        "panic"
+      );
+      throw e;
+    }
   }
 
   await storage.commitChanges();

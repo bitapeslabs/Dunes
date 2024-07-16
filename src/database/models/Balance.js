@@ -13,10 +13,6 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
-      account_id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-      },
       address: {
         type: Sequelize.TEXT("long"),
         allowNull: false,

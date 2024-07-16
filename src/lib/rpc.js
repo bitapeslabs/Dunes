@@ -29,7 +29,8 @@ const createRpcClient = (rpcConfig) => {
       log(`RPC call ${method} took ${processingTime / 1000}s`);
       return response.data.result;
     } catch (error) {
-      log(error.toJSON());
+      log(error + " on " + method, "panic");
+      throw error;
     }
   };
 

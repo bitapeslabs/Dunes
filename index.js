@@ -11,23 +11,33 @@ const { GENESIS_BLOCK } = require("./src/lib/constants");
 const { sleep } = require("./src/lib/utils");
 
 const { processBlock } = require("./src/lib/indexer");
+const callRpc = createRpcClient({
+  url: process.env.FAST_BTC_RPC_URL,
+});
 
-//handler defs
-const startServer = async () => {
-  //Setup express routes
+const startRpc = async () => {
   server.use(process.env.IAP, bodyParser.urlencoded({ extended: false }));
   server.use(process.env.IAP, bodyParser.json());
+
+  server.use((req, res, next) => {
+    req.callRpc = callRpc;
+
+    next();
+  });
+
   server.use(`${process.env.IAP}/blocks`, require("./src/routes/blocks"));
 
   server.listen(3000, (err) => {
     log("RPC server running on port 3000");
   });
+};
+
+//handler defs
+const startServer = async () => {
+  //Setup express routes
   /*
       Connect to BTC rpc node, commands managed with rpcapi.js
     */
-  const callRpc = createRpcClient({
-    url: process.env.FAST_BTC_RPC_URL,
-  });
 
   /*
       Storage aggregator. During the processing of a block changes arent commited to DB until after every Banana has processed.
@@ -83,7 +93,8 @@ const startServer = async () => {
 };
 
 const start = async () => {
-  if (process.argv.includes("--server")) return startServer();
+  if (process.argv.includes("--server")) startServer();
+  if (process.argv.includes("--rpc")) startRpc();
 };
 
 start();

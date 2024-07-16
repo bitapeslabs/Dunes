@@ -29,7 +29,6 @@ const storage = async (useSync) => {
   const _getAutoIncrement = async (tableName) => {
     //Sequelize be default uses singular nouns, so the Cache library does also. Names need to be pluralized before querying the database.
     const pluralizedTableName = pluralize(tableName.toLowerCase());
-    console.log(pluralizedTableName);
     try {
       const results = await db.sequelize.query(
         `SELECT nextval('${pluralizedTableName}_id_seq'::regclass)`
