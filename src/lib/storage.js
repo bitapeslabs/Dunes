@@ -380,6 +380,8 @@ const storage = async (useSync) => {
 
     //Reset all local cache after commit
     local = _genDefaultCache();
+
+    return;
   };
 
   await _init();
