@@ -611,7 +611,7 @@ const processBlock = async (blockHeight, callRpc, storage) => {
           "\nhash: " +
           Transaction.hash +
           "\nblock: " +
-          block +
+          blockHeight +
           "\nindex: " +
           TransactionIndex +
           "/" +
