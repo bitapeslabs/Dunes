@@ -85,7 +85,7 @@ const storage = async (useSync) => {
     try {
       const foundRows = await Model.findAll({
         raw: true,
-        where: sequelizeFilter,
+        where: sequelizeQuery,
       });
 
       const primaryKey = LOCAL_PRIMARY_KEYS[modelName];
@@ -130,6 +130,7 @@ const storage = async (useSync) => {
 
     let primaryKey = LOCAL_PRIMARY_KEYS[modelName];
 
+    //This should be fine in local cache because we will only ever update a row already fetched from the database or created in the block
     let liveModel = template ?? (await findOne(modelName, primary));
     let newPrimary = liveModel[primaryKey];
 
@@ -138,7 +139,12 @@ const storage = async (useSync) => {
     return LocalModel[newPrimary];
   };
 
-  const findOne = async (modelName, value, attribute) => {
+  const findOne = async (
+    modelName,
+    value,
+    attribute,
+    ignoreDatabase = false
+  ) => {
     const { [modelName]: Model } = db;
     const { [modelName]: LocalModel } = local;
 
@@ -151,6 +157,8 @@ const storage = async (useSync) => {
 
       if (row) return row;
     }
+
+    if (ignoreDatabase) return null;
 
     try {
       let row = await Model.findOne({

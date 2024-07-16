@@ -75,7 +75,7 @@ const burnFromOpReturnEntry = async (entry, storage) => {
   const { updateAttribute, findOne } = storage;
   const [runeId, amount] = entry;
 
-  const rune = await findOne("Rune", runeId);
+  const rune = await findOne("Rune", runeId, false, true);
 
   return updateAttribute(
     "Rune",
@@ -99,7 +99,7 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
 
   //Get the existing balance entries. We can create hashmap of these with proto_id since address is the same
   const existingBalanceEntries = (
-    await findManyInFilter("Balance", balanceFilter)
+    await findManyInFilter("Balance", balanceFilter, true)
   )
     //Create hashmap
     .reduce((acc, balance) => {
@@ -184,10 +184,9 @@ const processEdicts = async (
     let edictFilter = edicts.map((edict) => edict.id);
 
     //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
-    let existingRunes = (await findManyInFilter("Rune", edictFilter)).reduce(
-      (acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }),
-      {}
-    );
+    let existingRunes = (
+      await findManyInFilter("Rune", edictFilter, true)
+    ).reduce((acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }), {});
 
     for (let edictIndex in edicts) {
       let edict = edicts[edictIndex];
@@ -262,7 +261,9 @@ const processMint = async (UnallocatedRunes, Transaction, storage) => {
   //We use the same  process used to calculate the Rune Id in the etch function if "0:0" is referred to
   const runeToMint = await findOne(
     "Rune",
-    mint === "0:0" ? `${block}:${txIndex}` : mint
+    mint === "0:0" ? `${block}:${txIndex}` : mint,
+    false,
+    true
   );
 
   if (!runeToMint) {
@@ -329,7 +330,7 @@ const processEtching = async (UnallocatedRunes, Transaction, rpc, storage) => {
     spacedRune = new SpacedRune(OrdRune.fromString(runeName), etching.spacers);
   }
 
-  const isRuneNameTaken = !!(await findOne("Rune", runeName, "raw_name"));
+  const isRuneNameTaken = !!(await findOne("Rune", runeName, "raw_name", true));
 
   if (isRuneNameTaken) {
     return UnallocatedRunes;
@@ -441,15 +442,23 @@ const finalizeTransfers = async (
     )
   );
 
+  //Filter out all OP_RETURN and zero rune balances
+  pendingUtxos = pendingUtxos.filter((utxo) => {
+    utxo.address !== "OP_RETURN" &&
+      Object.values(pendingUtxos.rune_balances).reduce((a, b) => a + b, 0) > 0;
+  });
+
   //parse rune_balances for all pendingUtxos
   pendingUtxos.forEach((utxo) => {
     utxo.rune_balances = JSON.stringify(stripObject(utxo.rune_balances));
   });
 
   //Create all new UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt)
-  pendingUtxos.forEach(
-    (utxo) => utxo.address !== "OP_RETURN" && create("Utxo", utxo).id
-  );
+  pendingUtxos.forEach((utxo) => {
+    if (utxo.address !== "OP_RETURN") {
+      create("Utxo", utxo).id;
+    }
+  });
 
   //Create a vec of all UTXOs and their direction (1 for adding to balance, -1 for subtracting from balance)
   const allUtxos = [
@@ -583,8 +592,11 @@ const loadBlockIntoMemory = async (block, storage) => {
   return;
 };
 
-const processBlock = async (block, callRpc, storage) => {
-  const blockData = await getRunestonesInBlock(block, callRpc);
+const processBlock = async (blockHeight, callRpc, storage) => {
+  const blockData = await getRunestonesInBlock(blockHeight, callRpc);
+
+  //Load all rows we will manipulate beforehand into memory
+  await loadBlockIntoMemory(blockData, storage);
   for (let TransactionIndex in blockData) {
     log("Processing Transaction: ", TransactionIndex + "/" + blockData.length);
 
