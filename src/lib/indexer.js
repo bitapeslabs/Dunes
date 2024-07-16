@@ -608,7 +608,7 @@ const processBlock = async (blockHeight, callRpc, storage) => {
 
     try {
       await processRunestone(Transaction, callRpc, storage);
-      await sleep(2000);
+      //await sleep(2000);
     } catch (e) {
       log(
         "Indexer panic on the following transaction: " +
