@@ -64,7 +64,7 @@ const createNewUtxoBodies = (vout, Transaction) => {
       value_sats: toBigInt(utxo.value.toString(), 8).toString(),
       hash: Transaction.hash,
       vout_index: index,
-      block: Transaction.block_id,
+      block: parseInt(Transaction.block),
       rune_balances: {},
       block_spent: null,
     };
