@@ -1,6 +1,6 @@
 require("dotenv").config({ path: "../../.env" });
 
-const { toBigInt, stripObject, log } = require("./utils");
+const { toBigInt, stripObject, log, sleep } = require("./utils");
 const {
   isMintOpen,
   getReservedName,
@@ -441,13 +441,15 @@ const finalizeTransfers = async (
       updateAttribute("Utxo", utxo.id, "block_spent", Transaction.block_id)
     )
   );
-
   //Filter out all OP_RETURN and zero rune balances
-  pendingUtxos = pendingUtxos.filter((utxo) => {
-    utxo.address !== "OP_RETURN" &&
-      Object.values(utxo.rune_balances).reduce((a, b) => a + BigInt(b), 0n) >
-        0n;
-  });
+  pendingUtxos = pendingUtxos.filter(
+    (utxo) =>
+      utxo.address !== "OP_RETURN" &&
+      Object.values(utxo.rune_balances ?? {}).reduce(
+        (a, b) => a + BigInt(b),
+        0n
+      ) > 0n
+  );
 
   //parse rune_balances for all pendingUtxos
   pendingUtxos.forEach((utxo) => {
@@ -606,6 +608,7 @@ const processBlock = async (blockHeight, callRpc, storage) => {
 
     try {
       await processRunestone(Transaction, callRpc, storage);
+      await sleep(2000);
     } catch (e) {
       log(
         "Indexer panic on the following transaction: " +
