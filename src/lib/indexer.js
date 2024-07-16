@@ -444,7 +444,7 @@ const finalizeTransfers = async (
 
   //Filter out all OP_RETURN and zero rune balances
   pendingUtxos = pendingUtxos.filter((utxo) => {
-    utxo.address !== "OP_RETURN" ||
+    utxo.address !== "OP_RETURN" &&
       Object.values(utxo.rune_balances).reduce((a, b) => a + BigInt(b), 0n) >
         0n;
   });
