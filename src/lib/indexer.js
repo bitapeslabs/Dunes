@@ -62,7 +62,7 @@ const createNewUtxoBodies = (vout, Transaction) => {
         Therefore, we mark a utxo as an OP_RETURN by setting its address to such
       */
       address: voutAddress ?? "OP_RETURN",
-      value_sats: (utxo.value * 10 ** 8).toString(),
+      value_sats: parseInt(utxo.value * 10 ** 8).toString(),
       hash: Transaction.hash,
       vout_index: index,
       block: parseInt(Transaction.block),
