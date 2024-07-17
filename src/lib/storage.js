@@ -13,10 +13,9 @@ const storage = async (useSync) => {
   };
 
   const _genDefaultCache = () =>
-    Object.keys(LOCAL_PRIMARY_KEYS).reduce((acc, key) => {
-      acc[key] = {};
-      return acc;
-    }, {});
+    Object.keys(LOCAL_PRIMARY_KEYS).forEach((key) => {
+      local[key] = {};
+    });
 
   // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
   let local = _genDefaultCache(),
@@ -92,11 +91,9 @@ const storage = async (useSync) => {
 
       const primaryKey = LOCAL_PRIMARY_KEYS[modelName];
 
-      local[modelName] = foundRows.reduce((acc, row) => {
-        acc[row[primaryKey]] = { ...row, __memory: true };
-
-        return acc;
-      }, {});
+      foundRows.forEach((row) => {
+        LocalModel[row[primaryKey]] = { ...row, __memory: true };
+      });
       /*
       console.log(modelName + " (fr): " + foundRows.length);
       console.log("--------------------");
