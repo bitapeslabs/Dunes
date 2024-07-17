@@ -95,6 +95,10 @@ const storage = async (useSync) => {
       foundRows.forEach((row) => {
         LocalModel[row[primaryKey]] = { ...row, __memory: true };
       });
+
+            
+      log(modelName + " (fr): " + foundRows.length, 'debug');
+      log(modelName + " (lo): " + Object.keys(local[modelName]).length, 'debug');
       return foundRows;
     } catch (error) {
       console.error(
