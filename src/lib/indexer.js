@@ -593,7 +593,8 @@ const loadBlockIntoMemory = async (block, storage) => {
         ),
       ]
         .flat(Infinity)
-        .filter((rune) => rune)
+        //0:0 refers to self, not an actual rune
+        .filter((rune) => rune && rune !== "0:0")
     ),
   ];
 
