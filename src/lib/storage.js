@@ -397,7 +397,9 @@ const storage = async (useSync) => {
     //Reset all local cache after commit
     local = _genDefaultCache();
 
-    console.log(Object.keys(local.Utxo).length);
+    console.log(
+      "changes on storage main proc are: " + Object.keys(local.Utxo).length
+    );
 
     return;
   };
