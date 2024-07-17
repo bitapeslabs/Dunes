@@ -34,7 +34,9 @@ const storage = async (useSync) => {
         `SELECT nextval('${pluralizedTableName}_id_seq'::regclass)`
       );
 
-      return parseInt(results[0][0].nextval ?? 0n);
+      //The nextval function changes the value of the sequence, something that would be done by sequelize on creating a new document. We must set it back by one so we can
+      //simulate incrementing it by one in the cache when we create a new row
+      return parseInt(results[0][0].nextval ?? 0n) - 1;
     } catch (error) {
       console.error(
         `(storage) Failed to retrieve auto increment for ${tableName}:`,
@@ -89,16 +91,16 @@ const storage = async (useSync) => {
         where: sequelizeQuery,
       });
 
-      console.log(foundRows.length);
-
       const primaryKey = LOCAL_PRIMARY_KEYS[modelName];
 
-      foundRows.forEach((row) => {
-        row.__memory = true;
+      local[modelName] = foundRows.reduce((acc, row) => {
+        acc[row[primaryKey]] = { ...row, __memory: true };
 
-        LocalModel[row[primaryKey]] = row;
-      });
-      console.log(Object.keys(local.Utxo).length);
+        return acc;
+      }, {});
+
+      console.log(modelName + " (fr): " + foundRows.length);
+      console.log(modelName + " (lo): " + Object.keys(local[modelName]).length);
 
       return foundRows;
     } catch (error) {

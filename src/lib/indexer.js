@@ -309,10 +309,15 @@ const processEtching = async (
 
   const etching = runestone?.etching;
 
-  const { findOne, create } = storage;
+  const { findOne, create, local } = storage;
 
   //If no etching, return the input allocations
   if (!etching) {
+    return UnallocatedRunes;
+  }
+
+  //This transaction has already etched a rune
+  if (local.Rune[`${block}:${txIndex}`]) {
     return UnallocatedRunes;
   }
 
@@ -406,6 +411,7 @@ const processEtching = async (
     burnt_amount: "0",
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the rune spec (see above)
     unmintable: runestone.cenotaph ? 1 : 0,
+    etch_transaction: Transaction.hash,
   });
 
   //Add premine runes to input allocations
@@ -548,19 +554,27 @@ const loadBlockIntoMemory = async (block, storage) => {
   //Load all utxos in the block's vin into memory in one call
 
   //Get a vector of all txHashes in the block
-  const transactionHashesInBlock = block
-    .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
-    .flat(Infinity)
-    .filter((hash) => hash);
+  const transactionHashesInBlock = [
+    ...new Set(
+      block
+        .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
+        .flat(Infinity)
+        .filter((hash) => hash)
+    ),
+  ];
 
   //Get a vector of all recipients in the block utxo.scriptPubKey?.address
-  const recipientsInBlock = block
-    .map((transaction) =>
-      transaction.vin
-        .map((utxo) => utxo.scriptPubKey?.address)
-        .filter((hash) => hash)
-    )
-    .flat(Infinity);
+  const recipientsInBlock = [
+    ...new Set(
+      block
+        .map((transaction) =>
+          transaction.vin
+            .map((utxo) => utxo.scriptPubKey?.address)
+            .filter((hash) => hash)
+        )
+        .flat(Infinity)
+    ),
+  ];
 
   await loadManyIntoMemory("Utxo", {
     hash: {
@@ -570,11 +584,15 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   const utxosInBlock = local.Utxo;
   const balancesInBlock = [
-    recipientsInBlock,
-    Object.values(utxosInBlock).map((utxo) => utxo.address),
-  ]
-    .flat(Infinity)
-    .filter((address) => address);
+    ...new Set(
+      [
+        recipientsInBlock,
+        Object.values(utxosInBlock).map((utxo) => utxo.address),
+      ]
+        .flat(Infinity)
+        .filter((address) => address)
+    ),
+  ];
 
   //Get all rune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
   const runesInBlock = [

@@ -79,6 +79,11 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("tiny"),
         allowNull: true,
       },
+      etch_transaction: {
+        type: Sequelize.TEXT("medium"),
+        allowNull: true,
+      },
+
       unmintable: {
         type: Sequelize.INTEGER,
         allowNull: false,
