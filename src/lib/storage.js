@@ -88,6 +88,8 @@ const storage = async (useSync) => {
         where: sequelizeQuery,
       });
 
+      console.log(foundRows.length);
+
       const primaryKey = LOCAL_PRIMARY_KEYS[modelName];
 
       foundRows.forEach((row) => {
