@@ -97,7 +97,7 @@ const storage = async (useSync) => {
 
         return acc;
       }, {});
-
+      /*
       console.log(modelName + " (fr): " + foundRows.length);
       console.log("--------------------");
       console.dir(
@@ -106,7 +106,7 @@ const storage = async (useSync) => {
       );
 
       console.log(modelName + " (lo): " + Object.keys(local[modelName]).length);
-
+      */
       return foundRows;
     } catch (error) {
       console.error(
@@ -403,6 +403,7 @@ const storage = async (useSync) => {
     return;
   };
 
+  console.log("init running");
   await _init();
   console.log(cachedAutoIncrements);
   return {
