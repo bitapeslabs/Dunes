@@ -586,6 +586,8 @@ const loadBlockIntoMemory = async (block, storage) => {
   });
 
   const utxosInBlock = local.Utxo;
+  log(utxosInBlock[0].address, "debug");
+
   const balancesInBlock = [
     ...new Set(
       [
@@ -651,19 +653,16 @@ const processBlock = async (blockHeight, callRpc, storage) => {
   const memoryData = process.memoryUsage();
 
   const memoryUsage = {
-    rss: `${formatMemoryUsage(
-      memoryData.rss
-    )} -> Resident Set Size - total memory allocated for the process execution`,
-    heapTotal: `${formatMemoryUsage(
-      memoryData.heapTotal
-    )} -> total size of the allocated heap`,
-    heapUsed: `${formatMemoryUsage(
-      memoryData.heapUsed
-    )} -> actual memory used during the execution`,
-    external: `${formatMemoryUsage(memoryData.external)} -> V8 external memory`,
+    rss: `${formatMemoryUsage(memoryData.rss)} ->`,
+    heapTotal: `${formatMemoryUsage(memoryData.heapTotal)}`,
+    heapUsed: `${formatMemoryUsage(memoryData.heapUsed)}`,
+    external: `${formatMemoryUsage(memoryData.external)}`,
   };
 
-  log(JSON.stringify(memoryUsage), "debug");
+  log("MEMSTAT rss: " + memoryUsage.rss, "debug");
+  log("MEMSTAT heap(total): " + memoryUsage.heapTotal, "debug");
+  log("MEMSTAT heap(used): " + memoryUsage.heapUsed, "debug");
+  log("MEMSTAT external: " + memoryUsage.external, "debug");
 
   const blockData = await getRunestonesInBlock(blockHeight, callRpc);
 

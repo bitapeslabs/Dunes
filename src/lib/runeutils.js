@@ -191,6 +191,7 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
     //Exception is the GENESIS rune
     return false;
   }
+  if (rune_protocol_id === "1:0") creationBlock = GENESIS_BLOCK;
 
   /*
         Setup variable defs according to ord spec,
