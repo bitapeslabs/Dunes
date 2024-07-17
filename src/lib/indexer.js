@@ -649,7 +649,7 @@ const processBlock = async (blockHeight, callRpc, storage) => {
 
   //Load all rows we will manipulate beforehand into memory
   await loadBlockIntoMemory(blockData, storage);
-  await sleep(2000);
+  //await sleep(2000);
   log(
     "Processing " + blockData.length + " transactions for block " + blockHeight
   );
