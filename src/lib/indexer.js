@@ -578,22 +578,26 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   //Get all rune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
   const runesInBlock = [
-    //Get all rune ids in edicts and mints
+    ...new Set(
+      [
+        //Get all rune ids in edicts and mints
 
-    block.map((transaction) => [
-      transaction.runestone.mint,
-      transaction.runestone.edicts?.map((edict) => edict.id),
-    ]),
+        block.map((transaction) => [
+          transaction.runestone.mint,
+          transaction.runestone.edicts?.map((edict) => edict.id),
+        ]),
 
-    //Get all rune ids in all utxos balance
-    Object.values(utxosInBlock).map((utxo) =>
-      Object.keys(JSON.parse(utxo.rune_balances))
+        //Get all rune ids in all utxos balance
+        Object.values(utxosInBlock).map((utxo) =>
+          Object.keys(JSON.parse(utxo.rune_balances))
+        ),
+      ]
+        .flat(Infinity)
+        .filter((rune) => rune)
     ),
-  ]
+  ];
 
-    .flat(Infinity)
-    .filter((rune) => rune);
-
+  console.log(runesInBlock);
   //Load all runes that might be transferred into memory. This would be every Rune in a mint, edict or etch
 
   await loadManyIntoMemory("Rune", {

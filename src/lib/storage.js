@@ -33,7 +33,8 @@ const storage = async (useSync) => {
       const results = await db.sequelize.query(
         `SELECT nextval('${pluralizedTableName}_id_seq'::regclass)`
       );
-      return parseInt(results[0].AUTO_INCREMENT ?? 0n) - 1;
+
+      return parseInt(results[0][0].nextval ?? 0n);
     } catch (error) {
       console.error(
         `(storage) Failed to retrieve auto increment for ${tableName}:`,
@@ -371,6 +372,11 @@ const storage = async (useSync) => {
             throw error;
           }
         }
+        const pluralizedTableName = pluralize(modelName.toLowerCase());
+
+        await db.sequelize.query(
+          `SELECT setval('${pluralizedTableName}', ${cachedAutoIncrements[modelName]}, true)`
+        );
       }
 
       await transaction.commit();
@@ -381,6 +387,7 @@ const storage = async (useSync) => {
       throw error;
     }
 
+    delete local;
     //Reset all local cache after commit
     local = _genDefaultCache();
 
@@ -388,7 +395,7 @@ const storage = async (useSync) => {
   };
 
   await _init();
-
+  console.log(cachedAutoIncrements);
   return {
     local,
     db,
