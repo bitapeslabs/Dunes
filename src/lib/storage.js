@@ -399,7 +399,6 @@ const storage = async (useSync) => {
     delete local;
     //Reset all local cache after commit
     local = _genDefaultCache();
-    console.log(local);
 
     return;
   };

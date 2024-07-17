@@ -619,7 +619,6 @@ const loadBlockIntoMemory = async (block, storage) => {
     ),
   ];
 
-  console.log(runesInBlock);
   //Load all runes that might be transferred into memory. This would be every Rune in a mint, edict or etch
 
   await loadManyIntoMemory("Rune", {

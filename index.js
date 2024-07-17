@@ -46,7 +46,7 @@ const startServer = async () => {
     */
   const useSetup = process.argv.includes("--new");
 
-  const storage = await newStorage(useSetup);
+  let storage = await newStorage(useSetup);
 
   const { Setting } = storage.db;
 
