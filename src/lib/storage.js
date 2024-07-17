@@ -95,6 +95,7 @@ const storage = async (useSync) => {
 
         LocalModel[row[primaryKey]] = row;
       });
+      console.log(local.Utxo.length);
 
       return foundRows;
     } catch (error) {
