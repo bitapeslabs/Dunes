@@ -95,16 +95,6 @@ const storage = async (useSync) => {
       foundRows.forEach((row) => {
         LocalModel[row[primaryKey]] = { ...row, __memory: true };
       });
-      /*
-      console.log(modelName + " (fr): " + foundRows.length);
-      console.log("--------------------");
-      console.dir(
-        foundRows.map((row) => row.rune_protocol_id),
-        { maxArrayLength: null }
-      );
-
-      console.log(modelName + " (lo): " + Object.keys(local[modelName]).length);
-      */
       return foundRows;
     } catch (error) {
       console.error(
@@ -395,14 +385,9 @@ const storage = async (useSync) => {
     //Reset all local cache after commit
     _genDefaultCache();
 
-    console.log(
-      "changes on storage main proc are: " + Object.keys(local.Utxo).length
-    );
-
     return;
   };
 
-  console.log("init running");
   await _init();
   console.log(cachedAutoIncrements);
   return {
