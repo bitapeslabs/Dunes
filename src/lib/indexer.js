@@ -583,7 +583,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   });
 
   const utxosInBlock = local.Utxo;
-  log(utxosInBlock[0].address, "debug");
+  log(Object.values(utxosInBlock).hash, "debug");
 
   const balancesInBlock = [
     ...new Set(
