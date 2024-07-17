@@ -13,7 +13,8 @@ const storage = async (useSync) => {
   };
 
   // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
-  let local, db;
+  let local = {},
+    db;
 
   const _genDefaultCache = () =>
     Object.keys(LOCAL_PRIMARY_KEYS).forEach((key) => {
