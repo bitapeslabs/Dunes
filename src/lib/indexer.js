@@ -551,9 +551,6 @@ const processRunestone = async (Transaction, rpc, storage) => {
 const loadBlockIntoMemory = async (block, storage) => {
   const { loadManyIntoMemory, local } = storage;
 
-  console.log("before load looks like this:");
-  console.log(Object.values(local.Utxo).length);
-
   //Load all utxos in the block's vin into memory in one call
 
   //Get a vector of all txHashes in the block

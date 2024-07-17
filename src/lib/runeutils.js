@@ -30,8 +30,6 @@ const decipherRunestone = (txJson) => {
 };
 
 const getRunestonesInBlock = async (blockNumber, callRpc) => {
-  console.log(blockNumber);
-
   const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
 
   const block = await callRpc("getblock", [blockHash, 2]);
