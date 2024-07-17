@@ -10,7 +10,6 @@ const storage = async (useSync) => {
     Balance: "id",
     Rune: "rune_protocol_id",
     Utxo: "id",
-    Setting: "id",
   };
 
   const _genDefaultCache = () =>
