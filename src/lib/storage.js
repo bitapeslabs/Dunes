@@ -99,6 +99,12 @@ const storage = async (useSync) => {
       }, {});
 
       console.log(modelName + " (fr): " + foundRows.length);
+      console.log("--------------------");
+      console.dir(
+        foundRows.map((row) => row.rune_protocol_id),
+        { maxArrayLength: null }
+      );
+
       console.log(modelName + " (lo): " + Object.keys(local[modelName]).length);
 
       return foundRows;
@@ -391,6 +397,7 @@ const storage = async (useSync) => {
     delete local;
     //Reset all local cache after commit
     local = _genDefaultCache();
+    console.log(local);
 
     return;
   };
