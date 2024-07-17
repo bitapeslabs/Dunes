@@ -394,11 +394,10 @@ const storage = async (useSync) => {
       throw error;
     }
 
-    console.log("WAITWHAT");
-
-    delete local;
     //Reset all local cache after commit
     local = _genDefaultCache();
+
+    console.log(Object.keys(local.Utxo).length);
 
     return;
   };
