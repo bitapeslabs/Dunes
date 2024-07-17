@@ -676,7 +676,7 @@ const processBlock = async (blockHeight, callRpc, storage) => {
   }
 
   await storage.commitChanges();
-
+  console.log("changes on indexer main proc are: " + storage.local.Utxo);
   return;
 };
 
