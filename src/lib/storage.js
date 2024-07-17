@@ -375,7 +375,7 @@ const storage = async (useSync) => {
         const pluralizedTableName = pluralize(modelName.toLowerCase());
 
         await db.sequelize.query(
-          `SELECT setval('${pluralizedTableName}_id_req', ${cachedAutoIncrements[modelName]}, true)`
+          `SELECT setval('${pluralizedTableName}_id_seq', ${cachedAutoIncrements[modelName]}, true)`
         );
       }
 
