@@ -12,15 +12,15 @@ const storage = async (useSync) => {
     Utxo: "id",
   };
 
+  // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
+  let local, db;
+
   const _genDefaultCache = () =>
     Object.keys(LOCAL_PRIMARY_KEYS).forEach((key) => {
       local[key] = {};
     });
 
-  // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
-  let local = _genDefaultCache(),
-    db,
-    rawConnection;
+  _genDefaultCache();
 
   let cachedAutoIncrements = {};
 
@@ -392,7 +392,7 @@ const storage = async (useSync) => {
     }
 
     //Reset all local cache after commit
-    local = _genDefaultCache();
+    _genDefaultCache();
 
     console.log(
       "changes on storage main proc are: " + Object.keys(local.Utxo).length
