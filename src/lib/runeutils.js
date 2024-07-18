@@ -172,7 +172,6 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
     mint_cap,
     mint_start,
     mint_end,
-    mint_amount,
     mint_offset_start,
     mint_offset_end,
     rune_protocol_id,

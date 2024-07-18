@@ -430,7 +430,7 @@ const processEtching = async (
     turbo: etching.turbo,
     burnt_amount: "0",
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the rune spec (see above)
-    unmintable: runestone.cenotaph ? 1 : 0,
+    unmintable: runestone.cenotaph || !etching.terms?.amount ? 1 : 0,
     etch_transaction: Transaction.hash,
   });
 
