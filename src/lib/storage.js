@@ -373,7 +373,7 @@ const storage = async (useSync) => {
 
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
-        log(`Committing ${modelName}...`, "stat");
+        log(`Committing ${modelName} to db...`, "debug");
         rows = Object.values(rows);
 
         for (let rowIndex in rows) {

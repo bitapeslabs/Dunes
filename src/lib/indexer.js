@@ -584,7 +584,7 @@ const loadBlockIntoMemory = async (block, storage) => {
       block
         .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
         .flat(Infinity)
-        .filter((hash) => hash)
+        .filter(Boolean)
     ),
   ];
 
@@ -595,7 +595,7 @@ const loadBlockIntoMemory = async (block, storage) => {
         .map((transaction) =>
           transaction.vout
             .map((utxo) => utxo.scriptPubKey?.address)
-            .filter((hash) => hash)
+            .filter(Boolean)
         )
         .flat(Infinity)
     ),
@@ -615,7 +615,7 @@ const loadBlockIntoMemory = async (block, storage) => {
         Object.values(utxosInBlock).map((utxo) => utxo.address),
       ]
         .flat(Infinity)
-        .filter((address) => address)
+        .filter(Boolean)
     ),
   ];
 
@@ -736,7 +736,7 @@ const processBlock = async (blockHeight, callRpc, storage, useTest) => {
           TransactionIndex +
           "/" +
           blockData.length,
-        "panic"
+        "\nrunestome: " + Transaction.runestone + "panic"
       );
       throw e;
     }
