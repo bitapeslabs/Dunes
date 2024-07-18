@@ -212,7 +212,7 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
   */
 
   //This should always be perfectly divisible, since mint_amount is the only amount always added to the total supply
-  total_mints = BigInt(mints) + mint_offset ? 1n : 0n;
+  total_mints = BigInt(mints) + (mint_offset ? 1n : 0n);
 
   //If the mint offset (amount being minted) causes the total supply to exceed the mint cap, this mint is not allowed
 
