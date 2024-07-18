@@ -77,7 +77,7 @@ const startServer = async () => {
       await processBlock(currentBlock, callRpc, storage, useTest);
 
       //Update the current block in the DB
-      log("Block finished processing!", "stat");
+      log("Block finished processing!", "debug");
       await Setting.update(
         { value: currentBlock },
         { where: { name: "last_block_processed" } }
