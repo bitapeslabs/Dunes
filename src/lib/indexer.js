@@ -735,8 +735,10 @@ const processBlock = async (blockHeight, callRpc, storage, useTest) => {
           "\nindex: " +
           TransactionIndex +
           "/" +
-          blockData.length,
-        "\nrunestome: " + Transaction.runestone + "panic"
+          blockData.length +
+          "\nrunestone: " +
+          JSON.stringify(Transaction.runestone),
+        "panic"
       );
       throw e;
     }
