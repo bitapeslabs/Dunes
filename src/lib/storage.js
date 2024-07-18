@@ -404,7 +404,6 @@ const storage = async (useSync) => {
   };
 
   await _init();
-  console.log(cachedAutoIncrements);
   return {
     local,
     db,
