@@ -222,13 +222,11 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
   }
 
   //Define defaults used for calculations below
-  const starts = [mint_start, mint_offset_start]
-    .filter((e) => e !== creationBlock)
-    .map((n) => (n ? BigInt(n) : null));
+  const starts = [mint_start, mint_offset_start].filter(
+    (e) => e !== creationBlock
+  );
 
-  const ends = [mint_end, mint_offset_end]
-    .filter((e) => e !== creationBlock)
-    .map((n) => (n ? BigInt(n) : null));
+  const ends = [mint_end, mint_offset_end].filter((e) => e !== creationBlock);
 
   /*
         If both values differ from the creation block, it can be assumed that they were both provided during etching.
