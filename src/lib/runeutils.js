@@ -197,8 +197,8 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
     */
 
   //Convert offsets to real block heights
-  mint_offset_start = (mint_offset_start ?? 0) + creationBlock;
-  mint_offset_end = (mint_offset_end ?? 0) + creationBlock;
+  mint_offset_start = BigInt(mint_offset_start ?? 0) + BigInt(creationBlock);
+  mint_offset_end = BigInt(mint_offset_end ?? 0) + BigInt(creationBlock);
 
   /*
 
@@ -222,10 +222,13 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
   }
 
   //Define defaults used for calculations below
-  const starts = [mint_start, mint_offset_start].filter(
-    (e) => e !== creationBlock
-  );
-  const ends = [mint_end, mint_offset_end].filter((e) => e !== creationBlock);
+  const starts = [mint_start, mint_offset_start]
+    .filter((e) => e !== creationBlock)
+    .map((n) => (n ? BigInt(n) : null));
+
+  const ends = [mint_end, mint_offset_end]
+    .filter((e) => e !== creationBlock)
+    .map((n) => (n ? BigInt(n) : null));
 
   /*
         If both values differ from the creation block, it can be assumed that they were both provided during etching.
@@ -238,21 +241,20 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
         If no values are provided, start is the creationBlock.
 
     */
-  const start =
-    starts.length === 2
-      ? Math.max(mint_start ?? creationBlock, mint_offset_start)
-      : starts[0] ?? creationBlock;
+  const safe_mint_start = mint_start ?? creationBlock;
+  const max_start =
+    safe_mint_start > mint_offset_start ? safe_mint_start : mint_offset_start;
+  const start = starts.length === 2 ? max_start : starts[0] ?? creationBlock;
 
   /*
 
         Same as start with a few key differences: we use the MINIMUM value for the ends. If one is provided we use that one and if not are provided
         block is set to Infinity to allow minting to continue indefinitely.
     */
+  const safe_mint_end = mint_end ?? mint_offset_end;
+  const min_end = safe_mint_end < mint_offset_end ? safe_mint_end : mint_offset;
 
-  const end =
-    ends.length === 2
-      ? Math.min(mint_end ?? mint_offset_end, mint_offset_end)
-      : ends[0] ?? Infinity;
+  const end = ends.length === 2 ? min_end : ends[0] ?? Infinity;
 
   //Perform comparisons
 

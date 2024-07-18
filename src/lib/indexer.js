@@ -423,10 +423,10 @@ const processEtching = async (
 
     mint_cap: etching.terms?.cap ?? null, // null for no cap, otherwise the cap
     mint_amount: etching.terms?.amount ?? null,
-    mint_start: etching.terms?.height?.[0] ?? null,
-    mint_end: etching.terms?.height?.[1] ?? null,
-    mint_offset_start: etching.terms?.offset?.[0] ?? null,
-    mint_offset_end: etching.terms?.offset?.[1] ?? null,
+    mint_start: etching.terms?.height?.[0]?.toString() ?? null,
+    mint_end: etching.terms?.height?.[1]?.toString() ?? null,
+    mint_offset_start: etching.terms?.offset?.[0]?.toString() ?? null,
+    mint_offset_end: etching.terms?.offset?.[1]?.toString() ?? null,
     turbo: etching.turbo,
     burnt_amount: "0",
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the rune spec (see above)
