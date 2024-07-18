@@ -101,7 +101,7 @@ const startServer = async () => {
     log("current block height is at " + lastBlockProcessed, "info");
 
     if (lastBlockProcessed < latestBlock)
-      await processBlocksUntilEnd(lastBlockProcessed + 1, latestBlock);
+      await processBlocksInRange(lastBlockProcessed + 1, latestBlock);
     await sleep(process.env.BLOCK_CHECK_INTERVAL);
   }
 };
