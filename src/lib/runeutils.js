@@ -180,7 +180,6 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
   } = Rune;
 
   if (unmintable) {
-    console.log("fail @ A");
     return false;
   } //If the rune is unmintable, minting is globally not allowed
 
@@ -219,8 +218,6 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
 
   //If the mint offset (amount being minted) causes the total supply to exceed the mint cap, this mint is not allowed
   if (total_mints >= mint_cap) {
-    console.log("fail @ B");
-
     return false;
   }
 
@@ -258,9 +255,7 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
       : ends[0] ?? Infinity;
 
   //Perform comparisons
-  console.log(start);
-  console.log(end);
-  console.log(block);
+
   return !(start > block || end < block);
 };
 
