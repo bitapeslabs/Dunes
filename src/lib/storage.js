@@ -2,7 +2,6 @@ const { databaseConnection } = require("../database/createConnection");
 const { Op } = require("sequelize");
 const { pluralize, removeItemsWithDuplicateProp, log } = require("./utils");
 const { Client } = require("pg");
-
 const storage = async (useSync) => {
   //Configurations
 
@@ -29,13 +28,18 @@ const storage = async (useSync) => {
     //Sequelize be default uses singular nouns, so the Cache library does also. Names need to be pluralized before querying the database.
     const pluralizedTableName = pluralize(tableName.toLowerCase());
     try {
+      //Check value and rollback transaction to prevent change
+      const transaction = await db.sequelize.transaction();
+
       const results = await db.sequelize.query(
-        `SELECT nextval('${pluralizedTableName}_id_seq'::regclass)`
+        `SELECT nextval('${pluralizedTableName}_id_seq'::regclass)`,
+        { transaction }
       );
+      await transaction.rollback();
 
       //The nextval function changes the value of the sequence, something that would be done by sequelize on creating a new document. We must set it back by one so we can
       //simulate incrementing it by one in the cache when we create a new row
-      return parseInt(results[0][0].nextval ?? 0n) - 1;
+      return parseInt(results[0][0].nextval ?? 1) - 1;
     } catch (error) {
       console.error(
         `(storage) Failed to retrieve auto increment for ${tableName}:`,
@@ -96,9 +100,11 @@ const storage = async (useSync) => {
         LocalModel[row[primaryKey]] = { ...row, __memory: true };
       });
 
-            
-      log(modelName + " (fr): " + foundRows.length, 'debug');
-      log(modelName + " (lo): " + Object.keys(local[modelName]).length, 'debug');
+      log(modelName + " (fr): " + foundRows.length, "debug");
+      log(
+        modelName + " (lo): " + Object.keys(local[modelName]).length,
+        "debug"
+      );
       return foundRows;
     } catch (error) {
       console.error(
@@ -248,6 +254,7 @@ const storage = async (useSync) => {
 
     //Get local rows and generate a filter array with the rows not found in local cache.
     const localRows = Object.values(LocalModel).reduce((acc, row) => {
+      //This is effectively an OR operation. The upmost filter arr is used as an OR, inner arrs are used as ANDS
       for (let attributeFilter of filterArr) {
         if (testWithAttributeFilter(row, attributeFilter)) {
           acc.push(row);
@@ -309,9 +316,10 @@ const storage = async (useSync) => {
       //Because of the checks made above there will never be duplicates
       return removeItemsWithDuplicateProp(localRows.concat(nonLocalRows), "id");
     } catch (error) {
-      console.error(
-        `(storage) Failed to retrieve ${modelName} in findManyInFilter:`,
-        error
+      log(
+        `(storage) Failed to retrieve ${modelName} in findManyInFilter:` +
+          error,
+        "panic"
       );
       throw error;
     }
@@ -356,7 +364,7 @@ const storage = async (useSync) => {
 
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
-        log(`Committing ${modelName}...`, "stat");
+        log(`Committing ${modelName}...`, "debug");
         rows = Object.values(rows);
 
         for (let rowIndex in rows) {
@@ -373,9 +381,12 @@ const storage = async (useSync) => {
         }
         const pluralizedTableName = pluralize(modelName.toLowerCase());
 
-        await db.sequelize.query(
-          `SELECT setval('${pluralizedTableName}_id_seq', ${cachedAutoIncrements[modelName]}, true)`
-        );
+        //Check for 0 value because "id" range is (1..2147483647) on Postgres
+        if (cachedAutoIncrements[modelName] > 0) {
+          await db.sequelize.query(
+            `SELECT setval('${pluralizedTableName}_id_seq', ${cachedAutoIncrements[modelName]}, true)`
+          );
+        }
       }
 
       await transaction.commit();

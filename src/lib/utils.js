@@ -18,6 +18,7 @@ const toBigInt = (numberStr, decimals) => {
 };
 
 const log = (message, type) => {
+  if (type === "debug" && !process.argv.includes("--debug")) return;
   //Get current date and hour and add it to the message
   const date = new Date();
   console.log(`${date.toISOString()}: NANA > (${type ?? "stat"}) ${message}`);

@@ -15,6 +15,14 @@ const { Op } = require("sequelize");
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 const { GENESIS_BLOCK, GENESIS_RUNESTONE } = require("./constants");
 
+//For testing
+const fs = require("fs");
+const path = require("path");
+
+const testblock = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "../../dumps/testblock.json"), "utf8")
+);
+
 const getUnallocatedRunesFromUtxos = (inputUtxos) => {
   /*
         Important: Rune Balances from this function are returned in big ints in the following format
@@ -91,22 +99,29 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
 
   const utxoRuneBalances = Object.entries(JSON.parse(utxo.rune_balances));
 
-  //This filter is an OR filter passed to storagge, it fetches all corresponding Balances that the utxo is calling
+  //This filter is an OR filter of ANDs passed to storage, it fetches all corresponding Balances that the utxo is calling
   //for example: [{address, proto_id}, {address, proto_id}...]. While address is the same for all, a utxo can have multiple proto ids
+  // [[AND], [AND], [AND]] => [OR]
   const balanceFilter = utxoRuneBalances.map((runeBalance) => [
     { address: utxo.address },
     { rune_protocol_id: runeBalance[0] },
   ]);
 
   //Get the existing balance entries. We can create hashmap of these with proto_id since address is the same
+
   const existingBalanceEntries = (
     await findManyInFilter("Balance", balanceFilter, true)
-  )
-    //Create hashmap
-    .reduce((acc, balance) => {
-      acc[balance.rune_id] = balance;
-      return acc;
-    }, {});
+  ).reduce((acc, balance) => {
+    acc[balance.rune_protocol_id] = balance;
+    return acc;
+  }, {});
+
+  /*
+    The return value of 'existingBalanceEntries' looks looks like this after reduce (mapped by id):
+    {
+      1: {id: 1, rune_protocol_id: '1:0', address: 'address', balance: '0'}
+    }
+  */
 
   for (let entry of utxoRuneBalances) {
     const [rune_protocol_id, amount] = entry;
@@ -254,25 +269,20 @@ const processMint = async (UnallocatedRunes, Transaction, storage) => {
   const { block, txIndex, runestone } = Transaction;
   const mint = runestone?.mint;
 
-  const { findOne } = storage;
+  const { findOne, updateAttribute } = storage;
 
   if (!mint) {
     return UnallocatedRunes;
   }
   //We use the same  process used to calculate the Rune Id in the etch function if "0:0" is referred to
-  const runeToMint = await findOne(
-    "Rune",
-    mint === "0:0" ? `${block}:${txIndex}` : mint,
-    false,
-    true
-  );
+  const runeToMint = await findOne("Rune", mint, false, true);
 
   if (!runeToMint) {
     //The rune requested to be minted does not exist.
     return UnallocatedRunes;
   }
 
-  if (isMintOpen(block, runeToMint, true)) {
+  if (isMintOpen(block, txIndex, runeToMint, true)) {
     //Update new mints to count towards cap
 
     let newMints = (BigInt(runeToMint.mints) + BigInt(1)).toString();
@@ -434,6 +444,7 @@ const finalizeTransfers = async (
   storage
 ) => {
   const { updateAttribute, create } = storage;
+  const { block } = Transaction;
 
   let opReturnOutput = pendingUtxos.find(
     (utxo) => utxo.address === "OP_RETURN"
@@ -451,7 +462,7 @@ const finalizeTransfers = async (
   //Update all input UTXOs as spent
   await Promise.all(
     inputUtxos.map((utxo) =>
-      updateAttribute("Utxo", utxo.id, "block_spent", Transaction.block_id)
+      updateAttribute("Utxo", utxo.id, "block_spent", block)
     )
   );
   //Filter out all OP_RETURN and zero rune balances
@@ -523,7 +534,11 @@ const processRunestone = async (Transaction, rpc, storage) => {
   //Setup Transaction for processing
 
   //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
-  let inputUtxos = await findManyInFilter("Utxo", UtxoFilter, true);
+
+  //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
+  let inputUtxos = (await findManyInFilter("Utxo", UtxoFilter, true)).filter(
+    (utxo) => !utxo.block_spent
+  );
 
   let pendingUtxos = createNewUtxoBodies(vout, Transaction);
 
@@ -538,13 +553,14 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
-  await processMint(UnallocatedRunes, pendingUtxos, Transaction, storage);
+  await processMint(UnallocatedRunes, Transaction, storage);
 
   //Allocate all transfers from unallocated payload to the pendingUtxos
   await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
 
   //Commit the utxos to storage and update Balances
   await finalizeTransfers(inputUtxos, pendingUtxos, Transaction, storage);
+
   return;
 };
 
@@ -568,7 +584,7 @@ const loadBlockIntoMemory = async (block, storage) => {
     ...new Set(
       block
         .map((transaction) =>
-          transaction.vin
+          transaction.vout
             .map((utxo) => utxo.scriptPubKey?.address)
             .filter((hash) => hash)
         )
@@ -583,8 +599,6 @@ const loadBlockIntoMemory = async (block, storage) => {
   });
 
   const utxosInBlock = local.Utxo;
-  log(Object.values(utxosInBlock)[0].hash, "debug");
-
   const balancesInBlock = [
     ...new Set(
       [
@@ -597,7 +611,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   ];
 
   //Get all rune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
-  const runesInBlock = [
+  const runesInBlockById = [
     ...new Set(
       [
         //Get all rune ids in edicts and mints
@@ -614,16 +628,32 @@ const loadBlockIntoMemory = async (block, storage) => {
       ]
         .flat(Infinity)
         //0:0 refers to self, not an actual rune
-        .filter((rune) => rune && rune !== "0:0")
+        .filter((rune) => rune && rune?.rune_protocol_id !== "0:0")
     ),
   ];
+
+  const runesInBlockByRawName = [
+    ...new Set(block.map((transaction) => transaction.runestone.etching?.rune)),
+  ]
+    .flat(Infinity)
+    //0:0 refers to self, not an actual rune
+    .filter((rune) => rune);
 
   //Load all runes that might be transferred into memory. This would be every Rune in a mint, edict or etch
 
   await loadManyIntoMemory("Rune", {
-    rune_protocol_id: {
-      [Op.in]: runesInBlock,
-    },
+    [Op.or]: [
+      {
+        rune_protocol_id: {
+          [Op.in]: runesInBlockById,
+        },
+      },
+      {
+        raw_name: {
+          [Op.in]: runesInBlockByRawName,
+        },
+      },
+    ],
   });
 
   //Load the balances of all addresses owning a utxo or in a transactions vout
@@ -633,17 +663,24 @@ const loadBlockIntoMemory = async (block, storage) => {
     },
   });
 
-  log("loaded: " + Object.keys(local.Utxo).length + "  utxos into memory");
+  log(
+    "loaded: " + Object.keys(local.Utxo).length + "  utxos into memory",
+    "debug"
+  );
 
   log(
-    "loaded: " + Object.keys(local.Balance).length + "  balances into memory"
+    "loaded: " + Object.keys(local.Balance).length + "  balances into memory",
+    "debug"
   );
-  log("loaded: " + Object.keys(local.Rune).length + "  runes into memory");
+  log(
+    "loaded: " + Object.keys(local.Rune).length + "  runes into memory",
+    "debug"
+  );
 
   return;
 };
 
-const processBlock = async (blockHeight, callRpc, storage) => {
+const processBlock = async (blockHeight, callRpc, storage, useTest) => {
   const formatMemoryUsage = (data) =>
     `${Math.round((data / 1024 / 1024) * 100) / 100} MB`;
 
@@ -661,7 +698,9 @@ const processBlock = async (blockHeight, callRpc, storage) => {
   log("MEMSTAT heap(used): " + memoryUsage.heapUsed, "debug");
   log("MEMSTAT external: " + memoryUsage.external, "debug");
 
-  const blockData = await getRunestonesInBlock(blockHeight, callRpc);
+  const blockData = useTest
+    ? testblock
+    : await getRunestonesInBlock(blockHeight, callRpc);
 
   //Load all rows we will manipulate beforehand into memory
   await loadBlockIntoMemory(blockData, storage);
@@ -673,6 +712,9 @@ const processBlock = async (blockHeight, callRpc, storage) => {
     let Transaction = blockData[TransactionIndex];
 
     try {
+      //REMOVE THIS! This is for the --test flag
+      if (useTest) Transaction.block = blockHeight;
+
       await processRunestone(Transaction, callRpc, storage);
     } catch (e) {
       log(

@@ -45,39 +45,52 @@ const startServer = async () => {
       start processing at the start of the block
     */
   const useSetup = process.argv.includes("--new");
-
+  const useTest = process.argv.includes("--test");
   let storage = await newStorage(useSetup);
 
   const { Setting } = storage.db;
 
   /*
-      If the --new flag is included, the DB will be force reset and block processing will start at genesiis block
+      If the --new flag is included, the DB will be force reset and block processing will start at genesis block
+      if last_block_processed is 0, genesis block has not been processed
     */
 
-  let currentBlock = parseInt(
-    (
-      await Setting.findOrCreate({
-        where: { name: "current_block" },
-        defaults: { value: GENESIS_BLOCK },
-      })
-    )[0].value
-  );
+  let lastBlockProcessed =
+    parseInt(
+      (
+        await Setting.findOrCreate({
+          where: { name: "last_block_processed" },
+          defaults: { value: 0 },
+        })
+      )[0].value
+    ) || GENESIS_BLOCK - 1;
 
-  const processBlocksFromCurrent = async (endBlock) => {
-    for (currentBlock; currentBlock <= endBlock; currentBlock++) {
-      log("Processing block: ", currentBlock + "/" + endBlock);
-
+  //Process blocks in range will process blocks start:(startBlock) to end:(endBlock)
+  //startBlock and endBlock are inclusive (they are also processed)
+  const processBlocksInRange = async (startBlock, endBlock) => {
+    for (
+      let currentBlock = startBlock;
+      currentBlock <= endBlock;
+      currentBlock++
+    ) {
       //Run the indexers processBlock function
-      await processBlock(currentBlock, callRpc, storage);
+      await processBlock(currentBlock, callRpc, storage, useTest);
 
       //Update the current block in the DB
+      log("Block finished processing!", "stat");
       await Setting.update(
         { value: currentBlock },
-        { where: { name: "current_block" } }
+        { where: { name: "last_block_processed" } }
       );
     }
     return;
   };
+
+  //Use test flag only processes the testblock.json file. This is used to test the indexer in controlled scenarios.
+  if (useTest) {
+    await processBlocksInRange(lastBlockProcessed + 1, lastBlockProcessed + 1);
+    return;
+  }
 
   /*
     Main server loop, syncnronize any time a new block is found or we are off by any amount of blocks
@@ -85,9 +98,10 @@ const startServer = async () => {
   while (true) {
     let latestBlock = parseInt(await callRpc("getblockcount", []));
     log("latest block height is at " + latestBlock, "info");
-    log("current block height is at " + currentBlock, "info");
+    log("current block height is at " + lastBlockProcessed, "info");
 
-    if (currentBlock < latestBlock) await processBlocksFromCurrent(latestBlock);
+    if (lastBlockProcessed < latestBlock)
+      await processBlocksUntilEnd(lastBlockProcessed + 1, latestBlock);
     await sleep(process.env.BLOCK_CHECK_INTERVAL);
   }
 };

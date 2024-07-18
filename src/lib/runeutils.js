@@ -160,10 +160,11 @@ const updateUnallocated = (prevUnallocatedRunes, Allocation) => {
   return prevUnallocatedRunes;
 };
 
-const isMintOpen = (block, Rune, mint_offset = false) => {
+const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
   /*
     if mint_offset is false, this function uses the current supply for calculation. If mint_offset is true,
     the total_supply + mint_amount is used (it is used to calculate if a mint WOULD be allowed)
+    
   */
 
   let {
@@ -179,16 +180,18 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
   } = Rune;
 
   if (unmintable) {
+    console.log("fail @ A");
     return false;
   } //If the rune is unmintable, minting is globally not allowed
 
-  let [creationBlock] = rune_protocol_id.split(":").map(parseInt);
+  let [creationBlock, creationTxIndex] = rune_protocol_id
+    .split(":")
+    .map((arg) => parseInt(arg));
 
-  if (creationBlock === block) {
-    //You can only mint a rune if its in the same transaction as the creation of the rune. Otherwise one confirmation is needed.
-    //Exception is the GENESIS rune
-    return false;
-  }
+  //Mints may be made in any transaction --after-- an etching, including in the same block.
+
+  if (block === creationBlock && creationTxIndex === txIndex) return false;
+
   if (rune_protocol_id === "1:0") creationBlock = GENESIS_BLOCK;
 
   /*
@@ -216,6 +219,8 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
 
   //If the mint offset (amount being minted) causes the total supply to exceed the mint cap, this mint is not allowed
   if (total_mints >= mint_cap) {
+    console.log("fail @ B");
+
     return false;
   }
 
@@ -253,7 +258,9 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
       : ends[0] ?? Infinity;
 
   //Perform comparisons
-
+  console.log(start);
+  console.log(end);
+  console.log(block);
   return !(start > block || end < block);
 };
 

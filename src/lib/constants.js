@@ -1,4 +1,4 @@
-const GENESIS_BLOCK = 840000;
+const GENESIS_BLOCK = 840_000;
 const TAPROOT_ANNEX_PREFIX = 0x50;
 const UNLOCK_INTERVAL = 17500; //https://docs.ordinals.com/runes/specification.html -> Etching the runestone
 const COMMIT_CONFIRMATIONS = 6;
