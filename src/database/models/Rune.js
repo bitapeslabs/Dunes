@@ -56,19 +56,19 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
       mint_start: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       mint_end: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       mint_offset_start: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       mint_offset_end: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       mint_amount: {
