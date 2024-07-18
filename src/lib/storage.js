@@ -6,9 +6,9 @@ const storage = async (useSync) => {
   //Configurations
 
   const LOCAL_PRIMARY_KEYS = {
-    Balance: "id",
+    Balance: "balance_index",
     Rune: "rune_protocol_id",
-    Utxo: "id",
+    Utxo: "utxo_index",
   };
 
   // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
@@ -232,6 +232,7 @@ const storage = async (useSync) => {
 
       const filterType = getFilterType(attributeFilter);
 
+      //Results in O[1]
       if (filterType === "string") return row[primary] === attributeFilter;
 
       //Check if last leaf and object
@@ -252,17 +253,25 @@ const storage = async (useSync) => {
       );
     };
 
+    const isStaticFilter = filterArr.every(
+      (filterItem) => getFilterType(filterItem) === "string"
+    );
+    //If all operations in the filter are string, its an OR filled with primaries. We can optimize then.
+
     //Get local rows and generate a filter array with the rows not found in local cache.
-    const localRows = Object.values(LocalModel).reduce((acc, row) => {
-      //This is effectively an OR operation. The upmost filter arr is used as an OR, inner arrs are used as ANDS
-      for (let attributeFilter of filterArr) {
-        if (testWithAttributeFilter(row, attributeFilter)) {
-          acc.push(row);
+    const localRows = isStaticFilter
+      ? //Return all instances where the primary key exists in the array (much faster!)
+        filterArr.map((primaryKey) => LocalModel[primaryKey]).filter(Boolean)
+      : Object.values(LocalModel).reduce((acc, row) => {
+          //This is effectively an OR operation. The upmost filter arr is used as an OR, inner arrs are used as ANDS
+          for (let attributeFilter of filterArr) {
+            if (testWithAttributeFilter(row, attributeFilter)) {
+              acc.push(row);
+              return acc;
+            }
+          }
           return acc;
-        }
-      }
-      return acc;
-    }, []);
+        }, []);
 
     /*
         We would want to avoid querying the DB if we already have the copy of the document in __memory
@@ -364,7 +373,7 @@ const storage = async (useSync) => {
 
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
-        log(`Committing ${modelName}...`, "debug");
+        log(`Committing ${modelName}...`, "stat");
         rows = Object.values(rows);
 
         for (let rowIndex in rows) {

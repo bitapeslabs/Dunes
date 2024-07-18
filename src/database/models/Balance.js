@@ -9,6 +9,12 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
+      balance_index: {
+        //address:rune_protocol_id -> address:block:vout
+
+        type: Sequelize.TEXT("medium"),
+        allowNull: false,
+      },
       rune_protocol_id: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,

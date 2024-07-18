@@ -60,6 +60,7 @@ const createNewUtxoBodies = (vout, Transaction) => {
     const voutAddress = utxo.scriptPubKey.address;
 
     return {
+      utxo_index: Transaction.hash + ":" + index,
       /*
         SEE: https://docs.ordinals.com/runes.html#Burning
         "Runes may be burned by transferring them to an OP_RETURN output with an edict or pointer."
@@ -102,13 +103,14 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
   //This filter is an OR filter of ANDs passed to storage, it fetches all corresponding Balances that the utxo is calling
   //for example: [{address, proto_id}, {address, proto_id}...]. While address is the same for all, a utxo can have multiple proto ids
   // [[AND], [AND], [AND]] => [OR]
-  const balanceFilter = utxoRuneBalances.map((runeBalance) => [
-    { address: utxo.address },
-    { rune_protocol_id: runeBalance[0] },
-  ]);
+
+  const balanceFilter = utxoRuneBalances.map(
+    (runeBalance) => `${utxo.address}:${runeBalance[0]}`
+  );
 
   //Get the existing balance entries. We can create hashmap of these with proto_id since address is the same
 
+  //uses optimized lookup by using balance_index
   const existingBalanceEntries = (
     await findManyInFilter("Balance", balanceFilter, true)
   ).reduce((acc, balance) => {
@@ -130,6 +132,7 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
 
     if (!balanceFound) {
       balanceFound = create("Balance", {
+        balance_index: `${utxo.address}:${rune_protocol_id}`,
         rune_protocol_id: rune_protocol_id,
         address: utxo.address,
         balance: 0,
@@ -141,7 +144,12 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
       BigInt(amount) * BigInt(direction)
     ).toString();
 
-    await updateAttribute("Balance", balanceFound.id, "balance", newBalance);
+    await updateAttribute(
+      "Balance",
+      balanceFound.balance_index,
+      "balance",
+      newBalance
+    );
   }
 
   return;
@@ -200,6 +208,8 @@ const processEdicts = async (
     let edictFilter = edicts.map((edict) => edict.id);
 
     //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
+
+    //uses optimized lookup by using rune_protocol_id
     let existingRunes = (
       await findManyInFilter("Rune", edictFilter, true)
     ).reduce((acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }), {});
@@ -462,7 +472,7 @@ const finalizeTransfers = async (
   //Update all input UTXOs as spent
   await Promise.all(
     inputUtxos.map((utxo) =>
-      updateAttribute("Utxo", utxo.id, "block_spent", block)
+      updateAttribute("Utxo", utxo.utxo_index, "block_spent", block)
     )
   );
   //Filter out all OP_RETURN and zero rune balances
@@ -526,16 +536,15 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   const { findManyInFilter } = storage;
 
-  let UtxoFilter = vin.map((vin) => [
-    { hash: vin.txid },
-    { vout_index: vin.vout },
-  ]);
+  let UtxoFilter = vin.map((vin) => `${vin.txid}:${vin.vout}`);
 
   //Setup Transaction for processing
 
   //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
 
   //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
+
+  //uses optimized lookup by using utxo_index
   let inputUtxos = (await findManyInFilter("Utxo", UtxoFilter, true)).filter(
     (utxo) => !utxo.block_spent
   );

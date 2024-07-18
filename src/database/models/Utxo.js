@@ -9,6 +9,12 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
+      utxo_index: {
+        //hash:vout
+        type: Sequelize.TEXT("medium"),
+        allowNull: false,
+      },
+
       value_sats: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
