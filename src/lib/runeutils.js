@@ -197,8 +197,6 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
         Setup variable defs according to ord spec,
     */
 
-  mint_cap = BigInt(mint_cap) ?? BigInt(0); //If no mint cap is provided, minting is by default closed so we default to 0 which will negate any comparisons
-
   //Convert offsets to real block heights
   mint_offset_start = (mint_offset_start ?? 0) + creationBlock;
   mint_offset_end = (mint_offset_end ?? 0) + creationBlock;
@@ -214,11 +212,14 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
   */
 
   //This should always be perfectly divisible, since mint_amount is the only amount always added to the total supply
-  total_mints = BigInt(mints) + BigInt(mint_offset ? mint_amount : "0");
+  total_mints = BigInt(mints) + mint_offset ? 1n : 0n;
 
   //If the mint offset (amount being minted) causes the total supply to exceed the mint cap, this mint is not allowed
-  if (total_mints >= mint_cap) {
-    return false;
+
+  //First check if a mint_cap was provided
+  if (mint_cap) {
+    //If a mint_cap is provided we can perform the check to see if minting is allowed
+    if (total_mints >= BigInt(mint_cap)) return false;
   }
 
   //Define defaults used for calculations below
