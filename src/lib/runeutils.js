@@ -197,8 +197,9 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
     */
 
   //Convert offsets to real block heights
-  mint_offset_start = BigInt(mint_offset_start ?? 0) + BigInt(creationBlock);
-  mint_offset_end = BigInt(mint_offset_end ?? 0) + BigInt(creationBlock);
+  mint_offset_start =
+    parseInt(mint_offset_start ?? 0) + parseInt(creationBlock);
+  mint_offset_end = parseInt(mint_offset_end ?? 0) + parseInt(creationBlock);
 
   /*
 
