@@ -236,14 +236,26 @@ const processEdicts = async (
           const amountOutputs = BigInt(nonOpReturnOutputs.length);
           //By default all txs have exactly one OP_RETURN, because they are needed for runestones. More than 1 OP_RETURN is considered non-standard and ignored by btc nodes.
 
-          const amount = BigInt(UnallocatedRunes[edict.id]) / amountOutputs;
-          const remainder = BigInt(UnallocatedRunes[edict.id]) % amountOutputs;
+          /*
+            https://github.com/ordinals/ord/pull/3547/commits/30c0b39d398f5f2934c87762f53e0e0591b0aadf?diff=unified&w=0
+            AND
+            https://twitter.com/raphjaph/status/1782581416716357998/photo/2
+          */
+          if (amountOutputs > 0) {
+            const amount = BigInt(UnallocatedRunes[edict.id]) / amountOutputs;
+            const remainder =
+              BigInt(UnallocatedRunes[edict.id]) % amountOutputs;
 
-          const withRemainder = amount + BigInt(1);
+            const withRemainder = amount + BigInt(1);
 
-          nonOpReturnOutputs.forEach((utxo, index) =>
-            allocate(utxo, edict.id, index < remainder ? withRemainder : amount)
-          );
+            nonOpReturnOutputs.forEach((utxo, index) =>
+              allocate(
+                utxo,
+                edict.id,
+                index < remainder ? withRemainder : amount
+              )
+            );
+          }
         } else {
           //If an edict would allocate more runes than are currently unallocated, the amount is reduced to the number of currently unallocated runes. In other words, the edict allocates all remaining unallocated units of rune id.
 
