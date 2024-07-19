@@ -408,11 +408,15 @@ const processEtching = async (
     see unminable flag in rune model
   */
 
+  //If the symbol is larger than 1 char use default one instead (FAILS AT 842255:596 111d77cbcb1ee54e0392de588cb7ef794c4a0a382155814e322d93535abc9c66)
+  const symbol =
+    etching.symbol && etching.symbol.length === 1 ? etching.symbol : "¤";
+
   const EtchedRune = create("Rune", {
     rune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
     name: spacedRune ? spacedRune.name : runeName,
     raw_name: runeName,
-    symbol: etching.symbol ?? "¤",
+    symbol,
     spacers: etching.spacers ?? 0,
 
     //ORD describes no decimals being set as default 0
