@@ -90,6 +90,16 @@ module.exports = (sequelize) => {
       },
     },
     {
+      indexes: [
+        {
+          fields: ["rune_protocol_id"],
+          using: "HASH", // Attempt to specify hash index
+        },
+        {
+          fields: ["raw_name"],
+          using: "HASH", // Attempt to specify hash index
+        },
+      ],
       tableName: "runes",
       timestamps: true,
       createdAt: true,

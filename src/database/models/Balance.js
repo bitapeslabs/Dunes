@@ -29,6 +29,16 @@ module.exports = (sequelize) => {
       },
     },
     {
+      indexes: [
+        {
+          fields: ["address"],
+          using: "HASH",
+        },
+        {
+          fields: ["rune_protocol_id"],
+          using: "HASH",
+        },
+      ],
       tableName: "balances",
       timestamps: true,
       createdAt: true,

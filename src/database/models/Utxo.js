@@ -50,6 +50,20 @@ module.exports = (sequelize) => {
       },
     },
     {
+      indexes: [
+        {
+          fields: ["hash"],
+          using: "HASH",
+        },
+        {
+          fields: ["address"],
+          using: "HASH",
+        },
+        {
+          fields: ["block"], // Specify the actual fields to be unique
+          using: "HASH",
+        },
+      ],
       tableName: "utxos",
       timestamps: true,
       createdAt: true,
