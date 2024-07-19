@@ -1,3 +1,4 @@
+const { type } = require("os");
 const { Sequelize } = require("sequelize");
 
 module.exports = (sequelize) => {
@@ -17,6 +18,7 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
+
       raw_name: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
@@ -41,10 +43,6 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
-      total_holders: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-      },
       mints: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
@@ -54,31 +52,50 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
       mint_start: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       mint_end: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       mint_offset_start: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       mint_offset_end: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.TEXT,
         allowNull: true,
       },
       mint_amount: {
         type: Sequelize.TEXT("tiny"),
         allowNull: true,
       },
+      burnt_amount: {
+        type: Sequelize.TEXT("tiny"),
+        allowNull: true,
+      },
+      etch_transaction: {
+        type: Sequelize.TEXT("medium"),
+        allowNull: true,
+      },
+
       unmintable: {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
     },
     {
+      indexes: [
+        {
+          fields: ["rune_protocol_id"],
+          using: "HASH", // Attempt to specify hash index
+        },
+        {
+          fields: ["raw_name"],
+          using: "HASH", // Attempt to specify hash index
+        },
+      ],
       tableName: "runes",
       timestamps: true,
       createdAt: true,

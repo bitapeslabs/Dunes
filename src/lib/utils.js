@@ -17,6 +17,13 @@ const toBigInt = (numberStr, decimals) => {
   return resultBigInt.toString();
 };
 
+const log = (message, type) => {
+  if (type === "debug" && !process.argv.includes("--debug")) return;
+  //Get current date and hour and add it to the message
+  const date = new Date();
+  console.log(`${date.toISOString()}: NANA > (${type ?? "stat"}) ${message}`);
+};
+
 const pluralize = (word) => {
   // If the word ends in 'y' and is preceded by a consonant, replace 'y' with 'ies'
   if (word.match(/[^aeiou]y$/)) {
@@ -95,4 +102,5 @@ module.exports = {
   replacer,
   stripValue,
   removeItemsWithDuplicateProp,
+  log,
 };

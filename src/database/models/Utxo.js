@@ -9,14 +9,12 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
-      account_id: {
-        type: Sequelize.INTEGER,
+      utxo_index: {
+        //hash:vout
+        type: Sequelize.TEXT("medium"),
         allowNull: false,
       },
-      transaction_id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-      },
+
       value_sats: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
@@ -50,8 +48,27 @@ module.exports = (sequelize) => {
         type: Sequelize.INTEGER,
         allowNull: true,
       },
+      tx_hash_spent: {
+        //For transversing the chain and a rune transfer history
+        type: Sequelize.TEXT("medium"),
+        allowNull: true,
+      },
     },
     {
+      indexes: [
+        {
+          fields: ["hash"],
+          using: "HASH",
+        },
+        {
+          fields: ["address"],
+          using: "HASH",
+        },
+        {
+          fields: ["block"], // Specify the actual fields to be unique
+          using: "HASH",
+        },
+      ],
       tableName: "utxos",
       timestamps: true,
       createdAt: true,

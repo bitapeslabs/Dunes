@@ -12,7 +12,7 @@ const vout = 1;
 // Add the input
 tx.addInput(Buffer.from(txid, "hex").reverse(), vout);
 
-const embed = bitcoin.script.fromASM(
+const embed = bitcoin.script.fromHEX(
   "OP_RETURN OP_13 007101ac0203".trim().replace(/\s+/g, " ")
 );
 

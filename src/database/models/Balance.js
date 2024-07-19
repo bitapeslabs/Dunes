@@ -9,12 +9,14 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
-      rune_protocol_id: {
-        type: Sequelize.TEXT("tiny"),
+      balance_index: {
+        //address:rune_protocol_id -> address:block:vout
+
+        type: Sequelize.TEXT("medium"),
         allowNull: false,
       },
-      account_id: {
-        type: Sequelize.INTEGER,
+      rune_protocol_id: {
+        type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
       address: {
@@ -27,6 +29,16 @@ module.exports = (sequelize) => {
       },
     },
     {
+      indexes: [
+        {
+          fields: ["address"],
+          using: "HASH",
+        },
+        {
+          fields: ["rune_protocol_id"],
+          using: "HASH",
+        },
+      ],
       tableName: "balances",
       timestamps: true,
       createdAt: true,

@@ -1,16 +1,112 @@
-const { Rune: OrdJSRune } = require("@ordjs/runestone");
-const { Script } = require("@cmdcode/tapscript");
-
 const {
-  RUNE_GENESIS_BLOCK,
+  GENESIS_BLOCK,
   UNLOCK_INTERVAL,
   INITIAL_AVAILABLE,
   TAPROOT_ANNEX_PREFIX,
   COMMIT_CONFIRMATIONS,
   TAPROOT_SCRIPT_PUBKEY_TYPE,
-
-  STEPS,
 } = require("./constants");
+
+const { Rune: OrdJSRune } = require("@ordjs/runestone");
+const { Script } = require("@cmdcode/tapscript");
+const { runestone } = require("@runeapes/apeutils");
+const { stripObject, sleep } = require("./utils");
+const { log } = require("./utils");
+const decipherRunestone = (txJson) => {
+  let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
+
+  //Cenotaph objects and Runestones are both treated as runestones, the differentiation in processing is done at the indexer level
+  return {
+    ...decodedBlob?.Runestone,
+    ...decodedBlob?.Cenotaph,
+    cenotaph:
+      !!decodedBlob?.Cenotaph ||
+      (!decodedBlob?.Runestone &&
+        !!txJson.vout.filter((utxo) =>
+          //PUSHNUM_13 is CRUCIAL for defining a cenotaph, if just an "OP_RETURN" is present, its treated as a normal tx
+          utxo.scriptPubKey.asm.includes("OP_RETURN 13")
+        ).length),
+  };
+};
+
+const blockManager = (callRpc) => {
+  const MAX_CACHE_SIZE = 20;
+
+  let cachedBlocks = {};
+
+  const getRunestonesInBlock = async (blockNumber) => {
+    const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
+
+    const block = await callRpc("getblock", [blockHash, 2]);
+
+    const transactions = block.tx;
+
+    const runestones = transactions.map((tx, txIndex) => ({
+      runestone: decipherRunestone(tx),
+      hash: tx.txid,
+      txIndex,
+      block: blockNumber,
+      vout: tx.vout,
+      vin: tx.vin,
+    }));
+
+    return runestones;
+  };
+
+  let cacheFillProcessing = false;
+  const __fillCache = async (requestedBlock) => {
+    cacheFillProcessing = true;
+    let latestBlock = parseInt(await callRpc("getblockcount", []));
+
+    let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1));
+
+    let currentBlock = lastBlockInCache ? lastBlockInCache + 1 : requestedBlock;
+    while (
+      currentBlock < latestBlock &&
+      Object.keys(cachedBlocks).length < MAX_CACHE_SIZE
+    ) {
+      cachedBlocks[currentBlock] = {
+        blockHeight: currentBlock,
+        blockData: await getRunestonesInBlock(currentBlock),
+      };
+      currentBlock++;
+      log(
+        "Cache updated and now at size of " + Object.keys(cachedBlocks).length,
+        "debug"
+      );
+      //-> to avoid getting rate limited
+    }
+    cacheFillProcessing = false;
+  };
+  const getBlock = (blockNumber) => {
+    return new Promise(function (resolve, reject) {
+      let foundBlock;
+      if (cachedBlocks[blockNumber]) {
+        foundBlock = { ...cachedBlocks[blockNumber] };
+        delete cachedBlocks[blockNumber];
+      }
+
+      if (!cacheFillProcessing) {
+        __fillCache(blockNumber);
+      }
+
+      if (foundBlock) return resolve(foundBlock);
+
+      let checkInterval = setInterval(() => {
+        if (cachedBlocks[blockNumber]) {
+          foundBlock = { ...cachedBlocks[blockNumber] };
+          delete cachedBlocks[blockNumber];
+          clearInterval(checkInterval);
+          return resolve(foundBlock);
+        }
+      }, 20);
+    });
+  };
+
+  return {
+    getBlock,
+  };
+};
 
 const getReservedName = (block, tx) => {
   const baseValue = BigInt("6402364363415443603228541259936211926");
@@ -19,14 +115,12 @@ const getReservedName = (block, tx) => {
 };
 
 const minimumLengthAtHeight = (block) => {
-  const stepsPassed = Math.floor(
-    (block - RUNE_GENESIS_BLOCK) / UNLOCK_INTERVAL
-  );
+  const stepsPassed = Math.floor((block - GENESIS_BLOCK) / UNLOCK_INTERVAL);
 
   return INITIAL_AVAILABLE - stepsPassed;
 };
 
-const checkCommitment = async (runeName, Transaction, block, rpc) => {
+const checkCommitment = async (runeName, Transaction, block, callRpc) => {
   //Credits to @me-foundation/runestone-lib for this function.
   //Modified to fit this indexer.
 
@@ -73,28 +167,25 @@ const checkCommitment = async (runeName, Transaction, block, rpc) => {
     }
 
     //valid commitment, check for confirmations
-
-    let inputTx;
-
     try {
-      inputTx = await rpc.getVerboseTransaction(input.txid);
+      let inputTx = await callRpc("getrawtransaction", [input.txid, true]);
+
+      const isTaproot =
+        inputTx.vout[input.vout].scriptPubKey.type ===
+        TAPROOT_SCRIPT_PUBKEY_TYPE;
+
+      if (!isTaproot) {
+        continue;
+      }
+
+      const blockHeight = await callRpc("getblockheader", [inputTx.blockhash]);
+
+      const confirmations = block - blockHeight + 1;
+
+      if (confirmations >= COMMIT_CONFIRMATIONS) return true;
     } catch (e) {
+      log("RPC failed during commitment check", "panic");
       throw "RPC Error during commitment check";
-    }
-
-    const isTaproot =
-      inputTx.vout[input.vout].scriptPubKey.type === TAPROOT_SCRIPT_PUBKEY_TYPE;
-
-    if (!isTaproot) {
-      continue;
-    }
-
-    const blockHeight = await rpc.getBlockHeadersFromHash(inputTx.blockhash);
-
-    const confirmations = block - blockHeight + 1;
-
-    if (confirmations >= COMMIT_CONFIRMATIONS) {
-      return true;
     }
   }
 
@@ -129,10 +220,11 @@ const updateUnallocated = (prevUnallocatedRunes, Allocation) => {
   return prevUnallocatedRunes;
 };
 
-const isMintOpen = (block, Rune, mint_offset = false) => {
+const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
   /*
     if mint_offset is false, this function uses the current supply for calculation. If mint_offset is true,
     the total_supply + mint_amount is used (it is used to calculate if a mint WOULD be allowed)
+    
   */
 
   let {
@@ -140,7 +232,6 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
     mint_cap,
     mint_start,
     mint_end,
-    mint_amount,
     mint_offset_start,
     mint_offset_end,
     rune_protocol_id,
@@ -151,17 +242,24 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
     return false;
   } //If the rune is unmintable, minting is globally not allowed
 
-  let [creationBlock] = rune_protocol_id.split(":").map(parseInt);
+  let [creationBlock, creationTxIndex] = rune_protocol_id
+    .split(":")
+    .map((arg) => parseInt(arg));
+
+  //Mints may be made in any transaction --after-- an etching, including in the same block.
+
+  if (block === creationBlock && creationTxIndex === txIndex) return false;
+
+  if (rune_protocol_id === "1:0") creationBlock = GENESIS_BLOCK;
 
   /*
         Setup variable defs according to ord spec,
     */
 
-  mint_cap = BigInt(mint_cap) ?? BigInt(0); //If no mint cap is provided, minting is by default closed so we default to 0 which will negate any comparisons
-
   //Convert offsets to real block heights
-  mint_offset_start = (mint_offset_start ?? 0) + creationBlock;
-  mint_offset_end = (mint_offset_end ?? 0) + creationBlock;
+  mint_offset_start =
+    parseInt(mint_offset_start ?? 0) + parseInt(creationBlock);
+  mint_offset_end = parseInt(mint_offset_end ?? 0) + parseInt(creationBlock);
 
   /*
 
@@ -174,18 +272,24 @@ const isMintOpen = (block, Rune, mint_offset = false) => {
   */
 
   //This should always be perfectly divisible, since mint_amount is the only amount always added to the total supply
-  total_mints = BigInt(mints) + BigInt(mint_offset ? mint_amount : "0");
+  total_mints = BigInt(mints) + (mint_offset ? 1n : 0n);
 
   //If the mint offset (amount being minted) causes the total supply to exceed the mint cap, this mint is not allowed
-  if (total_mints >= mint_cap) {
-    return false;
+
+  //First check if a mint_cap was provided
+  if (mint_cap) {
+    //If a mint_cap is provided we can perform the check to see if minting is allowed
+    if (total_mints >= BigInt(mint_cap)) return false;
   }
 
   //Define defaults used for calculations below
-  const starts = [mint_start, mint_offset_start].filter(
-    (e) => e !== creationBlock
-  );
-  const ends = [mint_end, mint_offset_end].filter((e) => e !== creationBlock);
+  const starts = [mint_start, mint_offset_start]
+    .filter((e) => e !== creationBlock)
+    .map((n) => parseInt(n));
+
+  const ends = [mint_end, mint_offset_end]
+    .filter((e) => e !== creationBlock)
+    .map((n) => parseInt(n));
 
   /*
         If both values differ from the creation block, it can be assumed that they were both provided during etching.
@@ -226,4 +330,5 @@ module.exports = {
   minimumLengthAtHeight,
   getCommitment,
   checkCommitment,
+  blockManager,
 };
