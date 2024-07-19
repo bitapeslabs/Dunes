@@ -7,7 +7,6 @@ const {
   updateUnallocated,
   minimumLengthAtHeight,
   checkCommitment,
-  getRunestonesInBlock,
 } = require("./runeutils");
 
 const { Op } = require("sequelize");
@@ -709,7 +708,9 @@ const loadBlockIntoMemory = async (block, storage) => {
   return;
 };
 
-const processBlock = async (blockHeight, callRpc, storage, useTest) => {
+const processBlock = async (block, callRpc, storage, useTest) => {
+  const { blockHeight, blockData } = block;
+
   const formatMemoryUsage = (data) =>
     `${Math.round((data / 1024 / 1024) * 100) / 100} MB`;
 
@@ -726,10 +727,6 @@ const processBlock = async (blockHeight, callRpc, storage, useTest) => {
   log("MEMSTAT heap(total): " + memoryUsage.heapTotal, "debug");
   log("MEMSTAT heap(used): " + memoryUsage.heapUsed, "debug");
   log("MEMSTAT external: " + memoryUsage.external, "debug");
-
-  const blockData = useTest
-    ? testblock
-    : await getRunestonesInBlock(blockHeight, callRpc);
 
   //Load all rows we will manipulate beforehand into memory
   await loadBlockIntoMemory(blockData, storage);

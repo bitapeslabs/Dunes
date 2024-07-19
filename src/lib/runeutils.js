@@ -10,7 +10,7 @@ const {
 const { Rune: OrdJSRune } = require("@ordjs/runestone");
 const { Script } = require("@cmdcode/tapscript");
 const { runestone } = require("@runeapes/apeutils");
-const { stripObject } = require("./utils");
+const { stripObject, sleep } = require("./utils");
 const { log } = require("./utils");
 const decipherRunestone = (txJson) => {
   let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
@@ -29,25 +29,85 @@ const decipherRunestone = (txJson) => {
   };
 };
 
-const getRunestonesInBlock = async (blockNumber, callRpc) => {
-  const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
+const blockManager = (callRpc) => {
+  const MAX_CACHE_SIZE = 20;
 
-  const block = await callRpc("getblock", [blockHash, 2]);
+  let cachedBlocks = {};
 
-  const transactions = block.tx;
+  const getRunestonesInBlock = async (blockNumber) => {
+    const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
 
-  const runestones = transactions.map((tx, txIndex) => ({
-    runestone: decipherRunestone(tx),
-    hash: tx.txid,
-    txIndex,
-    block: blockNumber,
-    vout: tx.vout,
-    vin: tx.vin,
-    hex: tx.hex,
-  }));
+    const block = await callRpc("getblock", [blockHash, 2]);
 
-  return runestones;
+    const transactions = block.tx;
+
+    const runestones = transactions.map((tx, txIndex) => ({
+      runestone: decipherRunestone(tx),
+      hash: tx.txid,
+      txIndex,
+      block: blockNumber,
+      vout: tx.vout,
+      vin: tx.vin,
+    }));
+
+    return runestones;
+  };
+
+  let cacheFillProcessing = false;
+  const __fillCache = async (requestedBlock) => {
+    cacheFillProcessing = true;
+    let latestBlock = parseInt(await callRpc("getblockcount", []));
+
+    let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1));
+
+    let currentBlock = lastBlockInCache ? lastBlockInCache + 1 : requestedBlock;
+    while (
+      currentBlock < latestBlock &&
+      Object.keys(cachedBlocks).length < MAX_CACHE_SIZE
+    ) {
+      cachedBlocks[currentBlock] = {
+        blockHeight: currentBlock,
+        blockData: await getRunestonesInBlock(currentBlock),
+      };
+      currentBlock++;
+      log(
+        "Cache updated and now at size of " + Object.keys(cachedBlocks).length,
+        "debug"
+      );
+      //-> to avoid getting rate limited
+    }
+    cacheFillProcessing = false;
+  };
+  const getBlock = (blockNumber) => {
+    return new Promise(function (resolve, reject) {
+      let foundBlock;
+      if (cachedBlocks[blockNumber]) {
+        foundBlock = { ...cachedBlocks[blockNumber] };
+        delete cachedBlocks[blockNumber];
+      }
+
+      if (!cacheFillProcessing) {
+        __fillCache(blockNumber);
+      }
+
+      if (foundBlock) return resolve(foundBlock);
+
+      let checkInterval = setInterval(() => {
+        if (cachedBlocks[blockNumber]) {
+          foundBlock = { ...cachedBlocks[blockNumber] };
+          delete cachedBlocks[blockNumber];
+          clearInterval(checkInterval);
+          return resolve(foundBlock);
+        }
+      }, 20);
+    });
+  };
+
+  return {
+    getBlock,
+  };
 };
+
 const getReservedName = (block, tx) => {
   const baseValue = BigInt("6402364363415443603228541259936211926");
   const combinedValue = (BigInt(block) << 32n) | BigInt(tx);
@@ -270,5 +330,5 @@ module.exports = {
   minimumLengthAtHeight,
   getCommitment,
   checkCommitment,
-  getRunestonesInBlock,
+  blockManager,
 };

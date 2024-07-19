@@ -9,6 +9,7 @@ const { log } = require("./src/lib/utils");
 const { storage: newStorage } = require("./src/lib/storage");
 const { GENESIS_BLOCK } = require("./src/lib/constants");
 const { sleep } = require("./src/lib/utils");
+const { blockManager: createBlockManager } = require("./src/lib/runeutils");
 
 const { processBlock } = require("./src/lib/indexer");
 const callRpc = createRpcClient({
@@ -48,6 +49,7 @@ const startServer = async () => {
   const useTest = process.argv.includes("--test");
   let storage = await newStorage(useSetup);
 
+  const { getBlock } = createBlockManager(callRpc);
   const { Setting } = storage.db;
 
   /*
@@ -73,8 +75,13 @@ const startServer = async () => {
       currentBlock <= endBlock;
       currentBlock++
     ) {
+      const blockData = useTest
+        ? testblock
+        : //Attempt to load from cache and if not fetch from RPC
+          await getBlock(currentBlock);
+
       //Run the indexers processBlock function
-      await processBlock(currentBlock, callRpc, storage, useTest);
+      await processBlock(blockData, callRpc, storage, useTest);
 
       //Update the current block in the DB
       log("Block finished processing!", "debug");
