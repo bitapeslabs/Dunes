@@ -431,7 +431,7 @@ const storage = async (useSync) => {
             //we want to preserve the createdAt field on update
             (field) => field !== "createdAt"
           ),
-          conflictWhere: [
+          conflictAttributes: [
             "id",
             LOCAL_PRIMARY_KEYS[modelName],
             ...(REFERENCE_FIELDS[modelName] ?? []),
