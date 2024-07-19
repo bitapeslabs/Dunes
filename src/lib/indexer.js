@@ -763,7 +763,6 @@ const processBlock = async (blockHeight, callRpc, storage, useTest) => {
       throw e;
     }
   }
-
   await storage.commitChanges();
 
   return;

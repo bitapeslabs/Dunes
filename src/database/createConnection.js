@@ -19,7 +19,6 @@ async function databaseConnection() {
     models.Balance = require("./models/Balance")(sequelize);
     models.Utxo = require("./models/Utxo")(sequelize);
     models.Setting = require("./models/Settings")(sequelize);
-
     models.sequelize = sequelize;
 
     log("Connecting to database...", "Database");

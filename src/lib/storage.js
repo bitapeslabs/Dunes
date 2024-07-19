@@ -175,7 +175,6 @@ const storage = async (useSync) => {
       return mappedObject;
     }
 
-
     //findOne could potentially be a Promise, so we have to await it as we are not ignoring database
     return new Promise(async function (resolve, reject) {
       let liveModel = await findOne(modelName, primary);
@@ -422,20 +421,18 @@ const storage = async (useSync) => {
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
         log(`Committing ${modelName} to db...`, "debug");
-        rows = Object.values(rows);
+        rows = Object.values(rows).filter((row) => !row.__memory);
 
-        for (let rowIndex in rows) {
-          let row = rows[rowIndex];
-          if (row.__memory) {
-            continue;
-          }
-          try {
-            await db[modelName].upsert(row, { transaction });
-          } catch (error) {
-            log(`Failed to commit ${modelName}: ` + error, "panic");
-            throw error;
-          }
-        }
+        if (0 > rows.length) continue;
+
+        await db[modelName].bulkCreate(rows, {
+          transaction,
+          updateOnDuplicate: Object.keys(db[modelName].rawAttributes).filter(
+            //we want to preserve the createdAt field on update
+            (field) => field !== "createdAt"
+          ),
+        });
+
         const pluralizedTableName = pluralize(modelName.toLowerCase());
 
         //Check for 0 value because "id" range is (1..2147483647) on Postgres
