@@ -434,7 +434,7 @@ const storage = async (useSync) => {
           conflictWhere: [
             "id",
             LOCAL_PRIMARY_KEYS[modelName],
-            ...REFERENCE_FIELDS[modelName],
+            ...(REFERENCE_FIELDS[modelName] ?? []),
           ],
         });
 
