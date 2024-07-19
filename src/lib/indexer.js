@@ -123,7 +123,7 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
     const [rune_protocol_id, amount] = entry;
 
     let balanceFound = existingBalanceEntries[rune_protocol_id];
-    const rune = findOne("Rune", rune_protocol_id, false, true);
+    let rune = findOne("Rune", rune_protocol_id, false, true);
     if (!rune) continue;
 
     if (!balanceFound) {
@@ -140,6 +140,9 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
         "total_holders",
         rune.total_holders + 1
       );
+
+      //Update value locally incase we subtract from below
+      rune.total_holders += 1;
     }
 
     const newBalance = (
