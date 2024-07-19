@@ -1,25 +1,10 @@
 [ 
     {
         "runestone": {
-          "edicts": [],
-          "etching": {
-            "rune": "UNCOMMONGOODS",
-            "spacers": 128,
-            "symbol": "⧉",
-            "turbo": true,
-            "premine": "50",
-            "terms": {
-              "amount": 1,
-              "cap": "340282366920938463463374607431768211455",
-              "height": [840000, 1050000],
-              "offset": [null, null]
-            }
-            },
-        
-          "pointer": 0,
-          "cenotaph": false
+         
+          "cenotaph": true
         },
-        "hash": "39e7114ee6d4857cac33af8c238aa18acd929f374bb195b2c00f3db57dfe010c",
+        "hash": "newhash2",
         "txIndex": 1,
         "vout": [
           {
@@ -29,7 +14,7 @@
               "asm": "1 3c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4",
               "desc": "rawtr(3c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4)#tksqther",
               "hex": "51203c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4",
-              "address": "bc1p83tnf4q6ye3wkg0e6znxq73j4u0zq5uzt24dx7jd0htte5lhghjqnpafz2",
+              "address": "newguy",
               "type": "witness_v1_taproot"
             }
           },
@@ -46,7 +31,7 @@
         ],
         "vin": [
           {
-            "txid": "c6019fec78ebebf0ffcaf749d6905149088ecd1e936ee86802244030fc3e98b5",
+            "txid": "newhash",
             "vout": 0,
             "scriptSig": {
               "asm": "",

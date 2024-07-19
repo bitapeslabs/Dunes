@@ -48,6 +48,11 @@ module.exports = (sequelize) => {
         type: Sequelize.INTEGER,
         allowNull: true,
       },
+      tx_hash_spent: {
+        //For transversing the chain and a rune transfer history
+        type: Sequelize.TEXT("medium"),
+        allowNull: true,
+      },
     },
     {
       indexes: [

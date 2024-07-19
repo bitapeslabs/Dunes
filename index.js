@@ -16,6 +16,14 @@ const callRpc = createRpcClient({
   url: process.env.FAST_BTC_RPC_URL,
 });
 
+//For testing
+const fs = require("fs");
+const path = require("path");
+
+const testblock = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "./dumps/testblock.json"), "utf8")
+);
+
 const startRpc = async () => {
   server.use(process.env.IAP, bodyParser.urlencoded({ extended: false }));
   server.use(process.env.IAP, bodyParser.json());
@@ -76,7 +84,7 @@ const startServer = async () => {
       currentBlock++
     ) {
       const blockData = useTest
-        ? testblock
+        ? { blockHeight: currentBlock, blockData: testblock }
         : //Attempt to load from cache and if not fetch from RPC
           await getBlock(currentBlock);
 

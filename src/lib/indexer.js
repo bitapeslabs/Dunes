@@ -14,14 +14,6 @@ const { Op } = require("sequelize");
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 const { GENESIS_BLOCK, GENESIS_RUNESTONE } = require("./constants");
 
-//For testing
-const fs = require("fs");
-const path = require("path");
-
-const testblock = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "../../dumps/testblock.json"), "utf8")
-);
-
 const getUnallocatedRunesFromUtxos = (inputUtxos) => {
   /*
         Important: Rune Balances from this function are returned in big ints in the following format
@@ -76,6 +68,7 @@ const createNewUtxoBodies = (vout, Transaction) => {
       block: parseInt(Transaction.block),
       rune_balances: {},
       block_spent: null,
+      tx_hash_spent: null,
     };
   });
 };
@@ -95,7 +88,7 @@ const burnFromOpReturnEntry = async (entry, storage) => {
 };
 
 const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
-  const { findManyInFilter, create, updateAttribute } = storage;
+  const { findManyInFilter, create, updateAttribute, findOne } = storage;
 
   const utxoRuneBalances = Object.entries(JSON.parse(utxo.rune_balances));
 
@@ -130,6 +123,8 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
     const [rune_protocol_id, amount] = entry;
 
     let balanceFound = existingBalanceEntries[rune_protocol_id];
+    const rune = findOne("Rune", rune_protocol_id, false, true);
+    if (!rune) continue;
 
     if (!balanceFound) {
       balanceFound = create("Balance", {
@@ -138,6 +133,13 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
         address: utxo.address,
         balance: 0,
       });
+
+      updateAttribute(
+        "Rune",
+        rune_protocol_id,
+        "total_holders",
+        rune.total_holders + 1
+      );
     }
 
     const newBalance = (
@@ -151,6 +153,15 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
       "balance",
       newBalance
     );
+
+    if (newBalance === "0") {
+      updateAttribute(
+        "Rune",
+        rune.rune_protocol_id,
+        "total_holders",
+        rune.total_holders - 1
+      );
+    }
   }
 
   return;
@@ -491,9 +502,10 @@ const finalizeTransfers = async (
 
   //Update all input UTXOs as spent
 
-  inputUtxos.map((utxo) =>
-    updateAttribute("Utxo", utxo.utxo_index, "block_spent", block)
-  );
+  inputUtxos.forEach((utxo) => {
+    updateAttribute("Utxo", utxo.utxo_index, "block_spent", block);
+    updateAttribute("Utxo", utxo.utxo_index, "tx_hash_spent", Transaction.hash);
+  });
   //Filter out all OP_RETURN and zero rune balances
   pendingUtxos = pendingUtxos.filter(
     (utxo) =>
