@@ -408,9 +408,17 @@ const processEtching = async (
     see unminable flag in rune model
   */
 
-  //If the symbol is larger than 1 char use default one instead (FAILS AT 842255:596 111d77cbcb1ee54e0392de588cb7ef794c4a0a382155814e322d93535abc9c66)
+  //FAILS AT 842255:596 111d77cbcb1ee54e0392de588cb7ef794c4a0a382155814e322d93535abc9c66)
+  //This is a weird bug in the WASM implementation of the decoder where a "char" that might be valid in rust is shown as 0 bytes in JS. Why? idk. But it breaks the indexer.
+  //Even weirder - sequelize rejects this upsert saying its "too long"
+  const isSafeChar = parseInt(
+    Buffer.from(etching.symbol ?? "").toString("hex")
+  );
+
   const symbol =
-    etching.symbol && etching.symbol.length === 1 ? etching.symbol : "¤";
+    etching.symbol && etching.symbol.length === 1 && isSafeChar
+      ? etching.symbol
+      : "¤";
 
   const EtchedRune = create("Rune", {
     rune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
