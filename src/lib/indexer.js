@@ -123,8 +123,6 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
     const [rune_protocol_id, amount] = entry;
 
     let balanceFound = existingBalanceEntries[rune_protocol_id];
-    let rune = findOne("Rune", rune_protocol_id, false, true);
-    if (!rune) continue;
 
     if (!balanceFound) {
       balanceFound = create("Balance", {
@@ -133,13 +131,6 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
         address: utxo.address,
         balance: 0,
       });
-
-      updateAttribute(
-        "Rune",
-        rune_protocol_id,
-        "total_holders",
-        rune.total_holders + 1
-      );
     }
 
     const newBalance = (
@@ -153,17 +144,6 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
       "balance",
       newBalance
     );
-
-    if (newBalance === "0") {
-      if (rune.total_holders > 0) {
-        updateAttribute(
-          "Rune",
-          rune.rune_protocol_id,
-          "total_holders",
-          rune.total_holders - 1
-        );
-      }
-    }
   }
 
   return;

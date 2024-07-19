@@ -43,10 +43,6 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
       },
-      total_holders: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-      },
       mints: {
         type: Sequelize.TEXT("tiny"),
         allowNull: false,
