@@ -5,23 +5,38 @@ const { Client } = require("pg");
 const storage = async (useSync) => {
   //Configurations
 
+  //These are passed as an array and will instruct the storage to create a hashmap of the rows
+
   const LOCAL_PRIMARY_KEYS = {
     Balance: "balance_index",
     Rune: "rune_protocol_id",
     Utxo: "utxo_index",
   };
 
+  //These are hashmaps that point back an object in local. This is used to quickly find a row in O(1) time even if the primary key is not the id
+  const REFERENCE_FIELDS = {
+    Rune: ["raw_name"],
+  };
+
   // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
   let local = {},
+    references = {},
     db;
 
-  const _genDefaultCache = () =>
+  const _genDefaultCache = () => {
     Object.keys(LOCAL_PRIMARY_KEYS).forEach((key) => {
       local[key] = {};
     });
 
-  _genDefaultCache();
+    Object.keys(REFERENCE_FIELDS).forEach((key) => {
+      references[key] = REFERENCE_FIELDS[key].reduce((acc, field) => {
+        acc[field] = {};
+        return acc;
+      }, {});
+    });
+  };
 
+  _genDefaultCache();
   let cachedAutoIncrements = {};
 
   const _getAutoIncrement = async (tableName) => {
@@ -71,6 +86,34 @@ const storage = async (useSync) => {
     }
   };
 
+  const __updateReferences = (modelName, rowRef) => {
+    const { [modelName]: RefModel } = references;
+
+    if (!RefModel) {
+      return;
+    }
+
+    REFERENCE_FIELDS[modelName].forEach((field) => {
+      //Create reference in memory
+      if (!RefModel[field]) {
+        return;
+      }
+      references[modelName][field][rowRef[field]] = rowRef;
+    });
+  };
+
+  const __findWithPrimaryOrReference = (modelName, value) => {
+    const { [modelName]: LocalModel } = local;
+    const { [modelName]: RefModel } = references;
+
+    if (LocalModel[value]) return LocalModel[value];
+
+    //That model has no references
+    if (!RefModel) return;
+
+    return Object.values(RefModel).find((ref) => ref[value]);
+  };
+
   const loadManyIntoMemory = async (modelName, sequelizeQuery) => {
     /*
         A lot of the queries done to the database during block processing are unecessary and repetitive. By having
@@ -86,6 +129,7 @@ const storage = async (useSync) => {
     */
 
     const { [modelName]: LocalModel } = local;
+
     const { [modelName]: Model } = db;
 
     try {
@@ -98,6 +142,8 @@ const storage = async (useSync) => {
 
       foundRows.forEach((row) => {
         LocalModel[row[primaryKey]] = { ...row, __memory: true };
+
+        __updateReferences(modelName, LocalModel[row[primaryKey]]);
       });
 
       log(modelName + " (fr): " + foundRows.length, "debug");
@@ -115,50 +161,40 @@ const storage = async (useSync) => {
     }
   };
 
-  const updateAttribute = async (
-    modelName,
-    primary,
-    attribute,
-    value,
-    /*
-      Optional, uses the template to create a row rather than fetching from db. 
-      Useful if we are updating many rows we already have stored in memory somewhere else
-    */
-    template
-  ) => {
+  const updateAttribute = (modelName, primary, attribute, value) => {
     const { [modelName]: LocalModel } = local;
 
-    if (LocalModel[primary]) {
-      LocalModel[primary][attribute] = value;
+    let mappedObject = __findWithPrimaryOrReference(modelName, primary);
+
+    if (mappedObject) {
+      mappedObject[attribute] = value;
 
       //We have altered the document and therefore we should upsert when we commit changes
-      delete LocalModel[primary].__memory;
+      delete mappedObject.__memory;
 
-      return LocalModel[primary];
+      return mappedObject;
     }
 
-    let primaryKey = LOCAL_PRIMARY_KEYS[modelName];
 
-    //This should be fine in local cache because we will only ever update a row already fetched from the database or created in the block
-    let liveModel = template ?? (await findOne(modelName, primary));
-    let newPrimary = liveModel[primaryKey];
+    //findOne could potentially be a Promise, so we have to await it as we are not ignoring database
+    return new Promise(async function (resolve, reject) {
+      let liveModel = await findOne(modelName, primary);
 
-    LocalModel[newPrimary] = { ...liveModel, [attribute]: value };
-
-    return LocalModel[newPrimary];
+      LocalModel[primary] = { ...liveModel, [attribute]: value };
+      __updateReferences(modelName, LocalModel[primary]);
+      resolve(LocalModel[primary]);
+    });
   };
 
-  const findOne = async (
-    modelName,
-    value,
-    attribute,
-    ignoreDatabase = false
-  ) => {
+  //Immediately resolves if no fetch to DB
+  const findOne = (modelName, value, attribute, ignoreDatabase = false) => {
     const { [modelName]: Model } = db;
     const { [modelName]: LocalModel } = local;
 
-    if (LocalModel[value] && !attribute) {
-      return LocalModel[value];
+    let mappedObject = __findWithPrimaryOrReference(modelName, value);
+
+    if (mappedObject && !attribute) {
+      return mappedObject;
     } else {
       let row = Object.values(LocalModel).find(
         (row) => row[attribute] === value
@@ -169,25 +205,24 @@ const storage = async (useSync) => {
 
     if (ignoreDatabase) return null;
 
-    try {
-      let row = await Model.findOne({
-        where: { [attribute ?? LOCAL_PRIMARY_KEYS[modelName]]: value },
-      });
-      return row;
-    } catch (error) {
-      console.error(
-        `(storage) Failed to retrieve ${modelName} in findOne:`,
-        error
-      );
-      throw error;
-    }
+    //If a db lookup is required, a promise is returned instead
+    return new Promise(async function (resolve, reject) {
+      try {
+        let row = await Model.findOne({
+          where: { [attribute ?? LOCAL_PRIMARY_KEYS[modelName]]: value },
+        });
+        resolve(row);
+      } catch (error) {
+        console.error(
+          `(storage) Failed to retrieve ${modelName} in findOne:`,
+          error
+        );
+        throw error;
+      }
+    });
   };
 
-  const findManyInFilter = async (
-    modelName,
-    filterArr,
-    ignoreDatabase = false
-  ) => {
+  const findManyInFilter = (modelName, filterArr, ignoreDatabase = false) => {
     /*
       There are two types of attributes "primary" and "custom". A primary attribute is searched for 
       if an item in filter array is a string, then the function assumes you are searching for an
@@ -261,7 +296,9 @@ const storage = async (useSync) => {
     //Get local rows and generate a filter array with the rows not found in local cache.
     const localRows = isStaticFilter
       ? //Return all instances where the primary key exists in the array (much faster!)
-        filterArr.map((primaryKey) => LocalModel[primaryKey]).filter(Boolean)
+        filterArr
+          .map((key) => __findWithPrimaryOrReference(modelName, key))
+          .filter(Boolean)
       : Object.values(LocalModel).reduce((acc, row) => {
           //This is effectively an OR operation. The upmost filter arr is used as an OR, inner arrs are used as ANDS
           for (let attributeFilter of filterArr) {
@@ -315,23 +352,26 @@ const storage = async (useSync) => {
 
         return acc;
       }, []);
+    return new Promise(async function (resolve, reject) {
+      try {
+        const nonLocalRows = await Model.findAll({
+          raw: true,
+          where: { [Op.or]: sequelizeFilter },
+        });
 
-    try {
-      const nonLocalRows = await Model.findAll({
-        raw: true,
-        where: { [Op.or]: sequelizeFilter },
-      });
-
-      //Because of the checks made above there will never be duplicates
-      return removeItemsWithDuplicateProp(localRows.concat(nonLocalRows), "id");
-    } catch (error) {
-      log(
-        `(storage) Failed to retrieve ${modelName} in findManyInFilter:` +
-          error,
-        "panic"
-      );
-      throw error;
-    }
+        //Because of the checks made above there will never be duplicates
+        resolve(
+          removeItemsWithDuplicateProp(localRows.concat(nonLocalRows), "id")
+        );
+      } catch (error) {
+        log(
+          `(storage) Failed to retrieve ${modelName} in findManyInFilter:` +
+            error,
+          "panic"
+        );
+        throw error;
+      }
+    });
   };
 
   const create = (modelName, data) => {
@@ -351,13 +391,21 @@ const storage = async (useSync) => {
     //Add the model with the ID that would be generated in the database to cache
     LocalModel[data[primaryKey]] = data;
 
+    //The model created needs to be added to the references (on updates we dont need to do this as the reference to the object will stay the same)
+    __updateReferences(modelName, LocalModel[data[primaryKey]]);
+
     //Return the model created
     return data;
   };
 
-  const findOrCreate = async (modelName, key, defaults) => {
+  const findOrCreate = async (
+    modelName,
+    key,
+    ignoreDatabase = true,
+    defaults
+  ) => {
     const { [modelName]: LocalModel } = local;
-    let model = await findOne(modelName, key);
+    let model = await findOne(modelName, key, false, ignoreDatabase);
     if (model) return model;
 
     create(modelName, defaults);
@@ -414,6 +462,7 @@ const storage = async (useSync) => {
 
   await _init();
   return {
+    references,
     local,
     db,
     updateAttribute,

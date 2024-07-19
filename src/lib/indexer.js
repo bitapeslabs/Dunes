@@ -85,7 +85,7 @@ const burnFromOpReturnEntry = async (entry, storage) => {
   const { updateAttribute, findOne } = storage;
   const [runeId, amount] = entry;
 
-  const rune = await findOne("Rune", runeId, false, true);
+  const rune = findOne("Rune", runeId, false, true);
 
   return updateAttribute(
     "Rune",
@@ -95,7 +95,7 @@ const burnFromOpReturnEntry = async (entry, storage) => {
   );
 };
 
-const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
+const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
   const { findManyInFilter, create, updateAttribute } = storage;
 
   const utxoRuneBalances = Object.entries(JSON.parse(utxo.rune_balances));
@@ -111,8 +111,10 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
   //Get the existing balance entries. We can create hashmap of these with proto_id since address is the same
 
   //uses optimized lookup by using balance_index
-  const existingBalanceEntries = (
-    await findManyInFilter("Balance", balanceFilter, true)
+  const existingBalanceEntries = findManyInFilter(
+    "Balance",
+    balanceFilter,
+    true
   ).reduce((acc, balance) => {
     acc[balance.rune_protocol_id] = balance;
     return acc;
@@ -144,7 +146,7 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
       BigInt(amount) * BigInt(direction)
     ).toString();
 
-    await updateAttribute(
+    updateAttribute(
       "Balance",
       balanceFound.balance_index,
       "balance",
@@ -155,7 +157,7 @@ const updateOrCreateBalancesWithUtxo = async (utxo, storage, direction) => {
   return;
 };
 
-const processEdicts = async (
+const processEdicts = (
   UnallocatedRunes,
   pendingUtxos,
   Transaction,
@@ -210,9 +212,10 @@ const processEdicts = async (
     //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
 
     //uses optimized lookup by using rune_protocol_id
-    let existingRunes = (
-      await findManyInFilter("Rune", edictFilter, true)
-    ).reduce((acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }), {});
+    let existingRunes = findManyInFilter("Rune", edictFilter, true).reduce(
+      (acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }),
+      {}
+    );
 
     for (let edictIndex in edicts) {
       let edict = edicts[edictIndex];
@@ -287,7 +290,7 @@ const processEdicts = async (
   return;
 };
 
-const processMint = async (UnallocatedRunes, Transaction, storage) => {
+const processMint = (UnallocatedRunes, Transaction, storage) => {
   const { block, txIndex, runestone } = Transaction;
   const mint = runestone?.mint;
 
@@ -297,7 +300,7 @@ const processMint = async (UnallocatedRunes, Transaction, storage) => {
     return UnallocatedRunes;
   }
   //We use the same  process used to calculate the Rune Id in the etch function if "0:0" is referred to
-  const runeToMint = await findOne("Rune", mint, false, true);
+  const runeToMint = findOne("Rune", mint, false, true);
 
   if (!runeToMint) {
     //The rune requested to be minted does not exist.
@@ -308,12 +311,7 @@ const processMint = async (UnallocatedRunes, Transaction, storage) => {
     //Update new mints to count towards cap
 
     let newMints = (BigInt(runeToMint.mints) + BigInt(1)).toString();
-    await updateAttribute(
-      "Rune",
-      runeToMint.rune_protocol_id,
-      "mints",
-      newMints
-    );
+    updateAttribute("Rune", runeToMint.rune_protocol_id, "mints", newMints);
 
     if (runestone.cenotaph) {
       //If the mint is a cenotaph, the minted amount is burnt
@@ -374,7 +372,7 @@ const processEtching = async (
     spacedRune = new SpacedRune(OrdRune.fromString(runeName), etching.spacers);
   }
 
-  const isRuneNameTaken = !!(await findOne("Rune", runeName, "raw_name", true));
+  const isRuneNameTaken = !!findOne("Rune", runeName, false, true);
 
   if (isRuneNameTaken) {
     return UnallocatedRunes;
@@ -486,18 +484,16 @@ const finalizeTransfers = async (
 
   if (opReturnOutput) {
     //Burn all runes from the OP_RETURN output
-    await Promise.all(
-      Object.entries(opReturnOutput.rune_balances).map((entry) =>
-        burnFromOpReturnEntry(entry, storage)
-      )
+
+    Object.entries(opReturnOutput.rune_balances).map((entry) =>
+      burnFromOpReturnEntry(entry, storage)
     );
   }
 
   //Update all input UTXOs as spent
-  await Promise.all(
-    inputUtxos.map((utxo) =>
-      updateAttribute("Utxo", utxo.utxo_index, "block_spent", block)
-    )
+
+  inputUtxos.map((utxo) =>
+    updateAttribute("Utxo", utxo.utxo_index, "block_spent", block)
   );
   //Filter out all OP_RETURN and zero rune balances
   pendingUtxos = pendingUtxos.filter(
@@ -530,10 +526,9 @@ const finalizeTransfers = async (
   ];
 
   //Finally update balance store with new Utxos (we can call these at the same time because they are updated in memory, not on db)
-  await Promise.all(
-    allUtxos.map(([utxo, direction]) =>
-      updateOrCreateBalancesWithUtxo(utxo, storage, direction)
-    )
+
+  allUtxos.map(([utxo, direction]) =>
+    updateOrCreateBalancesWithUtxo(utxo, storage, direction)
   );
 
   return;
@@ -569,7 +564,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
   //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
 
   //uses optimized lookup by using utxo_index
-  let inputUtxos = (await findManyInFilter("Utxo", UtxoFilter, true)).filter(
+  let inputUtxos = findManyInFilter("Utxo", UtxoFilter, true).filter(
     (utxo) => !utxo.block_spent
   );
 
@@ -582,17 +577,18 @@ const processRunestone = async (Transaction, rpc, storage) => {
   // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
 
   //Reference of UnallocatedRunes and pendingUtxos is passed around in follwoing functions
+  //Process etching is potentially asyncrhnous because of commitment checks
   await processEtching(UnallocatedRunes, Transaction, rpc, storage);
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
-  await processMint(UnallocatedRunes, Transaction, storage);
+  processMint(UnallocatedRunes, Transaction, storage);
 
   //Allocate all transfers from unallocated payload to the pendingUtxos
-  await processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
+  processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
 
   //Commit the utxos to storage and update Balances
-  await finalizeTransfers(inputUtxos, pendingUtxos, Transaction, storage);
+  finalizeTransfers(inputUtxos, pendingUtxos, Transaction, storage);
 
   return;
 };
