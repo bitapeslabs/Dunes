@@ -140,9 +140,6 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
         "total_holders",
         rune.total_holders + 1
       );
-
-      //Update value locally incase we subtract from below
-      rune.total_holders += 1;
     }
 
     const newBalance = (
