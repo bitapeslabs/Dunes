@@ -158,12 +158,14 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
     );
 
     if (newBalance === "0") {
-      updateAttribute(
-        "Rune",
-        rune.rune_protocol_id,
-        "total_holders",
-        rune.total_holders - 1
-      );
+      if (rune.total_holders > 0) {
+        updateAttribute(
+          "Rune",
+          rune.rune_protocol_id,
+          "total_holders",
+          rune.total_holders - 1
+        );
+      }
     }
   }
 
