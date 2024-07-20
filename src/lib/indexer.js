@@ -592,10 +592,12 @@ const loadBlockIntoMemory = async (block, storage) => {
   //Load all utxos in the block's vin into memory in one call
 
   //Get a vector of all txHashes in the block
-  const transactionHashesInBlock = [
+  const utxosInBlock = [
     ...new Set(
       block
-        .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
+        .map((transaction) =>
+          transaction.vin.map((utxo) => utxo.txid + ":" + utxo.vout)
+        )
         .flat(Infinity)
         .filter(Boolean)
     ),
@@ -615,17 +617,17 @@ const loadBlockIntoMemory = async (block, storage) => {
   ];
 
   await loadManyIntoMemory("Utxo", {
-    hash: {
-      [Op.in]: transactionHashesInBlock,
+    utxo_index: {
+      [Op.in]: utxosInBlock,
     },
   });
 
-  const utxosInBlock = local.Utxo;
+  const utxosInLocal = local.Utxo;
   const balancesInBlock = [
     ...new Set(
       [
         recipientsInBlock,
-        Object.values(utxosInBlock).map((utxo) => utxo.address),
+        Object.values(utxosInLocal).map((utxo) => utxo.address),
       ]
         .flat(Infinity)
         .filter(Boolean)
@@ -644,7 +646,7 @@ const loadBlockIntoMemory = async (block, storage) => {
         ]),
 
         //Get all rune ids in all utxos balance
-        Object.values(utxosInBlock).map((utxo) =>
+        Object.values(utxosInLocal).map((utxo) =>
           Object.keys(JSON.parse(utxo.rune_balances))
         ),
       ]
