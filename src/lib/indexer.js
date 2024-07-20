@@ -405,10 +405,7 @@ const processEtching = async (
     Buffer.from(etching.symbol ?? "").toString("hex")
   );
 
-  const symbol =
-    etching.symbol && etching.symbol.length === 1 && isSafeChar
-      ? etching.symbol
-      : "¤";
+  const symbol = etching.symbol && isSafeChar ? etching.symbol : "¤";
 
   const EtchedRune = create("Rune", {
     rune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
