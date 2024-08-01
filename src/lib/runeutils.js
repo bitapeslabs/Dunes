@@ -48,7 +48,7 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
   return runestones;
 };
 
-const blockManager = (callRpc) => {
+const blockManager = (callRpc, latestBlock) => {
   const MAX_CACHE_SIZE = 20;
 
   let cachedBlocks = {};
@@ -56,13 +56,12 @@ const blockManager = (callRpc) => {
   let cacheFillProcessing = false;
   const __fillCache = async (requestedBlock) => {
     cacheFillProcessing = true;
-    let latestBlock = parseInt(await callRpc("getblockcount", []));
 
     let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1));
 
     let currentBlock = lastBlockInCache ? lastBlockInCache + 1 : requestedBlock;
     while (
-      currentBlock < latestBlock &&
+      currentBlock <= latestBlock &&
       Object.keys(cachedBlocks).length < MAX_CACHE_SIZE
     ) {
       cachedBlocks[currentBlock] = {
@@ -78,7 +77,7 @@ const blockManager = (callRpc) => {
     }
     cacheFillProcessing = false;
   };
-  const getBlock = (blockNumber) => {
+  const getBlock = (blockNumber, endBlock) => {
     return new Promise(function (resolve, reject) {
       let foundBlock;
       if (cachedBlocks[blockNumber]) {

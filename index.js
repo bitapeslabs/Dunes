@@ -57,7 +57,6 @@ const startServer = async () => {
   const useTest = process.argv.includes("--test");
   let storage = await newStorage(useSetup);
 
-  const { getBlock } = createBlockManager(callRpc);
   const { Setting } = storage.db;
 
   /*
@@ -78,11 +77,14 @@ const startServer = async () => {
   //Process blocks in range will process blocks start:(startBlock) to end:(endBlock)
   //startBlock and endBlock are inclusive (they are also processed)
   const processBlocksInRange = async (startBlock, endBlock) => {
+    const { getBlock } = createBlockManager(callRpc, endBlock);
+
     for (
       let currentBlock = startBlock;
       currentBlock <= endBlock;
       currentBlock++
     ) {
+      console.log("getting block: ", currentBlock);
       const blockData = useTest
         ? { blockHeight: currentBlock, blockData: testblock }
         : //Attempt to load from cache and if not fetch from RPC
@@ -98,6 +100,7 @@ const startServer = async () => {
         { where: { name: "last_block_processed" } }
       );
     }
+    lastBlockProcessed = endBlock;
     return;
   };
 
@@ -110,13 +113,25 @@ const startServer = async () => {
   /*
     Main server loop, syncnronize any time a new block is found or we are off by any amount of blocks
   */
+  log(
+    "Polling for new blocks... Last Processed: " + lastBlockProcessed,
+    "info"
+  );
   while (true) {
     let latestBlock = parseInt(await callRpc("getblockcount", []));
-    log("latest block height is at " + latestBlock, "info");
-    log("current block height is at " + lastBlockProcessed, "info");
 
-    if (lastBlockProcessed < latestBlock)
+    if (lastBlockProcessed < latestBlock) {
+      log(
+        "Processing blocks " + (lastBlockProcessed + 1) + " - " + latestBlock,
+        "info"
+      );
       await processBlocksInRange(lastBlockProcessed + 1, latestBlock);
+      log(
+        "Polling for new blocks... Last Processed: " + lastBlockProcessed,
+        "info"
+      );
+    }
+
     await sleep(process.env.BLOCK_CHECK_INTERVAL);
   }
 };
