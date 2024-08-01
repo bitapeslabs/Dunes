@@ -44,11 +44,11 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("medium"),
         allowNull: false,
       },
-      from: {
+      from_address: {
         type: Sequelize.TEXT("medium"),
         allowNull: false,
       },
-      to: {
+      to_address: {
         type: Sequelize.TEXT("medium"),
         allowNull: false,
       },
@@ -68,11 +68,11 @@ module.exports = (sequelize) => {
           using: "HASH",
         },
         {
-          fields: ["from"],
+          fields: ["from_address"],
           using: "HASH",
         },
         {
-          fields: ["to"],
+          fields: ["to_address"],
           using: "HASH",
         },
       ],
