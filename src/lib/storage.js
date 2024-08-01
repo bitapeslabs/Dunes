@@ -11,6 +11,7 @@ const storage = async (useSync) => {
     Balance: "balance_index",
     Rune: "rune_protocol_id",
     Utxo: "utxo_index",
+    Event: "id",
   };
 
   //These are hashmaps that point back an object in local. This is used to quickly find a row in O(1) time even if the primary key is not the id

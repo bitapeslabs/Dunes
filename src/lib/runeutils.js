@@ -29,6 +29,20 @@ const decipherRunestone = (txJson) => {
   };
 };
 
+const getOutputFromPending = (pending, pointer) => {
+  let pointerOutput =
+    pending[pointer] ??
+    (pending[0].address === "OP_RETURN" ? pending[1] : pending[0]);
+  //pointerOutput should never be undefined since there is always either a non-opreturn or an op-return output in a transaction
+
+  if (!pointerOutput) {
+    //pointer is not provided and there are no non-OP_RETURN outputs
+    pointerOutput = pending.find((utxo) => utxo.address === "OP_RETURN");
+  }
+
+  return pointerOutput;
+};
+
 const getRunestonesInBlock = async (blockNumber, callRpc) => {
   const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
 

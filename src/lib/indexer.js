@@ -153,10 +153,11 @@ const processEdicts = (
   UnallocatedRunes,
   pendingUtxos,
   Transaction,
+  InputData,
   storage
 ) => {
   const { block, txIndex, runestone } = Transaction;
-  const { findManyInFilter } = storage;
+  const { findManyInFilter, create, findOne } = storage;
 
   let { edicts, pointer } = runestone;
 
@@ -184,6 +185,20 @@ const processEdicts = (
 
     utxo.rune_balances[runeId] =
       (utxo.rune_balances[runeId] ?? BigInt(0)) + withDefault;
+
+    let rune = findOne("Rune", runeId, false, true);
+
+    create("Event", {
+      type: "Transfer",
+      block,
+      transaction_hash: Transaction.hash,
+      rune_protocol_id: runeId,
+      rune_name: rune.name,
+      rune_raw_name: rune.raw_name,
+      amount: withDefault.toString(),
+      from: InputData.runes[runeId] ? InputData.sender : "UNALLOCATED",
+      to: utxo.address,
+    });
   };
 
   //References are kept because filter does not clone the array
@@ -290,7 +305,7 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
   const { block, txIndex, runestone } = Transaction;
   const mint = runestone?.mint;
 
-  const { findOne, updateAttribute } = storage;
+  const { findOne, updateAttribute, create } = storage;
 
   if (!mint) {
     return UnallocatedRunes;
@@ -313,6 +328,19 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
       //If the mint is a cenotaph, the minted amount is burnt
       return UnallocatedRunes;
     }
+
+    //Emit MINT event on block
+    create("Event", {
+      type: "Mint",
+      block,
+      transaction_hash: Transaction.hash,
+      rune_protocol_id: runeToMint.rune_protocol_id,
+      rune_name: runeToMint.name,
+      rune_raw_name: runeToMint.raw_name,
+      amount: runeToMint.mint_amount,
+      from: "GENESIS",
+      to: "UNALLOCATED",
+    });
 
     return updateUnallocated(UnallocatedRunes, {
       rune_id: runeToMint.rune_protocol_id,
@@ -449,6 +477,19 @@ const processEtching = async (
     etch_transaction: Transaction.hash,
   });
 
+  //Emit Etch event on block
+  create("Event", {
+    type: "Etch",
+    block,
+    transaction_hash: Transaction.hash,
+    rune_protocol_id: EtchedRune.rune_protocol_id,
+    rune_name: EtchedRune.name,
+    rune_raw_name: EtchedRune.raw_name,
+    amount: etching.premine ?? "0",
+    from: "GENESIS",
+    to: "UNALLOCATED",
+  });
+
   //Add premine runes to input allocations
 
   if (runestone.cenotaph) {
@@ -565,6 +606,17 @@ const processRunestone = async (Transaction, rpc, storage) => {
   let pendingUtxos = createNewUtxoBodies(vout, Transaction);
 
   let UnallocatedRunes = getUnallocatedRunesFromUtxos(inputUtxos);
+
+  /*
+  Create clone of Unallocated Runes, this will be used when emitting the "Transfer" event. If the Rune was present in the original
+  runes from vin we have the address indexed on db and can emit the transfer event with the "From" equalling the address of transaction signer.
+  However, if the Rune was not present in the original runes from vin, we can only emit the "From" as "UNALLOCATED" since we dont have the address indexed
+  and the runes in the final Unallocated Runes Buffer came from the etching or minting process and were created in the transaction.
+  */
+  let InputData = {
+    sender: inputUtxos.length ? inputUtxos[0].address : null,
+    runes: { ...UnallocatedRunes },
+  };
   //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
 
   //Delete UTXOs as they are being spent
@@ -579,7 +631,13 @@ const processRunestone = async (Transaction, rpc, storage) => {
   processMint(UnallocatedRunes, Transaction, storage);
 
   //Allocate all transfers from unallocated payload to the pendingUtxos
-  processEdicts(UnallocatedRunes, pendingUtxos, Transaction, storage);
+  processEdicts(
+    UnallocatedRunes,
+    pendingUtxos,
+    Transaction,
+    InputData,
+    storage
+  );
 
   //Commit the utxos to storage and update Balances
   finalizeTransfers(inputUtxos, pendingUtxos, Transaction, storage);
@@ -588,6 +646,8 @@ const processRunestone = async (Transaction, rpc, storage) => {
 };
 
 const loadBlockIntoMemory = async (block, storage) => {
+  //Events do not need to be loaded as they are purely write and unique
+
   const { loadManyIntoMemory, local } = storage;
 
   //Load all utxos in the block's vin into memory in one call

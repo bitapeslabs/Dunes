@@ -84,7 +84,6 @@ const startServer = async () => {
       currentBlock <= endBlock;
       currentBlock++
     ) {
-      console.log("getting block: ", currentBlock);
       const blockData = useTest
         ? { blockHeight: currentBlock, blockData: testblock }
         : //Attempt to load from cache and if not fetch from RPC
