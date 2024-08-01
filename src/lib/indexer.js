@@ -196,8 +196,8 @@ const processEdicts = (
       rune_name: rune.name,
       rune_raw_name: rune.raw_name,
       amount: withDefault.toString(),
-      from: InputData.runes[runeId] ? InputData.sender : "UNALLOCATED",
-      to: utxo.address,
+      from_address: InputData.runes[runeId] ? InputData.sender : "UNALLOCATED",
+      to_address: utxo.address,
     });
   };
 
@@ -338,8 +338,8 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
       rune_name: runeToMint.name,
       rune_raw_name: runeToMint.raw_name,
       amount: runeToMint.mint_amount,
-      from: "GENESIS",
-      to: "UNALLOCATED",
+      from_address: "GENESIS",
+      to_address: "UNALLOCATED",
     });
 
     return updateUnallocated(UnallocatedRunes, {
@@ -486,8 +486,8 @@ const processEtching = async (
     rune_name: EtchedRune.name,
     rune_raw_name: EtchedRune.raw_name,
     amount: etching.premine ?? "0",
-    from: "GENESIS",
-    to: "UNALLOCATED",
+    from_address: "GENESIS",
+    to_address: "UNALLOCATED",
   });
 
   //Add premine runes to input allocations
