@@ -57,6 +57,10 @@ module.exports = (sequelize) => {
     {
       indexes: [
         {
+          fields: ["utxo_index"],
+          using: "HASH",
+        },
+        {
           fields: ["hash"],
           using: "HASH",
         },

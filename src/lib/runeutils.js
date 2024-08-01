@@ -29,29 +29,29 @@ const decipherRunestone = (txJson) => {
   };
 };
 
+const getRunestonesInBlock = async (blockNumber, callRpc) => {
+  const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
+
+  const block = await callRpc("getblock", [blockHash, 2]);
+
+  const transactions = block.tx;
+
+  const runestones = transactions.map((tx, txIndex) => ({
+    runestone: decipherRunestone(tx),
+    hash: tx.txid,
+    txIndex,
+    block: blockNumber,
+    vout: tx.vout,
+    vin: tx.vin,
+  }));
+
+  return runestones;
+};
+
 const blockManager = (callRpc) => {
   const MAX_CACHE_SIZE = 20;
 
   let cachedBlocks = {};
-
-  const getRunestonesInBlock = async (blockNumber) => {
-    const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
-
-    const block = await callRpc("getblock", [blockHash, 2]);
-
-    const transactions = block.tx;
-
-    const runestones = transactions.map((tx, txIndex) => ({
-      runestone: decipherRunestone(tx),
-      hash: tx.txid,
-      txIndex,
-      block: blockNumber,
-      vout: tx.vout,
-      vin: tx.vin,
-    }));
-
-    return runestones;
-  };
 
   let cacheFillProcessing = false;
   const __fillCache = async (requestedBlock) => {
@@ -67,7 +67,7 @@ const blockManager = (callRpc) => {
     ) {
       cachedBlocks[currentBlock] = {
         blockHeight: currentBlock,
-        blockData: await getRunestonesInBlock(currentBlock),
+        blockData: await getRunestonesInBlock(currentBlock, callRpc),
       };
       currentBlock++;
       log(
@@ -331,4 +331,5 @@ module.exports = {
   getCommitment,
   checkCommitment,
   blockManager,
+  getRunestonesInBlock,
 };
