@@ -269,9 +269,13 @@ const processEdicts = (
   //Transfer remaining runes to the first non-opreturn output
   //(edge case) If only an OP_RETURN output is present in the Transaction, transfer to the OP_RETURN
 
-  let pointerOutput =
-    nonOpReturnOutputs[pointer ?? 0] ??
-    pendingUtxos.find((utxo) => utxo.address === "OP_RETURN");
+  let pointerOutput = pendingUtxos[pointer] ?? nonOpReturnOutputs[0];
+  //pointerOutput should never be undefined since there is always either a non-opreturn or an op-return output in a transaction
+
+  if (!pointerOutput) {
+    //pointer is not provided and there are no non-OP_RETURN outputs
+    pointerOutput = pendingUtxos.find((utxo) => utxo.address === "OP_RETURN");
+  }
 
   //move Unallocated runes to pointer output
   Object.entries(UnallocatedRunes).forEach((allocationData) =>
