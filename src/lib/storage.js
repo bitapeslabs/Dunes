@@ -421,12 +421,12 @@ const storage = async (useSync) => {
 
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
+
+        rows = Object.values(rows).filter((row) => !row.__memory);
         log(
           `Committing ${modelName} with ${rows.length} rows to db...`,
           "debug"
         );
-        rows = Object.values(rows).filter((row) => !row.__memory);
-
         if (0 > rows.length) continue;
 
         await db[modelName].bulkCreate(rows, {
