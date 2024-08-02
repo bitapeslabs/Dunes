@@ -89,11 +89,11 @@ module.exports = (sequelize) => {
       indexes: [
         {
           fields: ["rune_protocol_id"],
-          using: "HASH", // Attempt to specify hash index
+          using: "BTREE", // Attempt to specify hash index
         },
         {
           fields: ["raw_name"],
-          using: "HASH", // Attempt to specify hash index
+          using: "BTREE", // Attempt to specify hash index
         },
       ],
       tableName: "runes",

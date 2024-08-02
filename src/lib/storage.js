@@ -1,6 +1,11 @@
 const { databaseConnection } = require("../database/createConnection");
 const { Op } = require("sequelize");
-const { pluralize, removeItemsWithDuplicateProp, log } = require("./utils");
+const {
+  pluralize,
+  removeItemsWithDuplicateProp,
+  log,
+  chunkify,
+} = require("./utils");
 const { Client } = require("pg");
 const storage = async (useSync) => {
   //Configurations
@@ -414,11 +419,14 @@ const storage = async (useSync) => {
   };
 
   const commitChanges = async () => {
+    const MAX_CHUNK_SIZE = 250;
     const transaction = await db.sequelize.transaction();
+    console.log(
+      Object.entries(local).map((rows) => Object.values(rows[1]).length)
+    );
 
     try {
       let modelEntries = Object.entries(local);
-
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
 
@@ -429,13 +437,28 @@ const storage = async (useSync) => {
         );
         if (0 > rows.length) continue;
 
-        await db[modelName].bulkCreate(rows, {
-          transaction,
-          updateOnDuplicate: Object.keys(db[modelName].rawAttributes).filter(
-            //we want to preserve the createdAt field on update
-            (field) => field !== "createdAt"
-          ),
-        });
+        let chunks = chunkify(rows, MAX_CHUNK_SIZE);
+
+        log(
+          `Chunks amount for ${modelName}: ${chunks.length}` + chunks.length,
+          "debug"
+        );
+
+        let chunkIndex = 0;
+        for (let chunk of chunks) {
+          chunkIndex++;
+          log(
+            `Committing chunk ${chunkIndex}/${chunks.length} for ${modelName} with ${chunk.length} rows`,
+            "debug"
+          );
+          await db[modelName].bulkCreate(chunk, {
+            transaction,
+            updateOnDuplicate: Object.keys(db[modelName].rawAttributes).filter(
+              //we want to preserve the createdAt field on update
+              (field) => field !== "createdAt"
+            ),
+          });
+        }
 
         const pluralizedTableName = pluralize(modelName.toLowerCase());
 

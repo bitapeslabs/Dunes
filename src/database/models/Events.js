@@ -57,23 +57,23 @@ module.exports = (sequelize) => {
       indexes: [
         {
           fields: ["block"],
-          using: "HASH",
+          using: "BTREE",
         },
         {
           fields: ["rune_protocol_id"],
-          using: "HASH",
+          using: "BTREE",
         },
         {
           fields: ["transaction_hash"],
-          using: "HASH",
+          using: "BTREE",
         },
         {
           fields: ["from_address"],
-          using: "HASH",
+          using: "BTREE",
         },
         {
           fields: ["to_address"],
-          using: "HASH",
+          using: "BTREE",
         },
       ],
       tableName: "events",

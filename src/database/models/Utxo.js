@@ -58,19 +58,19 @@ module.exports = (sequelize) => {
       indexes: [
         {
           fields: ["utxo_index"],
-          using: "HASH",
+          using: "BTREE",
         },
         {
           fields: ["hash"],
-          using: "HASH",
+          using: "BTREE",
         },
         {
           fields: ["address"],
-          using: "HASH",
+          using: "BTREE",
         },
         {
           fields: ["block"], // Specify the actual fields to be unique
-          using: "HASH",
+          using: "BTREE",
         },
       ],
       tableName: "utxos",

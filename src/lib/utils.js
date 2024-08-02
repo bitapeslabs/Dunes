@@ -91,6 +91,22 @@ const removeItemsWithDuplicateProp = (array, prop) => {
   }, []);
 };
 
+const chunkify = (array, n) => {
+  // Initialize an empty array to hold the chunks
+  let chunks = [];
+
+  // Loop through the array, incrementing by n each time
+  for (let i = 0; i < array.length; i += n) {
+    // Slice the array from the current position to the current position + n
+    let chunk = array.slice(i, i + n);
+    // Add the chunk to the chunks array
+    chunks.push(chunk);
+  }
+
+  // Return the array of chunks
+  return chunks;
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = {
@@ -103,4 +119,5 @@ module.exports = {
   stripValue,
   removeItemsWithDuplicateProp,
   log,
+  chunkify,
 };
