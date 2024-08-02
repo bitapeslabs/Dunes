@@ -46,7 +46,7 @@ const startRpc = async () => {
   //events
   server.use(`/runes/events`, require("./src/rpc/runes/routes/events"));
 
-  server.listen(3000, (err) => {
+  server.listen(process.env.RPC_PORT, (err) => {
     log("RPC server running on port 3000");
   });
 };
