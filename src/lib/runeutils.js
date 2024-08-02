@@ -63,7 +63,7 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
 };
 
 const blockManager = (callRpc, latestBlock) => {
-  const MAX_CACHE_SIZE = 20;
+  const MAX_CACHE_SIZE = 2;
 
   let cachedBlocks = {};
 
