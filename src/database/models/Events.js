@@ -44,6 +44,10 @@ module.exports = (sequelize) => {
         type: Sequelize.TEXT("medium"),
         allowNull: false,
       },
+      decimals: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+      },
       from_address: {
         type: Sequelize.TEXT("medium"),
         allowNull: false,

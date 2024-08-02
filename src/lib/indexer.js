@@ -186,6 +186,9 @@ const processEdicts = (
     utxo.rune_balances[runeId] =
       (utxo.rune_balances[runeId] ?? BigInt(0)) + withDefault;
 
+    //Dont save transfer events of amount "0"
+    if (withDefault.toString() === "0") return;
+
     let rune = findOne("Rune", runeId, false, true);
 
     create("Event", {
@@ -196,6 +199,7 @@ const processEdicts = (
       rune_name: rune.name,
       rune_raw_name: rune.raw_name,
       amount: withDefault.toString(),
+      decimals: rune.decimals,
       from_address: InputData.runes[runeId] ? InputData.sender : "UNALLOCATED",
       to_address: utxo.address,
     });

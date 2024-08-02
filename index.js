@@ -4,12 +4,16 @@ const express = require("express");
 const server = express();
 
 //Local dependencies
-const { createRpcClient } = require("./src/lib/rpc");
+const { createRpcClient } = require("./src/lib/btcrpc");
 const { log } = require("./src/lib/utils");
 const { storage: newStorage } = require("./src/lib/storage");
 const { GENESIS_BLOCK } = require("./src/lib/constants");
 const { sleep } = require("./src/lib/utils");
 const { blockManager: createBlockManager } = require("./src/lib/runeutils");
+
+const {
+  databaseConnection: createConnection,
+} = require("./src/database/createConnection");
 
 const { processBlock } = require("./src/lib/indexer");
 const callRpc = createRpcClient({
@@ -25,16 +29,22 @@ const testblock = JSON.parse(
 );
 
 const startRpc = async () => {
-  server.use(process.env.IAP, bodyParser.urlencoded({ extended: false }));
-  server.use(process.env.IAP, bodyParser.json());
+  log("Connecting to db (rpc)...", "info");
+
+  const db = await createConnection();
+  log("Starting RPC server...", "info");
+
+  server.use("/*", bodyParser.urlencoded({ extended: false }));
+  server.use("/*", bodyParser.json());
 
   server.use((req, res, next) => {
     req.callRpc = callRpc;
-
+    req.db = db;
     next();
   });
 
-  server.use(`${process.env.IAP}/blocks`, require("./src/routes/blocks"));
+  //events
+  server.use(`/runes/events`, require("./src/rpc/runes/routes/events"));
 
   server.listen(3000, (err) => {
     log("RPC server running on port 3000");
