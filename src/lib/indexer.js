@@ -342,6 +342,7 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
       rune_name: runeToMint.name,
       rune_raw_name: runeToMint.raw_name,
       amount: runeToMint.mint_amount,
+      decimals: runeToMint.decimals,
       from_address: "GENESIS",
       to_address: "UNALLOCATED",
     });
@@ -490,6 +491,7 @@ const processEtching = async (
     rune_name: EtchedRune.name,
     rune_raw_name: EtchedRune.raw_name,
     amount: etching.premine ?? "0",
+    decimals: EtchedRune.decimals,
     from_address: "GENESIS",
     to_address: "UNALLOCATED",
   });
