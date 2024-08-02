@@ -419,7 +419,7 @@ const storage = async (useSync) => {
   };
 
   const commitChanges = async () => {
-    const MAX_CHUNK_SIZE = 250;
+    const MAX_CHUNK_SIZE = 1500;
     const transaction = await db.sequelize.transaction();
     console.log(
       Object.entries(local).map((rows) => Object.values(rows[1]).length)
