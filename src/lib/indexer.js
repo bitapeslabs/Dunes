@@ -38,7 +38,7 @@ const getUnallocatedRunesFromUtxos = (inputUtxos) => {
         RuneBalances.forEach((rune) => {
           const [rune_protocol_id, amount] = rune;
           acc[rune_protocol_id] =
-            (acc[rune_protocol_id] ?? BigInt("0")) + BigInt(amount);
+            (acc[rune_protocol_id] ?? 0n) + BigInt(amount);
         });
 
         return acc;
@@ -73,7 +73,7 @@ const createNewUtxoBodies = (vout, Transaction) => {
   });
 };
 
-const burnFromOpReturnEntry = async (entry, storage) => {
+const burnFromOutputEntry = async (entry, storage) => {
   const { updateAttribute, findOne } = storage;
   const [runeId, amount] = entry;
 
@@ -179,15 +179,15 @@ const processEdicts = (
     */
     let unallocated = UnallocatedRunes[runeId];
     let withDefault =
-      unallocated < amount || amount === 0 ? unallocated : amount;
+      unallocated < amount || amount === 0n ? unallocated : amount;
 
-    UnallocatedRunes[runeId] = (unallocated ?? BigInt(0)) - withDefault;
+    UnallocatedRunes[runeId] = (unallocated ?? 0n) - withDefault;
 
     utxo.rune_balances[runeId] =
-      (utxo.rune_balances[runeId] ?? BigInt(0)) + withDefault;
+      (utxo.rune_balances[runeId] ?? 0n) + withDefault;
 
     //Dont save transfer events of amount "0"
-    if (withDefault.toString() === "0") return;
+    if (withDefault === 0n) return;
 
     let rune = findOne("Rune", runeId, false, true);
 
@@ -218,6 +218,7 @@ const processEdicts = (
       (edict) => (edict.id = edict.id === "0:0" ? transactionRuneId : edict.id)
     );
 
+    //Get rune ids from edicts for filter below (the rune id is the PrimaryKey)
     let edictFilter = edicts.map((edict) => edict.id);
 
     //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
@@ -242,6 +243,7 @@ const processEdicts = (
       }
 
       if (edict.output === pendingUtxos.length) {
+        //Edict amount is in string, not bigint
         if (edict.amount === "0") {
           /*
               An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of rune id between each non OP_RETURN output.
@@ -516,17 +518,22 @@ const finalizeTransfers = async (
   storage
 ) => {
   const { updateAttribute, create } = storage;
-  const { block } = Transaction;
+  const { block, runestone } = Transaction;
 
   let opReturnOutput = pendingUtxos.find(
     (utxo) => utxo.address === "OP_RETURN"
   );
 
-  if (opReturnOutput) {
-    //Burn all runes from the OP_RETURN output
-
+  //If runes were burnt in the transaction update the runes "burnt_amount" field
+  if (runestone.cenotaph) {
+    pendingUtxos.forEach((utxo) =>
+      Object.entries(utxo.rune_balances).map((entry) =>
+        burnFromOutputEntry(entry, storage)
+      )
+    );
+  } else if (opReturnOutput) {
     Object.entries(opReturnOutput.rune_balances).map((entry) =>
-      burnFromOpReturnEntry(entry, storage)
+      burnFromOutputEntry(entry, storage)
     );
   }
 
@@ -536,7 +543,7 @@ const finalizeTransfers = async (
     updateAttribute("Utxo", utxo.utxo_index, "block_spent", block);
     updateAttribute("Utxo", utxo.utxo_index, "tx_hash_spent", Transaction.hash);
   });
-  //Filter out all OP_RETURN and zero rune balances
+  //Filter out all OP_RETURN and zero rune balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
   pendingUtxos = pendingUtxos.filter(
     (utxo) =>
       utxo.address !== "OP_RETURN" &&
@@ -551,7 +558,7 @@ const finalizeTransfers = async (
     utxo.rune_balances = JSON.stringify(stripObject(utxo.rune_balances));
   });
 
-  //Create all new UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt)
+  //Create all new UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt). Ignore on cenotaphs
   pendingUtxos.forEach((utxo) => {
     if (utxo.address !== "OP_RETURN") {
       create("Utxo", utxo).id;
@@ -562,7 +569,7 @@ const finalizeTransfers = async (
   const allUtxos = [
     //Input utxos are spent, so they should be subtracted from balance
     ...inputUtxos.map((utxo) => [utxo, -1]),
-    //New utxos are added to balance
+    //New utxos are added to balance (empty array if cenotaph because of the filter above)
     ...pendingUtxos.map((utxo) => [utxo, 1]),
   ];
 

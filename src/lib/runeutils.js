@@ -63,7 +63,7 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
 };
 
 const blockManager = (callRpc, latestBlock) => {
-  const MAX_CACHE_SIZE = 2;
+  const MAX_CACHE_SIZE = 20;
 
   let cachedBlocks = {};
 
@@ -291,8 +291,8 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
 
   //First check if a mint_cap was provided
   if (mint_cap) {
-    //If a mint_cap is provided we can perform the check to see if minting is allowed
-    if (total_mints >= BigInt(mint_cap)) return false;
+    //If a mint_cap is provided we can perform the check to see if minting is allowed (minting is allowed on the cap itself)
+    if (total_mints > BigInt(mint_cap)) return false;
   }
 
   //Define defaults used for calculations below

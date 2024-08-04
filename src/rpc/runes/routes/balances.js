@@ -6,7 +6,7 @@ const validators = require("../lib/validators");
 /*
     Gets all Runes owned by a specific utxo (could be spent or unspent)
 */
-const getRunesDataFromArray = async (db, arr) => {
+const mergeRunesIntoBalances = async (db, balances) => {
   const { Rune } = db;
 
   let runes = await Rune.findAll({
@@ -14,13 +14,16 @@ const getRunesDataFromArray = async (db, arr) => {
     attributes: { exclude: ["createdAt", "updatedAt"] },
     where: {
       rune_protocol_id: {
-        [Op.in]: arr,
+        [Op.in]: Object.keys(balances),
       },
     },
   });
 
   return runes.reduce((acc, row) => {
-    acc[row.rune_protocol_id] = row;
+    acc[row.rune_protocol_id] = {
+      balance: balances[row.rune_protocol_id],
+      rune_data: row,
+    };
 
     return acc;
   }, {});
@@ -53,12 +56,7 @@ router.get("/utxo/:utxo_index", async function (req, res) {
 
     if (!utxo) return res.send({});
 
-    utxo.rune_balances = JSON.parse(utxo.rune_balances);
-
-    return res.send({
-      utxo,
-      runes: await getRunesDataFromArray(db, Object.keys(utxo.rune_balances)),
-    });
+    return res.send(await mergeRunesIntoBalances(db, utxo.rune_balances));
   } catch (e) {
     console.log(e);
     return res.status(500).send({ error: "Internal server error" });
@@ -92,10 +90,7 @@ router.get("/address/:address", async function (req, res) {
       return acc;
     }, {});
 
-    return res.send({
-      balances,
-      runes: await getRunesDataFromArray(db, Object.keys(balances)),
-    });
+    return res.send(await mergeRunesIntoBalances(db, balances));
   } catch (e) {
     console.log(e);
     return res.status(500).send({ error: "Internal server error" });
