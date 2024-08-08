@@ -16,6 +16,23 @@ const { Op } = require("sequelize");
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 const { GENESIS_BLOCK, GENESIS_RUNESTONE } = require("./constants");
 
+let __debug_totalElapsedTime = {
+  mint: 0,
+  etch: 0,
+  edicts: 0,
+  transfers: 0,
+  body_init: 0,
+};
+let __timer;
+
+let startTimer = () => {
+  __timer = Date.now();
+};
+
+let stopTimer = (field) => {
+  __debug_totalElapsedTime[field] += Date.now() - __timer;
+};
+
 const getUnallocatedRunesFromUtxos = (inputUtxos) => {
   /*
         Important: Rune Balances from this function are returned in big ints in the following format
@@ -104,11 +121,6 @@ const burnAllFromUtxo = async (utxo, storage) => {
 
 const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
   const { findManyInFilter, create, updateAttribute, findOne } = storage;
-
-  if (!utxo?.rune_balances) {
-    console.log("No rune balances found in UTXO", utxo);
-    throw "No rune balances found in UTXO";
-  }
 
   const utxoRuneBalances = Object.entries(utxo.rune_balances);
 
@@ -211,12 +223,6 @@ const processEdicts = (
     if (withDefault === 0n) return;
 
     let rune = findOne("Rune", runeId, false, true);
-
-    if (!rune) {
-      console.log(inputUtxos);
-      console.log(UnallocatedRunes);
-      console.log(runeId, "Rune not found in DB");
-    }
 
     let fromAddress = InputData.runes[runeId]
       ? InputData.sender
@@ -633,6 +639,8 @@ const finalizeTransfers = async (
 };
 
 const processRunestone = async (Transaction, rpc, storage) => {
+  startTimer();
+
   const { vout, vin, block, hash } = Transaction;
 
   const { create, findOrCreate, findOne, fetchGroupLocally } = storage;
@@ -702,13 +710,20 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   //Reference of UnallocatedRunes and pendingUtxos is passed around in follwoing functions
   //Process etching is potentially asyncrhnous because of commitment checks
+  stopTimer("body_init");
+
+  startTimer();
   await processEtching(UnallocatedRunes, Transaction, rpc, storage);
+  stopTimer("etch");
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
+  startTimer();
   processMint(UnallocatedRunes, Transaction, storage);
+  stopTimer("mint");
 
   //Allocate all transfers from unallocated payload to the pendingUtxos
+  startTimer();
   processEdicts(
     UnallocatedRunes,
     pendingUtxos,
@@ -717,10 +732,13 @@ const processRunestone = async (Transaction, rpc, storage) => {
     inputUtxos,
     storage
   );
+  stopTimer("etch");
 
   //Commit the utxos to storage and update Balances
-  finalizeTransfers(inputUtxos, pendingUtxos, Transaction, storage);
 
+  startTimer();
+  finalizeTransfers(inputUtxos, pendingUtxos, Transaction, storage);
+  stopTimer("transfers");
   return;
 };
 
@@ -757,7 +775,6 @@ const loadBlockIntoMemory = async (block, storage) => {
 
             //coinbase txs dont have a vin
             if (utxo.vout === undefined) {
-              console.log(transaction);
               return null;
             }
 
@@ -797,8 +814,6 @@ const loadBlockIntoMemory = async (block, storage) => {
       };
     }),
   };
-
-  console.log(query);
 
   await loadManyIntoMemory("Utxo", query);
 
@@ -962,6 +977,14 @@ const processBlock = async (block, callRpc, storage, useTest) => {
       throw e;
     }
   }
+
+  Object.keys(__debug_totalElapsedTime).forEach((field) => {
+    log(
+      `Time spent on ${field}: ${__debug_totalElapsedTime[field]}ms`,
+      "debug"
+    );
+  });
+
   await storage.commitChanges();
 
   return;
