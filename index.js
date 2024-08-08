@@ -17,7 +17,9 @@ const {
 
 const { processBlock } = require("./src/lib/indexer");
 const callRpc = createRpcClient({
-  url: process.env.FAST_BTC_RPC_URL,
+  url: process.env.BTC_RPC_URL,
+  username: process.env.BTC_RPC_USERNAME,
+  password: process.env.BTC_RPC_PASSWORD,
 });
 
 //For testing
