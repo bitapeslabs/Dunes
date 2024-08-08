@@ -15,7 +15,7 @@ const {
   databaseConnection: createConnection,
 } = require("./src/database/createConnection");
 
-const { processBlock } = require("./src/lib/indexer");
+const { processBlock, loadBlockIntoMemory } = require("./src/lib/indexer");
 const callRpc = createRpcClient({
   url: process.env.BTC_RPC_URL,
   username: process.env.BTC_RPC_USERNAME,
@@ -97,13 +97,16 @@ const startServer = async () => {
       currentBlock <= endBlock;
       currentBlock++
     ) {
-      const blockData = useTest
+      const { blockHeight, blockData } = useTest
         ? { blockHeight: currentBlock, blockData: testblock }
         : //Attempt to load from cache and if not fetch from RPC
           await getBlock(currentBlock);
 
+      console.log(blockData);
       //Run the indexers processBlock function
-      await processBlock(blockData, callRpc, storage, useTest);
+      await loadBlockIntoMemory(blockData, storage, useTest);
+      await processBlock({ blockHeight, blockData }, callRpc, storage, useTest);
+      await storage.commitChanges();
 
       //Update the current block in the DB
       log("Block finished processing!", "debug");

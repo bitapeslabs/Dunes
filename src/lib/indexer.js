@@ -950,7 +950,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   return;
 };
 
-const processBlock = async (block, callRpc, storage, useTest, cacheIndex) => {
+const processBlock = async (block, callRpc, storage, useTest) => {
   const { blockHeight, blockData } = block;
 
   const formatMemoryUsage = (data) =>
@@ -970,8 +970,6 @@ const processBlock = async (block, callRpc, storage, useTest, cacheIndex) => {
   log("MEMSTAT heap(used): " + memoryUsage.heapUsed, "debug");
   log("MEMSTAT external: " + memoryUsage.external, "debug");
 
-  //Load all rows we will manipulate beforehand into memory
-  await loadBlockIntoMemory(blockData, storage);
   //await sleep(2000);
   log(
     "Processing " + blockData.length + " transactions for block " + blockHeight
@@ -1011,11 +1009,11 @@ const processBlock = async (block, callRpc, storage, useTest, cacheIndex) => {
   });
 
   __debug_totalElapsedTime = {};
-  await storage.commitChanges();
 
   return;
 };
 
 module.exports = {
   processBlock,
+  loadBlockIntoMemory,
 };
