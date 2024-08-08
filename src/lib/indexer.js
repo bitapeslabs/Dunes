@@ -16,13 +16,7 @@ const { Op } = require("sequelize");
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 const { GENESIS_BLOCK, GENESIS_RUNESTONE } = require("./constants");
 
-let __debug_totalElapsedTime = {
-  mint: 0,
-  etch: 0,
-  edicts: 0,
-  transfers: 0,
-  body_init: 0,
-};
+let __debug_totalElapsedTime = {};
 let __timer;
 
 let startTimer = () => {
@@ -30,7 +24,8 @@ let startTimer = () => {
 };
 
 let stopTimer = (field) => {
-  __debug_totalElapsedTime[field] += Date.now() - __timer;
+  __debug_totalElapsedTime[field] =
+    (__debug_totalElapsedTime[field] ?? 0) + Date.now() - __timer;
 };
 
 const getUnallocatedRunesFromUtxos = (inputUtxos) => {
@@ -456,7 +451,12 @@ const processEtching = async (
     spacedRune = new SpacedRune(OrdRune.fromString(runeName), etching.spacers);
   }
 
-  const isRuneNameTaken = !!findOne("Rune", runeName, false, true);
+  const isRuneNameTaken = !!findOne(
+    "Rune",
+    runeName + "@REF@raw_name",
+    false,
+    true
+  );
 
   if (isRuneNameTaken) {
     return UnallocatedRunes;
@@ -643,13 +643,17 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   const { vout, vin, block, hash } = Transaction;
 
-  const { create, findOrCreate, findOne, fetchGroupLocally } = storage;
+  const { create, findOrCreate, findManyInFilter, fetchGroupLocally, findOne } =
+    storage;
 
   //Ensures that Genesis and Unallocated addresses are the first two addresses in the db
   findOrCreate("Address", "GENESIS", { address: "GENESIS" }, true);
   findOrCreate("Address", "OP_RETURN", { address: "OP_RETURN" }, true);
   findOrCreate("Address", "UNALLOCATED", { address: "UNALLOCATED" }, true);
 
+  stopTimer("body_init_header");
+
+  startTimer();
   const parentTransaction = create("Transaction", { hash }, false, true);
 
   Transaction.virtual_id = parentTransaction.id;
@@ -667,13 +671,18 @@ const processRunestone = async (Transaction, rpc, storage) => {
     }
     return;
   }
+  stopTimer("body_init_header_genesis_handler");
 
-  // const SpenderAccount = await _findAccountOrCreate(Transaction, db)
+  startTimer();
 
   let UtxoFilter = vin.map(
     (vin) =>
-      `${findOne("Transaction", vin.txid, false, true)?.id ?? "-1"}:${vin.vout}`
+      `${
+        findOne("Transaction", vin.txid + "@REF@hash", false, true)?.id ?? "-1"
+      }:${vin.vout}`
   );
+
+  stopTimer("body_init_filter_generator");
 
   //Setup Transaction for processing
 
@@ -682,6 +691,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
   //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
 
   //uses optimized lookup by using utxo_index
+  startTimer();
 
   let inputUtxos = UtxoFilter.map((groupIndex) =>
     fetchGroupLocally("Utxo", "utxo_group_index", groupIndex)
@@ -689,6 +699,9 @@ const processRunestone = async (Transaction, rpc, storage) => {
     .map((utxoGroup) => decodeUtxoFromArray(utxoGroup, storage))
     .filter(Boolean);
 
+  stopTimer("body_init_utxo_fetch");
+
+  startTimer();
   let pendingUtxos = createNewUtxoBodies(vout, Transaction, storage);
 
   let UnallocatedRunes = getUnallocatedRunesFromUtxos(inputUtxos);
@@ -710,7 +723,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   //Reference of UnallocatedRunes and pendingUtxos is passed around in follwoing functions
   //Process etching is potentially asyncrhnous because of commitment checks
-  stopTimer("body_init");
+  stopTimer("body_init_pending_utxo_creation");
 
   startTimer();
   await processEtching(UnallocatedRunes, Transaction, rpc, storage);
@@ -732,7 +745,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
     inputUtxos,
     storage
   );
-  stopTimer("etch");
+  stopTimer("edicts");
 
   //Commit the utxos to storage and update Balances
 

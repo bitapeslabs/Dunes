@@ -156,16 +156,16 @@ const storage = async (useSync) => {
     });
   };
 
-  const __findWithPrimaryOrReference = (modelName, value) => {
-    const { [modelName]: LocalModel } = local;
-    const { [modelName]: RefModel } = references;
+  const __findWithPrimaryOrReference = (modelName, searchValue) => {
+    if (local[modelName][searchValue]) return local[modelName][searchValue];
 
-    if (LocalModel[value]) return LocalModel[value];
+    //To search for a reference you must provide the ref key. This is done by seperating the value and the field with a @REF@
+    if (!searchValue || !references[modelName]) return null;
+    let [value, indexedField] = searchValue.split("@REF@");
 
-    //That model has no references
-    if (!RefModel) return;
+    if (!indexedField) return null;
 
-    return Object.values(RefModel).find((ref) => ref[value])?.[value];
+    return references[modelName][indexedField][value] ?? null;
   };
 
   const __buildIndexes = (row, modelName) => {
@@ -275,7 +275,7 @@ const storage = async (useSync) => {
 
     if (mappedObject && !attribute) {
       return mappedObject;
-    } else {
+    } else if (attribute) {
       let row = Object.values(LocalModel).find(
         (row) => row[attribute] === value
       );
