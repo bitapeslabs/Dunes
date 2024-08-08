@@ -950,7 +950,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   return;
 };
 
-const processBlock = async (block, callRpc, storage, useTest) => {
+const processBlock = async (block, callRpc, storage, useTest, cacheIndex) => {
   const { blockHeight, blockData } = block;
 
   const formatMemoryUsage = (data) =>

@@ -10,7 +10,7 @@ module.exports = (sequelize) => {
         autoIncrement: true,
       },
       address: {
-        type: Sequelize.TEXT("medium"),
+        type: Sequelize.TEXT,
         allowNull: false,
       },
     },

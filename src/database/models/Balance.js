@@ -19,7 +19,7 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       balance: {
-        type: Sequelize.TEXT("medium"),
+        type: Sequelize.DECIMAL,
         allowNull: false,
       },
     },
