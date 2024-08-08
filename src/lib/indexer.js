@@ -15,6 +15,7 @@ const { Op } = require("sequelize");
 
 const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 const { GENESIS_BLOCK, GENESIS_RUNESTONE } = require("./constants");
+const { runestone } = require("@runeapes/apeutils");
 
 let __debug_totalElapsedTime = {};
 let __timer;
@@ -702,6 +703,17 @@ const processRunestone = async (Transaction, rpc, storage) => {
   stopTimer("body_init_utxo_fetch");
 
   startTimer();
+
+  if (
+    //If no input utxos are provided (with runes inside)
+    inputUtxos.length === 0 &&
+    //AND there is no runestone field in the transaction (aside from cenotaph)
+    Object.keys(Transaction.runestone).length === 1
+  ) {
+    //We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions
+    return;
+  }
+
   let pendingUtxos = createNewUtxoBodies(vout, Transaction, storage);
 
   let UnallocatedRunes = getUnallocatedRunesFromUtxos(inputUtxos);
