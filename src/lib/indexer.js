@@ -998,6 +998,7 @@ const processBlock = async (block, callRpc, storage, useTest) => {
     );
   });
 
+  __debug_totalElapsedTime = {};
   await storage.commitChanges();
 
   return;
