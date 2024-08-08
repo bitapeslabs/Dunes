@@ -5,22 +5,17 @@ module.exports = (sequelize) => {
     "Balance",
     {
       id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
-      balance_index: {
-        //address:rune_protocol_id -> address:block:vout
 
-        type: Sequelize.TEXT("medium"),
+      rune_id: {
+        type: Sequelize.BIGINT,
         allowNull: false,
       },
-      rune_protocol_id: {
-        type: Sequelize.TEXT("tiny"),
-        allowNull: false,
-      },
-      address: {
-        type: Sequelize.TEXT("long"),
+      address_id: {
+        type: Sequelize.BIGINT,
         allowNull: false,
       },
       balance: {
@@ -31,18 +26,20 @@ module.exports = (sequelize) => {
     {
       indexes: [
         {
-          fields: ["address"],
-          using: "HASH",
+          fields: ["address_id", "rune_id"],
+          using: "BTREE",
         },
         {
-          fields: ["rune_protocol_id"],
-          using: "HASH",
+          fields: ["address_id"],
+          using: "BTREE",
+        },
+        {
+          fields: ["rune_id"],
+          using: "BTREE",
         },
       ],
       tableName: "balances",
-      timestamps: true,
-      createdAt: true,
-      updatedAt: true,
+      timestamps: false,
     }
   );
 };

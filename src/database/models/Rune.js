@@ -32,7 +32,7 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       total_supply: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: false,
       },
       decimals: {
@@ -40,43 +40,47 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       premine: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: false,
       },
       mints: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: false,
       },
       mint_cap: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_start: {
-        type: Sequelize.TEXT,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_end: {
-        type: Sequelize.TEXT,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_offset_start: {
-        type: Sequelize.TEXT,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_offset_end: {
-        type: Sequelize.TEXT,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_amount: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       burnt_amount: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
-      etch_transaction: {
-        type: Sequelize.TEXT("medium"),
+      etch_transaction_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: "transactions",
+          key: "id",
+        },
         allowNull: true,
       },
 
@@ -97,9 +101,7 @@ module.exports = (sequelize) => {
         },
       ],
       tableName: "runes",
-      timestamps: true,
-      createdAt: true,
-      updatedAt: true,
+      timestamps: false,
     }
   );
 };

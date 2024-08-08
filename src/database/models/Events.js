@@ -5,12 +5,16 @@ module.exports = (sequelize) => {
     "Event",
     {
       id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
       type: {
-        type: Sequelize.TEXT("tiny"),
+        //0 -> Etch
+        //1 -> Mint
+        //2 -> Transfer
+        //We store as ints to save space on the database
+        type: Sequelize.INTEGER,
         allowNull: false,
       },
 
@@ -21,40 +25,43 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
 
-      transaction_hash: {
-        type: Sequelize.TEXT("medium"),
-        allowNull: false,
+      transaction_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: "transactions",
+          key: "id",
+        },
+        allowNull: true,
       },
 
-      rune_protocol_id: {
-        type: Sequelize.TEXT("tiny"),
-        allowNull: false,
-      },
-
-      rune_name: {
-        type: Sequelize.TEXT("tiny"),
-        allowNull: false,
-      },
-
-      rune_raw_name: {
-        type: Sequelize.TEXT("tiny"),
-        allowNull: false,
+      rune_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: "runes",
+          key: "id",
+        },
+        allowNull: true,
       },
       amount: {
-        type: Sequelize.TEXT("medium"),
+        type: Sequelize.DECIMAL,
         allowNull: false,
       },
-      decimals: {
+
+      from_address_id: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        references: {
+          model: "addresses",
+          key: "id",
+        },
+        allowNull: true,
       },
-      from_address: {
-        type: Sequelize.TEXT("medium"),
-        allowNull: false,
-      },
-      to_address: {
-        type: Sequelize.TEXT("medium"),
-        allowNull: false,
+      to_address_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: "addresses",
+          key: "id",
+        },
+        allowNull: true,
       },
     },
     {
@@ -64,26 +71,24 @@ module.exports = (sequelize) => {
           using: "BTREE",
         },
         {
-          fields: ["rune_protocol_id"],
+          fields: ["rune_id"],
           using: "BTREE",
         },
         {
-          fields: ["transaction_hash"],
+          fields: ["transaction_id"],
           using: "BTREE",
         },
         {
-          fields: ["from_address"],
+          fields: ["from_address_id"],
           using: "BTREE",
         },
         {
-          fields: ["to_address"],
+          fields: ["to_address_id"],
           using: "BTREE",
         },
       ],
       tableName: "events",
-      timestamps: true,
-      createdAt: true,
-      updatedAt: true,
+      timestamps: false,
     }
   );
 };

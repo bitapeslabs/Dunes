@@ -10,8 +10,13 @@ const {
 const { Rune: OrdJSRune } = require("@ordjs/runestone");
 const { Script } = require("@cmdcode/tapscript");
 const { runestone } = require("@runeapes/apeutils");
-const { stripObject, sleep } = require("./utils");
-const { log } = require("./utils");
+const {
+  log,
+  convertAmountToParts,
+  convertPartsToAmount,
+  sleep,
+  stripObject,
+} = require("./utils");
 const decipherRunestone = (txJson) => {
   let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
 
@@ -27,20 +32,6 @@ const decipherRunestone = (txJson) => {
           utxo.scriptPubKey.asm.includes("OP_RETURN 13")
         ).length),
   };
-};
-
-const getOutputFromPending = (pending, pointer) => {
-  let pointerOutput =
-    pending[pointer] ??
-    (pending[0].address === "OP_RETURN" ? pending[1] : pending[0]);
-  //pointerOutput should never be undefined since there is always either a non-opreturn or an op-return output in a transaction
-
-  if (!pointerOutput) {
-    //pointer is not provided and there are no non-OP_RETURN outputs
-    pointerOutput = pending.find((utxo) => utxo.address === "OP_RETURN");
-  }
-
-  return pointerOutput;
 };
 
 const getRunestonesInBlock = async (blockNumber, callRpc) => {
@@ -60,6 +51,52 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
   }));
 
   return runestones;
+};
+
+//For the indexer its easier to think of utxos as having a rune_balances property
+//While for sql we optimize by storing each rune balance as an indivudal row, and for the balance amount we store as 2 BigInts
+//To decode the BigInts into a rune_balances object, we use the functions above
+
+const decodeUtxoFromArray = (arrayOfUtxos, storage) => {
+  if (!arrayOfUtxos?.length) return null;
+  const { findOne } = storage;
+  const utxo = arrayOfUtxos[0];
+  return {
+    value_sats: utxo.value_sats,
+    transaction_id: utxo.transaction_id,
+    address_id: utxo.address_id,
+    rune_id: utxo.rune_id,
+    rune_balances: arrayOfUtxos.reduce((acc, utxo) => {
+      acc[findOne("Rune", utxo.rune_id, false, true).rune_protocol_id] =
+        convertPartsToAmount(utxo.balance_0, utxo.balance_1);
+      return acc;
+    }, {}),
+    vout_index: utxo.vout_index,
+    block_spent: utxo.block_spent,
+    transaction_spent_id: utxo.transaction_spent_id,
+    children: arrayOfUtxos.map((utxo) => utxo.utxo_index),
+  };
+};
+
+const convertUtxoToArray = (utxo, storage) => {
+  const { findOne } = storage;
+  return Object.keys(utxo.rune_balances).map((rune_protocol_id) => {
+    let { balance_0, balance_1 } = convertAmountToParts(
+      utxo.rune_balances[rune_protocol_id]
+    );
+    return {
+      block: utxo.block,
+      value_sats: Number(utxo.value_sats),
+      transaction_id: utxo.transaction_id,
+      address_id: utxo.address_id,
+      rune_id: findOne("Rune", rune_protocol_id, false, true).id,
+      balance_0,
+      balance_1,
+      vout_index: utxo.vout_index,
+      block_spent: utxo.block_spent,
+      transaction_spent_id: utxo.transaction_spent_id,
+    };
+  }, {});
 };
 
 const blockManager = (callRpc, latestBlock) => {
@@ -345,4 +382,8 @@ module.exports = {
   checkCommitment,
   blockManager,
   getRunestonesInBlock,
+  convertPartsToAmount,
+  convertAmountToParts,
+  decodeUtxoFromArray,
+  convertUtxoToArray,
 };

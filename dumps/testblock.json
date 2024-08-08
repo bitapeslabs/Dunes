@@ -2,9 +2,28 @@
     {
         "runestone": {
          
-          "cenotaph": true
+          "etching": {
+            "divisibility": 18,
+            "premine": "150000000000000000000000000",
+            "rune": "RUNEAPESSHARES",
+            "spacers": 128,
+            "symbol": "🍌",
+            "terms": {
+            "amount": "1000000000000000000",
+            "cap": "0",
+            "height": [
+                null,
+                null
+            ],
+            "offset": [
+                null,
+                null
+            ]
         },
-        "hash": "newhash2",
+        "turbo": true
+      }
+    },
+        "hash": "newhash4",
         "txIndex": 1,
         "vout": [
           {
@@ -14,7 +33,7 @@
               "asm": "1 3c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4",
               "desc": "rawtr(3c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4)#tksqther",
               "hex": "51203c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4",
-              "address": "newguy",
+              "address": "newguy2",
               "type": "witness_v1_taproot"
             }
           },
@@ -31,7 +50,7 @@
         ],
         "vin": [
           {
-            "txid": "newhash",
+            "txid": "newhash3",
             "vout": 0,
             "scriptSig": {
               "asm": "",

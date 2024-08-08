@@ -20,6 +20,35 @@ async function databaseConnection() {
     models.Utxo = require("./models/Utxo")(sequelize);
     models.Setting = require("./models/Settings")(sequelize);
     models.Event = require("./models/Events")(sequelize);
+    models.Transaction = require("./models/Transaction")(sequelize);
+    models.Address = require("./models/Address")(sequelize);
+
+    // Relationships UTXOS
+    models.Utxo.belongsTo(models.Address, { foreignKey: "address_id" });
+    models.Utxo.belongsTo(models.Transaction, { foreignKey: "transaction_id" });
+    models.Utxo.belongsTo(models.Transaction, {
+      foreignKey: "transaction_spent_id",
+    });
+
+    // Relationships Runes
+    models.Rune.belongsTo(models.Transaction, {
+      foreignKey: "etch_transaction_id",
+    });
+    models.Rune.belongsTo(models.Address, {
+      foreignKey: "deployer_address_id",
+    });
+
+    //Relationships Events
+    models.Event.belongsTo(models.Transaction, {
+      foreignKey: "transaction_id",
+    });
+    models.Event.belongsTo(models.Rune, { foreignKey: "rune_id" });
+    models.Event.belongsTo(models.Address, { foreignKey: "from_address_id" });
+    models.Event.belongsTo(models.Address, { foreignKey: "to_address_id" });
+
+    // Relationships Balances
+    models.Balance.belongsTo(models.Address, { foreignKey: "address_id" });
+    models.Balance.belongsTo(models.Rune, { foreignKey: "rune_id" });
 
     models.sequelize = sequelize;
 

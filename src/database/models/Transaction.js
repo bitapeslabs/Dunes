@@ -2,29 +2,27 @@ const { Sequelize } = require("sequelize");
 
 module.exports = (sequelize) => {
   return sequelize.define(
-    "Setting",
+    "Transaction",
     {
       id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
-
-      name: {
-        type: Sequelize.TEXT,
-
-        allowNull: false,
-      },
-      value: {
+      hash: {
         type: Sequelize.TEXT,
         allowNull: false,
       },
     },
     {
-      tableName: "settings",
-      timestamps: true,
-      createdAt: true,
-      updatedAt: true,
+      indexes: [
+        {
+          fields: ["hash"],
+          using: "BTREE",
+        },
+      ],
+      tableName: "transactions",
+      timestamps: false,
     }
   );
 };

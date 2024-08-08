@@ -1,44 +1,72 @@
 const { Sequelize } = require("sequelize");
 
+//total: 64 bytes
 module.exports = (sequelize) => {
   return sequelize.define(
     "Utxo",
     {
+      //8 bytes
       id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
-      utxo_index: {
-        //hash:vout
-        type: Sequelize.TEXT("medium"),
+
+      //8 bytes
+      value_sats: {
+        type: Sequelize.BIGINT,
         allowNull: false,
       },
 
-      value_sats: {
-        type: Sequelize.TEXT("tiny"),
-        allowNull: false,
-      },
-      hash: {
-        type: Sequelize.TEXT("medium"),
-        allowNull: true,
-      },
-      address: {
-        type: Sequelize.TEXT("medium"),
-        allowNull: true,
-      },
-      rune_balances: {
-        type: Sequelize.TEXT("medium"),
-        allowNull: true,
-      },
+      //4 bytes
       block: {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
+
+      //8 bytes
+      transaction_id: {
+        type: Sequelize.BIGINT,
+        references: {
+          model: "transactions",
+          key: "id",
+        },
+        allowNull: true,
+      },
+
+      //4 bytes
+      address_id: {
+        type: Sequelize.BIGINT,
+        references: {
+          model: "addresses",
+          key: "id",
+        },
+        allowNull: true,
+      },
+
+      //4 bytes
+      rune_id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+      },
+
+      //16 bytes stored across two BIGINTS and concat. by the lib
+      balance_0: {
+        type: Sequelize.BIGINT,
+        allowNull: true,
+      },
+      balance_1: {
+        type: Sequelize.BIGINT,
+        allowNull: false,
+      },
+
+      //4 bytes
       vout_index: {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
+
+      //4 bytes
       block_spent: {
         /*
                 This exists so that the scanner can give insight into what account balances were at a specific block. 
@@ -48,35 +76,68 @@ module.exports = (sequelize) => {
         type: Sequelize.INTEGER,
         allowNull: true,
       },
-      tx_hash_spent: {
+
+      //8 bytes
+      transaction_spent_id: {
         //For transversing the chain and a rune transfer history
-        type: Sequelize.TEXT("medium"),
+        type: Sequelize.BIGINT,
+        references: {
+          model: "transactions",
+          key: "id",
+        },
         allowNull: true,
       },
     },
     {
       indexes: [
         {
-          fields: ["utxo_index"],
+          //Composite index for fetching a utxo with transaction id and vout_index
+          fields: ["transaction_id", "vout_index"],
           using: "BTREE",
         },
+
         {
-          fields: ["hash"],
+          //Composite index for fetching the individual rune balance of an indiviudal UTXO
+          fields: ["transaction_id", "vout_index", "rune_id"],
           using: "BTREE",
         },
+
+        //Useful for fetching all utxos for an address at a specific block
         {
-          fields: ["address"],
+          fields: ["block_spent", "address_id"],
           using: "BTREE",
         },
+
+        //Useful for get utxos by address
         {
-          fields: ["block"], // Specify the actual fields to be unique
+          fields: ["address_id"],
+          using: "BTREE",
+        },
+
+        //Useful for get utxos by transaction
+        {
+          fields: ["transaction_id"],
+          using: "BTREE",
+        },
+
+        //Useful for get utxos by transaction_spent
+        {
+          fields: ["transaction_spent_id"],
+          using: "BTREE",
+        },
+        //Useful to get all utxos created a specific block
+        {
+          fields: ["block"],
+          using: "BTREE",
+        },
+        //Useful to get all utxos spent at a specific block
+        {
+          fields: ["block_spent"],
           using: "BTREE",
         },
       ],
       tableName: "utxos",
-      timestamps: true,
-      createdAt: true,
-      updatedAt: true,
+      timestamps: false,
     }
   );
 };
