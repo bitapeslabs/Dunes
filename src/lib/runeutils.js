@@ -101,7 +101,10 @@ const convertUtxoToArray = (utxo, storage) => {
 };
 
 const blockManager = (callRpc, latestBlock) => {
-  const { MAX_BLOCK_CACHE_SIZE, GET_BLOCK_CHUNK_SIZE } = process.env;
+  let { MAX_BLOCK_CACHE_SIZE, GET_BLOCK_CHUNK_SIZE } = process.env;
+
+  MAX_BLOCK_CACHE_SIZE = parseInt(MAX_BLOCK_CACHE_SIZE ?? 20);
+  GET_BLOCK_CHUNK_SIZE = parseInt(GET_BLOCK_CHUNK_SIZE ?? 10);
 
   let cachedBlocks = {};
 

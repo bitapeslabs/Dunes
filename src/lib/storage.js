@@ -528,7 +528,9 @@ const storage = async (useSync) => {
   };
 
   const commitChanges = async () => {
-    const MAX_COMMIT_CHUNK_SIZE = process.env.MAX_COMMIT_CHUNK_SIZE || 1500;
+    const MAX_COMMIT_CHUNK_SIZE = parseInt(
+      process.env.MAX_COMMIT_CHUNK_SIZE || 1500
+    );
     const transaction = await db.sequelize.transaction();
 
     try {
