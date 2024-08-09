@@ -655,6 +655,20 @@ const processRunestone = async (Transaction, rpc, storage) => {
   stopTimer("body_init_header");
 
   startTimer();
+
+  if (
+    //If no input utxos are provided (with runes inside)
+    inputUtxos.length === 0 &&
+    //AND there is no runestone field in the transaction (aside from cenotaph)
+    Object.keys(Transaction.runestone).length === 1
+  ) {
+    /*
+        We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions 
+        (we alsoo check to see if the tx is the genesis transaction for the creation of UNCOMMONGOODS)
+    */
+    if (!(vin[0].coinbase && block === GENESIS_BLOCK)) return;
+  }
+
   const parentTransaction = create("Transaction", { hash }, false, true);
 
   Transaction.virtual_id = parentTransaction.id;
@@ -703,16 +717,6 @@ const processRunestone = async (Transaction, rpc, storage) => {
   stopTimer("body_init_utxo_fetch");
 
   startTimer();
-
-  if (
-    //If no input utxos are provided (with runes inside)
-    inputUtxos.length === 0 &&
-    //AND there is no runestone field in the transaction (aside from cenotaph)
-    Object.keys(Transaction.runestone).length === 1
-  ) {
-    //We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions
-    return;
-  }
 
   let pendingUtxos = createNewUtxoBodies(vout, Transaction, storage);
 
