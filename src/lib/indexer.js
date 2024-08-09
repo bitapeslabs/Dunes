@@ -671,8 +671,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
   //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
 
   //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
-  console.log(block);
-  console.log(GENESIS_BLOCK);
+
   //Ignore coinbase tx if not genesis since it has no input utxos
 
   startTimer();
