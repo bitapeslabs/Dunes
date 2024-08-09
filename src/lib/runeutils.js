@@ -152,7 +152,7 @@ const blockManager = (callRpc, latestBlock) => {
     return new Promise(function (resolve, reject) {
       let foundBlock;
       if (cachedBlocks[blockNumber]) {
-        foundBlock = { ...cachedBlocks[blockNumber] };
+        foundBlock = [...cachedBlocks[blockNumber]];
         delete cachedBlocks[blockNumber];
       }
 
