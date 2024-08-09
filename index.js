@@ -102,6 +102,7 @@ const startServer = async () => {
       let blocks = await Promise.all(
         blocksToFetch.map((height) => getBlock(height))
       );
+      log("Blocks fetched! ", "info");
 
       let blocksMapped = blocks.reduce((acc, block, i) => {
         acc[currentBlock + i] = block;
