@@ -114,7 +114,6 @@ const blockManager = (callRpc, latestBlock) => {
 
     let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1));
     let currentBlock = lastBlockInCache ? lastBlockInCache + 1 : requestedBlock;
-
     while (
       currentBlock <= latestBlock &&
       Object.keys(cachedBlocks).length < MAX_BLOCK_CACHE_SIZE

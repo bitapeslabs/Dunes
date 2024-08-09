@@ -639,20 +639,41 @@ const finalizeTransfers = async (
   return;
 };
 
-const processRunestone = async (Transaction, rpc, storage) => {
+const handleGenesis = async (Transaction, storage) => {
+  const { findOrCreate } = storage;
+
   startTimer();
-
-  const { vout, vin, block, hash } = Transaction;
-
-  const { create, findOrCreate, findManyInFilter, fetchGroupLocally, findOne } =
-    storage;
-
-  //Ensures that Genesis and Unallocated addresses are the first two addresses in the db
   findOrCreate("Address", "GENESIS", { address: "GENESIS" }, true);
   findOrCreate("Address", "OP_RETURN", { address: "OP_RETURN" }, true);
   findOrCreate("Address", "UNALLOCATED", { address: "UNALLOCATED" }, true);
-
   stopTimer("body_init_header");
+
+  await processEtching(
+    {},
+    { ...Transaction, runestone: GENESIS_RUNESTONE },
+    rpc,
+    storage,
+    true
+  );
+
+  return;
+};
+
+const processRunestone = async (Transaction, rpc, storage) => {
+  const { vout, vin, block, hash } = Transaction;
+
+  const { create, fetchGroupLocally, findOne } = storage;
+
+  //Ignore the coinbase transaction (unless genesis rune is being created)
+
+  //Setup Transaction for processing
+
+  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
+
+  //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
+  console.log(block);
+  console.log(GENESIS_BLOCK);
+  //Ignore coinbase tx if not genesis since it has no input utxos
 
   startTimer();
 
@@ -665,24 +686,15 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   stopTimer("body_init_filter_generator");
 
-  //Setup Transaction for processing
-
-  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
-
-  //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
-
-  //uses optimized lookup by using utxo_index
-  startTimer();
-
-  let inputUtxos = UtxoFilter.map((groupIndex) =>
-    fetchGroupLocally("Utxo", "utxo_group_index", groupIndex)
-  )
-    .map((utxoGroup) => decodeUtxoFromArray(utxoGroup, storage))
-    .filter(Boolean);
+  let inputUtxos = vin[0].coinbase //coinbase txs can still mint runes
+    ? []
+    : UtxoFilter.map((groupIndex) =>
+        fetchGroupLocally("Utxo", "utxo_group_index", groupIndex)
+      )
+        .map((utxoGroup) => decodeUtxoFromArray(utxoGroup, storage))
+        .filter(Boolean);
 
   stopTimer("body_init_utxo_fetch");
-
-  startTimer();
 
   if (
     //If no input utxos are provided (with runes inside)
@@ -691,28 +703,17 @@ const processRunestone = async (Transaction, rpc, storage) => {
     Object.keys(Transaction.runestone).length === 1
   ) {
     //We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions
-    if (!(vin[0].coinbase && block === GENESIS_BLOCK)) return;
+    if (!(vin[0].coinbase && block == GENESIS_BLOCK)) return;
   }
 
-  startTimer();
   const parentTransaction = create("Transaction", { hash }, false, true);
 
   Transaction.virtual_id = parentTransaction.id;
 
-  //Ignore the coinbase transaction (unless genesis rune is being created)
-  if (vin[0].coinbase) {
-    if (block === GENESIS_BLOCK) {
-      await processEtching(
-        {},
-        { ...Transaction, runestone: GENESIS_RUNESTONE },
-        rpc,
-        storage,
-        true
-      );
-    }
-    return;
-  }
-  stopTimer("body_init_header_genesis_handler");
+  if (vin[0].coinbase && block === GENESIS_BLOCK)
+    await handleGenesis(Transaction, storage);
+
+  startTimer();
 
   let pendingUtxos = createNewUtxoBodies(vout, Transaction, storage);
 

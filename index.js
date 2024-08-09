@@ -120,7 +120,7 @@ const startServer = async () => {
       await Promise.all(
         blocks.map((block) => loadBlockIntoMemory(block, storage))
       );
-      for (let i = 1; i < blocks.length; i++) {
+      for (let i = 0; i < blocks.length; i++) {
         await processBlock(
           {
             blockHeight: currentBlock + i,
