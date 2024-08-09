@@ -98,16 +98,24 @@ const startServer = async () => {
         .fill(0)
         .map((_, i) => currentBlock + i);
 
-      log("Fetching blocks: " + blocksToFetch.join(", "), "info");
-      let blocks = await Promise.all(
-        blocksToFetch.map((height) => getBlock(height))
-      );
+      const fetchBlocksFromArray = async (blocksToFetch) => {
+        log("Fetching blocks: " + blocksToFetch.join(", "), "info");
+        return await Promise.all(
+          blocksToFetch.map((height) => getBlock(height))
+        );
+      };
+
+      let blocks = useTest
+        ? [testblock]
+        : await fetchBlocksFromArray(blocksToFetch);
+
       log("Blocks fetched! ", "info");
 
       let blocksMapped = blocks.reduce((acc, block, i) => {
         acc[currentBlock + i] = block;
         return acc;
       }, {});
+
       /*
       const { blockHeight, blockData } = useTest
         ? { blockHeight: currentBlock, blockData: testblock }
@@ -115,7 +123,10 @@ const startServer = async () => {
           await getBlock(currentBlock);
         */
 
-      log("Loading blocks into memory: " + blocksToFetch.join(", "), "debug");
+      log(
+        "Loading blocks into memory: " + Object.keys(blocksMapped).join(", "),
+        "debug"
+      );
       //Run the indexers processBlock function
       await Promise.all(
         blocks.map((block) => loadBlockIntoMemory(block, storage))
@@ -134,7 +145,7 @@ const startServer = async () => {
 
       log(
         "Committing changes from blocks into memory: " +
-          blocksToFetch.join(", "),
+          Object.keys(blocksMapped).join(", "),
         "debug"
       );
       await storage.commitChanges();

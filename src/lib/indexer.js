@@ -413,7 +413,8 @@ const processEtching = async (
   Transaction,
   rpc,
   storage,
-  isGenesis
+  isGenesis,
+  useTest
 ) => {
   const { block, txIndex, runestone } = Transaction;
 
@@ -466,7 +467,7 @@ const processEtching = async (
   //This is processed last since it is the most computationally expensive call (we have to call RPC twice)
   const isReserved = !etching.rune;
 
-  if (!isReserved) {
+  if (!isReserved && !useTest) {
     const hasValidCommitment = await checkCommitment(
       runeName,
       Transaction,
@@ -490,9 +491,7 @@ const processEtching = async (
   //FAILS AT 842255:596 111d77cbcb1ee54e0392de588cb7ef794c4a0a382155814e322d93535abc9c66)
   //This is a weird bug in the WASM implementation of the decoder where a "char" that might be valid in rust is shown as 0 bytes in JS.
   //Even weirder - sequelize rejects this upsert saying its "too long"
-  const isSafeChar = parseInt(
-    Buffer.from(etching.symbol ?? "").toString("hex")
-  );
+  const isSafeChar = Number("0x" + Buffer.from(etching.symbol ?? "").toString("hex"));
 
   const symbol = etching.symbol && isSafeChar ? etching.symbol : "¤";
 
@@ -655,7 +654,7 @@ const handleGenesis = async (Transaction, rpc, storage) => {
   return;
 };
 
-const processRunestone = async (Transaction, rpc, storage) => {
+const processRunestone = async (Transaction, rpc, storage, useTest) => {
   const { vout, vin, block, hash } = Transaction;
 
   const { create, fetchGroupLocally, findOne } = storage;
@@ -734,7 +733,14 @@ const processRunestone = async (Transaction, rpc, storage) => {
   stopTimer("body_init_pending_utxo_creation");
 
   startTimer();
-  await processEtching(UnallocatedRunes, Transaction, rpc, storage);
+  await processEtching(
+    UnallocatedRunes,
+    Transaction,
+    rpc,
+    storage,
+    false,
+    useTest
+  );
   stopTimer("etch");
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
@@ -973,7 +979,7 @@ const processBlock = async (block, callRpc, storage, useTest) => {
       //REMOVE THIS! This is for the --test flag
       if (useTest) Transaction.block = blockHeight;
 
-      await processRunestone(Transaction, callRpc, storage);
+      await processRunestone(Transaction, callRpc, storage, useTest);
     } catch (e) {
       log(
         "Indexer panic on the following transaction: " +
