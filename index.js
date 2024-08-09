@@ -114,7 +114,7 @@ const startServer = async () => {
           await getBlock(currentBlock);
         */
 
-      log("Loading blocks into memory: " + blocksToFetch.join(", "), "debug");
+      log("Loading blocks into memory: " + blocksToFetch.join(", "), "log");
       //Run the indexers processBlock function
       await Promise.all(
         blocks.map((block) => loadBlockIntoMemory(block, storage))
@@ -132,7 +132,7 @@ const startServer = async () => {
       }
 
       log(
-        "Committing changes from blocks into meory: " +
+        "Committing changes from blocks into memory: " +
           blocksToFetch.join(", "),
         "debug"
       );
