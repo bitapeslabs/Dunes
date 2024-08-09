@@ -92,9 +92,9 @@ const startServer = async () => {
   const processBlocksInRange = async (startBlock, endBlock) => {
     const { getBlock } = createBlockManager(callRpc, endBlock);
     let currentBlock = startBlock;
-    let chunkSize = process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10;
+    let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
     while (currentBlock <= endBlock) {
-      const blocksToFetch = new Array(parseInt(chunkSize))
+      const blocksToFetch = new Array(chunkSize)
         .fill(0)
         .map((_, i) => currentBlock + i);
 
@@ -115,7 +115,6 @@ const startServer = async () => {
         */
 
       log("Loading blocks into memory: " + blocksToFetch.join(", "), "debug");
-      console.log(blocks[0]);
       //Run the indexers processBlock function
       await Promise.all(
         blocks.map((block) => loadBlockIntoMemory(block, storage))
