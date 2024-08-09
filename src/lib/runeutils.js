@@ -134,7 +134,7 @@ const blockManager = (callRpc, latestBlock) => {
       // Store the results in the cache
       for (let i = 0; i < results.length; i++) {
         let blockHeight = currentBlock + i;
-        cachedBlocks[blockHeight] = Object.values(results[i]);
+        cachedBlocks[blockHeight] = results[i];
       }
 
       currentBlock += chunkSize;
@@ -164,7 +164,7 @@ const blockManager = (callRpc, latestBlock) => {
 
       let checkInterval = setInterval(() => {
         if (cachedBlocks[blockNumber]) {
-          foundBlock = { ...cachedBlocks[blockNumber] };
+          foundBlock = [...cachedBlocks[blockNumber]];
           delete cachedBlocks[blockNumber];
           clearInterval(checkInterval);
           return resolve(foundBlock);
