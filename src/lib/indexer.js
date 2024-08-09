@@ -467,16 +467,12 @@ const processEtching = async (
   const isReserved = !etching.rune;
 
   if (!isReserved) {
-    const hasValidCommitment = true;
-    /* Disabled for now until BTC node is back up
-
-    await checkCommitment(
+    const hasValidCommitment = await checkCommitment(
       runeName,
       Transaction,
       block,
       rpc
     );
-    */
 
     if (!hasValidCommitment) {
       return UnallocatedRunes;
