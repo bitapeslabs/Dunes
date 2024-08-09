@@ -96,7 +96,7 @@ const startServer = async () => {
     while (currentBlock <= endBlock) {
       const blocksToFetch = new Array(chunkSize)
         .fill(0)
-        .map((_, i) => currentBlock + i);
+        .map((_, i) => currentBlock + i + 1);
 
       log("Fetching blocks: " + blocksToFetch.join(", "), "info");
       let blocks = await Promise.all(
