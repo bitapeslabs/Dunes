@@ -552,7 +552,7 @@ const storage = async (useSync) => {
         );
         if (0 > rows.length) continue;
 
-        let chunks = chunkify(rows, MAX_COMMIT_CHUNK_SIZE);
+        let chunks = chunkify(rows, parseInt(MAX_COMMIT_CHUNK_SIZE));
 
         log(
           `Chunks amount for ${modelName}: ${chunks.length}` + chunks.length,
