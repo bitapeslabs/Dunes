@@ -114,11 +114,9 @@ const startServer = async () => {
       console.log(blocksMapped);
       //Run the indexers processBlock function
       await loadBlockIntoMemory(blocks.flat(Infinity), storage, useTest);
-      for (let i = 0; i < blocks.length; i++) {
-        const blockHeight = currentBlock + i;
-        const blockData = blocksMapped[blockHeight];
+      for (let i = 1; i < blocks.length; i++) {
         await processBlock(
-          { blockHeight, blockData },
+          blocksMapped[currentBlock + i],
           callRpc,
           storage,
           useTest
