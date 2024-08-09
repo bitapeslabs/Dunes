@@ -770,6 +770,11 @@ const processRunestone = async (Transaction, rpc, storage) => {
 const loadBlockIntoMemory = async (block, storage) => {
   //Events do not need to be loaded as they are purely write and unique
 
+  if (!Array.isArray(block)) {
+    console.log(block);
+    throw "Non array block passed to loadBlockIntoMemory";
+  }
+
   const { loadManyIntoMemory, local, findOne } = storage;
 
   //Load all utxos in the block's vin into memory in one call
@@ -958,18 +963,9 @@ const processBlock = async (block, callRpc, storage, useTest) => {
 
   const memoryData = process.memoryUsage();
 
-  const memoryUsage = {
-    rss: `${formatMemoryUsage(memoryData.rss)} ->`,
-    heapTotal: `${formatMemoryUsage(memoryData.heapTotal)}`,
-    heapUsed: `${formatMemoryUsage(memoryData.heapUsed)}`,
-    external: `${formatMemoryUsage(memoryData.external)}`,
-  };
-
-  log("MEMSTAT rss: " + memoryUsage.rss, "debug");
-  log("MEMSTAT heap(total): " + memoryUsage.heapTotal, "debug");
-  log("MEMSTAT heap(used): " + memoryUsage.heapUsed, "debug");
-  log("MEMSTAT external: " + memoryUsage.external, "debug");
-
+  for (const [key, value] of Object.entries(memoryData)) {
+    log(`${key}: ${formatMemoryUsage(value)}`, "debug");
+  }
   //await sleep(2000);
   log(
     "Processing " + blockData.length + " transactions for block " + blockHeight
