@@ -101,8 +101,7 @@ const convertUtxoToArray = (utxo, storage) => {
 };
 
 const blockManager = (callRpc, latestBlock) => {
-  const MAX_CACHE_SIZE = 20;
-  const MAX_REQUEST_CHUNK_SIZE = 3;
+  const { MAX_BLOCK_CACHE_SIZE, GET_BLOCK_CHUNK_SIZE } = process.env;
 
   let cachedBlocks = {};
 
@@ -115,11 +114,11 @@ const blockManager = (callRpc, latestBlock) => {
 
     while (
       currentBlock <= latestBlock &&
-      Object.keys(cachedBlocks).length < MAX_CACHE_SIZE
+      Object.keys(cachedBlocks).length < MAX_BLOCK_CACHE_SIZE
     ) {
       // Determine the chunk size to request in this iteration
       let chunkSize = Math.min(
-        MAX_REQUEST_CHUNK_SIZE,
+        GET_BLOCK_CHUNK_SIZE,
         latestBlock - currentBlock + 1
       );
 
@@ -135,7 +134,7 @@ const blockManager = (callRpc, latestBlock) => {
       // Store the results in the cache
       for (let i = 0; i < results.length; i++) {
         let blockHeight = currentBlock + i;
-        cachedBlocks[blockHeight] = results[i];
+        cachedBlocks[blockHeight] = Object.values(results[i]);
       }
 
       currentBlock += chunkSize;
