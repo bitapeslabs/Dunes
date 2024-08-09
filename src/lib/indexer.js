@@ -656,40 +656,6 @@ const processRunestone = async (Transaction, rpc, storage) => {
 
   startTimer();
 
-  if (
-    //If no input utxos are provided (with runes inside)
-    inputUtxos.length === 0 &&
-    //AND there is no runestone field in the transaction (aside from cenotaph)
-    Object.keys(Transaction.runestone).length === 1
-  ) {
-    /*
-        We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions 
-        (we alsoo check to see if the tx is the genesis transaction for the creation of UNCOMMONGOODS)
-    */
-    if (!(vin[0].coinbase && block === GENESIS_BLOCK)) return;
-  }
-
-  const parentTransaction = create("Transaction", { hash }, false, true);
-
-  Transaction.virtual_id = parentTransaction.id;
-
-  //Ignore the coinbase transaction (unless genesis rune is being created)
-  if (vin[0].coinbase) {
-    if (block === GENESIS_BLOCK) {
-      await processEtching(
-        {},
-        { ...Transaction, runestone: GENESIS_RUNESTONE },
-        rpc,
-        storage,
-        true
-      );
-    }
-    return;
-  }
-  stopTimer("body_init_header_genesis_handler");
-
-  startTimer();
-
   let UtxoFilter = vin.map(
     (vin) =>
       `${
@@ -717,6 +683,36 @@ const processRunestone = async (Transaction, rpc, storage) => {
   stopTimer("body_init_utxo_fetch");
 
   startTimer();
+
+  if (
+    //If no input utxos are provided (with runes inside)
+    inputUtxos.length === 0 &&
+    //AND there is no runestone field in the transaction (aside from cenotaph)
+    Object.keys(Transaction.runestone).length === 1
+  ) {
+    //We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions
+    if (!(vin[0].coinbase && block === GENESIS_BLOCK)) return;
+  }
+
+  startTimer();
+  const parentTransaction = create("Transaction", { hash }, false, true);
+
+  Transaction.virtual_id = parentTransaction.id;
+
+  //Ignore the coinbase transaction (unless genesis rune is being created)
+  if (vin[0].coinbase) {
+    if (block === GENESIS_BLOCK) {
+      await processEtching(
+        {},
+        { ...Transaction, runestone: GENESIS_RUNESTONE },
+        rpc,
+        storage,
+        true
+      );
+    }
+    return;
+  }
+  stopTimer("body_init_header_genesis_handler");
 
   let pendingUtxos = createNewUtxoBodies(vout, Transaction, storage);
 
