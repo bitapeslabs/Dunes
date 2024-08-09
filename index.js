@@ -98,7 +98,7 @@ const startServer = async () => {
         .fill(0)
         .map((_, i) => currentBlock + i);
 
-      log("Fetching blocks: " + blocksToFetch.join(", "), "debug");
+      log("Fetching blocks: " + blocksToFetch.join(", "), "info");
       let blocks = await Promise.all(
         blocksToFetch.map((height) => getBlock(height))
       );
@@ -114,7 +114,7 @@ const startServer = async () => {
           await getBlock(currentBlock);
         */
 
-      log("Loading blocks into memory: " + blocksToFetch.join(", "), "info");
+      log("Loading blocks into memory: " + blocksToFetch.join(", "), "debug");
       //Run the indexers processBlock function
       await Promise.all(
         blocks.map((block) => loadBlockIntoMemory(block, storage))
