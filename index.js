@@ -91,25 +91,45 @@ const startServer = async () => {
   //startBlock and endBlock are inclusive (they are also processed)
   const processBlocksInRange = async (startBlock, endBlock) => {
     const { getBlock } = createBlockManager(callRpc, endBlock);
+    let currentBlock = startBlock;
+    let chunkSize = process.env.MAX_STORAGE_BLOCK_CACHE_SIZE || 10;
+    while (currentBlock <= endBlock) {
+      let blocks = await Promise.all(
+        new Array(chunkSize).fill(0).map((_, i) => {
+          return getBlock(currentBlock + i);
+        })
+      );
 
-    for (
-      let currentBlock = startBlock;
-      currentBlock <= endBlock;
-      currentBlock++
-    ) {
+      let blocksMapped = blocks.reduce((acc, block, i) => {
+        acc[currentBlock + i] = block;
+        return acc;
+      }, {});
+      /*
       const { blockHeight, blockData } = useTest
         ? { blockHeight: currentBlock, blockData: testblock }
         : //Attempt to load from cache and if not fetch from RPC
           await getBlock(currentBlock);
+        */
 
-      console.log(blockData);
+      console.log(blocksMapped);
       //Run the indexers processBlock function
-      await loadBlockIntoMemory(blockData, storage, useTest);
-      await processBlock({ blockHeight, blockData }, callRpc, storage, useTest);
+      await loadBlockIntoMemory(blocks.flat(Infinity), storage, useTest);
+      for (let i = 0; i < blocks.length; i++) {
+        const blockHeight = currentBlock + i;
+        const blockData = blocksMapped[blockHeight];
+        await processBlock(
+          { blockHeight, blockData },
+          callRpc,
+          storage,
+          useTest
+        );
+      }
+
       await storage.commitChanges();
+      currentBlock += chunkSize;
 
       //Update the current block in the DB
-      log("Block finished processing!", "debug");
+      log("Block chunk finished processing!", "debug");
       await Setting.update(
         { value: currentBlock },
         { where: { name: "last_block_processed" } }
