@@ -102,6 +102,7 @@ const convertUtxoToArray = (utxo, storage) => {
 
 const blockManager = (callRpc, latestBlock) => {
   const MAX_CACHE_SIZE = 20;
+  const MAX_REQUEST_CHUNK_SIZE = 3;
 
   let cachedBlocks = {};
 
@@ -110,23 +111,42 @@ const blockManager = (callRpc, latestBlock) => {
     cacheFillProcessing = true;
 
     let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1));
-
     let currentBlock = lastBlockInCache ? lastBlockInCache + 1 : requestedBlock;
+
     while (
       currentBlock <= latestBlock &&
       Object.keys(cachedBlocks).length < MAX_CACHE_SIZE
     ) {
-      cachedBlocks[currentBlock] = {
-        blockHeight: currentBlock,
-        blockData: await getRunestonesInBlock(currentBlock, callRpc),
-      };
-      currentBlock++;
+      // Determine the chunk size to request in this iteration
+      let chunkSize = Math.min(
+        MAX_REQUEST_CHUNK_SIZE,
+        latestBlock - currentBlock + 1
+      );
+
+      // Create an array of Promises to fetch blocks in parallel
+      let promises = [];
+      for (let i = 0; i < chunkSize; i++) {
+        promises.push(getRunestonesInBlock(currentBlock + i, callRpc));
+      }
+
+      // Wait for all Promises in the chunk to resolve
+      let results = await Promise.all(promises);
+
+      // Store the results in the cache
+      for (let i = 0; i < results.length; i++) {
+        let blockHeight = currentBlock + i;
+        cachedBlocks[blockHeight] = results[i];
+      }
+
+      currentBlock += chunkSize;
       log(
         "Cache updated and now at size of " + Object.keys(cachedBlocks).length,
         "debug"
       );
+
       //-> to avoid getting rate limited
     }
+
     cacheFillProcessing = false;
   };
   const getBlock = (blockNumber, endBlock) => {
@@ -150,7 +170,7 @@ const blockManager = (callRpc, latestBlock) => {
           clearInterval(checkInterval);
           return resolve(foundBlock);
         }
-      }, 20);
+      }, 10);
     });
   };
 

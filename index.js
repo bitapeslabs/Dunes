@@ -92,12 +92,15 @@ const startServer = async () => {
   const processBlocksInRange = async (startBlock, endBlock) => {
     const { getBlock } = createBlockManager(callRpc, endBlock);
     let currentBlock = startBlock;
-    let chunkSize = process.env.MAX_STORAGE_BLOCK_CACHE_SIZE || 10;
+    let chunkSize = process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10;
     while (currentBlock <= endBlock) {
+      const blocksToFetch = new Array(parseInt(chunkSize))
+        .fill(0)
+        .map((_, i) => currentBlock + i);
+
+      log("Fetching blocks: " + blocksToFetch.join(", "), "debug");
       let blocks = await Promise.all(
-        new Array(chunkSize).fill(0).map((_, i) => {
-          return getBlock(currentBlock + i);
-        })
+        blocksToFetch.map((height) => getBlock(height))
       );
 
       let blocksMapped = blocks.reduce((acc, block, i) => {
@@ -111,18 +114,29 @@ const startServer = async () => {
           await getBlock(currentBlock);
         */
 
-      console.log(blocksMapped);
+      log("Loading blocks into memory: " + blocksToFetch.join(", "), "debug");
+      console.log(blocks[0]);
       //Run the indexers processBlock function
-      await loadBlockIntoMemory(blocks.flat(Infinity), storage, useTest);
+      await Promise.all(
+        blocks.map((block) => loadBlockIntoMemory(block, storage))
+      );
       for (let i = 1; i < blocks.length; i++) {
         await processBlock(
-          blocksMapped[currentBlock + i],
+          {
+            blockHeight: currentBlock + i,
+            blockData: blocksMapped[currentBlock + i],
+          },
           callRpc,
           storage,
           useTest
         );
       }
 
+      log(
+        "Committing changes from blocks into meory: " +
+          blocksToFetch.join(", "),
+        "debug"
+      );
       await storage.commitChanges();
       currentBlock += chunkSize;
 
