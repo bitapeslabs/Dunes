@@ -141,19 +141,16 @@ const removeItemsWithDuplicateProp = (array, prop) => {
   }, []);
 };
 
-const chunkify = (array, n) => {
+const chunkify = (array, len) => {
   // Initialize an empty array to hold the chunks
-  let chunks = [];
+  let chunks = [],
+    i = 0,
+    n = array.length;
 
-  // Loop through the array, incrementing by n each time
-  for (let i = 0; i < array.length; i += n) {
-    // Slice the array from the current position to the current position + n
-    let chunk = array.slice(i, i + n);
-    // Add the chunk to the chunks array
-    chunks.push(chunk);
+  while (i < n) {
+    chunks.push(array.slice(i, (i += len)));
   }
 
-  // Return the array of chunks
   return chunks;
 };
 
