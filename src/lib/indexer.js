@@ -639,7 +639,7 @@ const finalizeTransfers = async (
   return;
 };
 
-const handleGenesis = async (Transaction, storage) => {
+const handleGenesis = async (Transaction, rpc, storage) => {
   const { findOrCreate } = storage;
 
   startTimer();
@@ -710,7 +710,7 @@ const processRunestone = async (Transaction, rpc, storage) => {
   Transaction.virtual_id = parentTransaction.id;
 
   if (vin[0].coinbase && block === GENESIS_BLOCK)
-    await handleGenesis(Transaction, storage);
+    await handleGenesis(Transaction, rpc, storage);
 
   startTimer();
 
