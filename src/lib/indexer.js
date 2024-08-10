@@ -793,10 +793,12 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   //Load all utxos in the block's vin into memory in one call
 
-  const transactionHashInputsInBlock = block
-    .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
-    .flat(Infinity)
-    .filter(Boolean);
+  const transactionHashInputsInBlock = new Set(
+    block
+      .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
+      .flat(Infinity)
+      .filter(Boolean)
+  );
 
   await loadManyIntoMemory("Transaction", {
     hash: {
