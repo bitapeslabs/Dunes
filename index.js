@@ -154,7 +154,7 @@ const startServer = async () => {
       //Update the current block in the DB
       log("Block chunk finished processing!", "debug");
       await Setting.update(
-        { value: currentBlock },
+        { value: currentBlock - 1 },
         { where: { name: "last_block_processed" } }
       );
     }
