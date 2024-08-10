@@ -29,7 +29,7 @@ module.exports = (sequelize) => {
           fields: ["address_id"],
           using: "BTREE",
         },
-        /* Can be built after indexing
+
         {
           fields: ["address_id", "rune_id"],
           using: "BTREE",
@@ -39,7 +39,6 @@ module.exports = (sequelize) => {
           fields: ["rune_id"],
           using: "BTREE",
         },
-        */
       ],
       tableName: "balances",
       timestamps: false,

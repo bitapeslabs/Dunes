@@ -96,7 +96,6 @@ module.exports = (sequelize) => {
           using: "BTREE",
         },
 
-        /* Can be built after indexing
         {
           //Composite index for fetching the individual rune balance of an indiviudal UTXO
           fields: ["transaction_id", "vout_index", "rune_id"],
@@ -136,7 +135,6 @@ module.exports = (sequelize) => {
           fields: ["block_spent"],
           using: "BTREE",
         },
-        */
       ],
       tableName: "utxos",
       timestamps: false,
