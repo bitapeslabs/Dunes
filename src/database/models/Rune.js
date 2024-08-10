@@ -76,7 +76,7 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
       etch_transaction_id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.BIGINT,
         references: {
           model: "transactions",
           key: "id",

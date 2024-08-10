@@ -26,7 +26,7 @@ module.exports = (sequelize) => {
       },
 
       transaction_id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.BIGINT,
         references: {
           model: "transactions",
           key: "id",
@@ -48,7 +48,7 @@ module.exports = (sequelize) => {
       },
 
       from_address_id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.BIGINT,
         references: {
           model: "addresses",
           key: "id",
@@ -56,7 +56,7 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
       to_address_id: {
-        type: Sequelize.INTEGER,
+        type: Sequelize.BIGINT,
         references: {
           model: "addresses",
           key: "id",
