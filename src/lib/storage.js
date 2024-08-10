@@ -247,7 +247,8 @@ const storage = async (useSync) => {
 
     if (mappedObject) {
       mappedObject[attribute] = value;
-
+      __updateReferences(modelName, LocalModel[primary]);
+      __addRowToGroups(modelName, LocalModel[primary]);
       //We have altered the document and therefore we should upsert when we commit changes
       delete mappedObject.__memory;
 
@@ -256,12 +257,11 @@ const storage = async (useSync) => {
 
     //findOne could potentially be a Promise, so we have to await it as we are not ignoring database
     return new Promise(async function (resolve, reject) {
-      console.log("PANICCCCCCCCCCCCCCCCCCCCCCCCC");
-
       let liveModel = await findOne(modelName, primary, false, ignoreDatabase);
 
       LocalModel[primary] = { ...liveModel, [attribute]: value };
       __updateReferences(modelName, LocalModel[primary]);
+      __addRowToGroups(modelName, LocalModel[primary]);
       resolve(LocalModel[primary]);
     });
   };
