@@ -467,7 +467,7 @@ const processEtching = async (
   //This is processed last since it is the most computationally expensive call (we have to call RPC twice)
   const isReserved = !etching.rune;
 
-  if (!isReserved && !useTest) {
+  if (!isReserved && !useTest && !isGenesis) {
     const hasValidCommitment = await checkCommitment(
       runeName,
       Transaction,
@@ -491,7 +491,9 @@ const processEtching = async (
   //FAILS AT 842255:596 111d77cbcb1ee54e0392de588cb7ef794c4a0a382155814e322d93535abc9c66)
   //This is a weird bug in the WASM implementation of the decoder where a "char" that might be valid in rust is shown as 0 bytes in JS.
   //Even weirder - sequelize rejects this upsert saying its "too long"
-  const isSafeChar = Number("0x" + Buffer.from(etching.symbol ?? "").toString("hex"));
+  const isSafeChar = Number(
+    "0x" + Buffer.from(etching.symbol ?? "").toString("hex")
+  );
 
   const symbol = etching.symbol && isSafeChar ? etching.symbol : "¤";
 
@@ -770,6 +772,16 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
 };
 
 const loadBlockIntoMemory = async (block, storage) => {
+  /*
+  Necessary indexes for building (the rest can be built afterwards)
+
+  Transaction -> hash
+  Utxo -> ( transaction_id, vout_index )
+  Address -> address
+  Rune -> rune_protocol_id, raw_name
+    Balance -> address_id
+  */
+
   //Events do not need to be loaded as they are purely write and unique
 
   if (!Array.isArray(block)) {

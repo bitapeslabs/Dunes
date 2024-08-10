@@ -198,6 +198,8 @@ const checkCommitment = async (runeName, Transaction, block, callRpc) => {
 
   const commitment = getCommitment(runeName).toString("hex");
 
+  console.log(commitment);
+
   for (const input of Transaction.vin) {
     if ("coinbase" in input) {
       continue;
@@ -250,7 +252,9 @@ const checkCommitment = async (runeName, Transaction, block, callRpc) => {
         continue;
       }
 
-      const blockHeight = await callRpc("getblockheader", [inputTx.blockhash]);
+      const { height: blockHeight } = await callRpc("getblockheader", [
+        inputTx.blockhash,
+      ]);
 
       const confirmations = block - blockHeight + 1;
 

@@ -66,6 +66,7 @@ module.exports = (sequelize) => {
     },
     {
       indexes: [
+        /* Can be built after indexing
         {
           fields: ["block"],
           using: "BTREE",
@@ -86,6 +87,7 @@ module.exports = (sequelize) => {
           fields: ["to_address_id"],
           using: "BTREE",
         },
+        */
       ],
       tableName: "events",
       timestamps: false,

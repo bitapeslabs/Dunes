@@ -26,17 +26,20 @@ module.exports = (sequelize) => {
     {
       indexes: [
         {
-          fields: ["address_id", "rune_id"],
-          using: "BTREE",
-        },
-        {
           fields: ["address_id"],
           using: "BTREE",
         },
+        /* Can be built after indexing
+        {
+          fields: ["address_id", "rune_id"],
+          using: "BTREE",
+        },
+
         {
           fields: ["rune_id"],
           using: "BTREE",
         },
+        */
       ],
       tableName: "balances",
       timestamps: false,
