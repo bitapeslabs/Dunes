@@ -255,7 +255,7 @@ const storage = async (useSync) => {
       return mappedObject;
     }
 
-    //findOne could potentially be a Promise, so we have to await it as we are not ignoring database
+    /* Disabled for now.. handles db logic
     return new Promise(async function (resolve, reject) {
       let liveModel = await findOne(modelName, primary, false, ignoreDatabase);
 
@@ -263,7 +263,7 @@ const storage = async (useSync) => {
       __updateReferences(modelName, LocalModel[primary]);
       __addRowToGroups(modelName, LocalModel[primary]);
       resolve(LocalModel[primary]);
-    });
+    })*/
   };
 
   //Immediately resolves if no fetch to DB
