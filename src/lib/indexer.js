@@ -74,6 +74,12 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
       true
     );
 
+    if (utxo.scriptPubKey.address === null) {
+      console.log("NULL ENCOUNTERED");
+      console.log(utxo);
+      throw new Error("NULL ADDRESS");
+    }
+
     let utxoBody = {
       /*
         SEE: https://docs.ordinals.com/runes.html#Burning
