@@ -69,7 +69,7 @@ const decodeUtxoFromArray = (arrayOfUtxos, storage) => {
     rune_balances: arrayOfUtxos.reduce((acc, utxo) => {
       acc[
         findOne("Rune", utxo.rune_id + "@REF@d", false, true).rune_protocol_id
-      ] = convertPartsToAmount(utxo.balance_0, utxo.balance_1);
+      ] = utxo.balance;
       return acc;
     }, {}),
     vout_index: utxo.vout_index,
@@ -82,17 +82,13 @@ const decodeUtxoFromArray = (arrayOfUtxos, storage) => {
 const convertUtxoToArray = (utxo, storage) => {
   const { findOne } = storage;
   return Object.keys(utxo.rune_balances).map((rune_protocol_id) => {
-    let { balance_0, balance_1 } = convertAmountToParts(
-      utxo.rune_balances[rune_protocol_id]
-    );
     return {
       block: utxo.block,
       value_sats: Number(utxo.value_sats),
       transaction_id: utxo.transaction_id,
       address_id: utxo.address_id,
       rune_id: findOne("Rune", rune_protocol_id, false, true).id,
-      balance_0,
-      balance_1,
+      balance: utxo.rune_balances[rune_protocol_id],
       vout_index: utxo.vout_index,
       block_spent: utxo.block_spent,
       transaction_spent_id: utxo.transaction_spent_id,

@@ -51,13 +51,9 @@ module.exports = (sequelize) => {
       },
 
       //16 bytes stored across two BIGINTS and concat. by the lib
-      balance_0: {
-        type: Sequelize.BIGINT,
+      balance: {
+        type: Sequelize.DECIMAL,
         allowNull: true,
-      },
-      balance_1: {
-        type: Sequelize.BIGINT,
-        allowNull: false,
       },
 
       //4 bytes
