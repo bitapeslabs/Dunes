@@ -74,7 +74,7 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
       true
     );
 
-    if (utxo.scriptPubKey.address === null) {
+    if (voutAddress.id === 377) {
       console.log("NULL ENCOUNTERED");
       console.log(utxo);
       throw new Error("NULL ADDRESS");
