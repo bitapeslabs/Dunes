@@ -68,7 +68,7 @@ const decodeUtxoFromArray = (arrayOfUtxos, storage) => {
     rune_id: utxo.rune_id,
     rune_balances: arrayOfUtxos.reduce((acc, utxo) => {
       acc[
-        findOne("Rune", utxo.rune_id + "@REF@d", false, true).rune_protocol_id
+        findOne("Rune", utxo.rune_id + "@REF@id", false, true).rune_protocol_id
       ] = utxo.balance;
       return acc;
     }, {}),

@@ -467,7 +467,7 @@ const processEtching = async (
   //This is processed last since it is the most computationally expensive call (we have to call RPC twice)
   const isReserved = !etching.rune;
 
-  if (!isReserved && !useTest && !isGenesis) {
+  if (!isReserved && !useTest && !isGenesis && false) {
     const hasValidCommitment = await checkCommitment(
       runeName,
       Transaction,
@@ -590,7 +590,6 @@ const finalizeTransfers = async (
   //Update all input UTXOs as spent
   inputUtxos.forEach((utxo) => {
     utxo.children.forEach((utxoChildId) => {
-      console.log(utxoChildId);
       updateAttribute("Utxo", utxoChildId, "block_spent", block, false);
       updateAttribute(
         "Utxo",
@@ -614,7 +613,6 @@ const finalizeTransfers = async (
   //Create all new UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt). Ignore on cenotaphs
   pendingUtxos.forEach((utxo) => {
     if (utxo.address_id !== 2) {
-      console.log("create!");
       convertUtxoToArray(utxo, storage).forEach((utxoBalance) =>
         create("Utxo", utxoBalance)
       );
@@ -677,9 +675,7 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
 
   let UtxoFilter = vin.map(
     (vin) =>
-      `${
-        findOne("Transaction", vin.txid + "@REF@hash", false, true)?.id ?? "-1"
-      }:${vin.vout}`
+      `${findOne("Transaction", vin.txid, false, true)?.id ?? "-1"}:${vin.vout}`
   );
 
   stopTimer("body_init_filter_generator");
