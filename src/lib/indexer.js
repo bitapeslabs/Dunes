@@ -193,12 +193,12 @@ const processEdicts = (
   inputUtxos,
   storage
 ) => {
-  const { block, txIndex, runestone } = Transaction;
+  const { block, txIndex, runestone, vin } = Transaction;
   const { findManyInFilter, create, findOne, findOrCreate } = storage;
 
   let { edicts, pointer } = runestone;
 
-  if (runestone.cenotaph) {
+  if (runestone.cenotaph || vin[0].coinbase) {
     //Transaction is a cenotaph, input runes are burnt.
     //https://docs.ordinals.com/runes/specification.html#Transferring
     return {};
