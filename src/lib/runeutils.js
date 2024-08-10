@@ -198,8 +198,6 @@ const checkCommitment = async (runeName, Transaction, block, callRpc) => {
 
   const commitment = getCommitment(runeName).toString("hex");
 
-  console.log(commitment);
-
   for (const input of Transaction.vin) {
     if ("coinbase" in input) {
       continue;
