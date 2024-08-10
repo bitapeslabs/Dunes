@@ -57,7 +57,7 @@ const startRpc = async () => {
 //handler defs
 const startServer = async () => {
   if (!process.argv.includes("--expose-gc")) {
-    log("Please include --expose_gc flag to run server", "error");
+    log("Please include --expose-gc flag to run indexer", "error");
     return;
   }
 
