@@ -56,6 +56,11 @@ const startRpc = async () => {
 
 //handler defs
 const startServer = async () => {
+  if (!process.argv.includes("--expose_gc")) {
+    log("Please include --expose_gc flag to run server", "error");
+    return;
+  }
+
   //Setup express routes
   /*
       Connect to BTC rpc node, commands managed with rpcapi.js
@@ -150,7 +155,7 @@ const startServer = async () => {
       );
       await storage.commitChanges();
       currentBlock += chunkSize;
-
+      global.gc();
       //Update the current block in the DB
       log("Block chunk finished processing!", "debug");
       await Setting.update(
