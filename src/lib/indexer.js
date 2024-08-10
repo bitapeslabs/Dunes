@@ -17,6 +17,8 @@ const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
 const { GENESIS_BLOCK, GENESIS_RUNESTONE } = require("./constants");
 const { runestone } = require("@runeapes/apeutils");
 
+const NO_COMMITMENTS = process.argv.includes("--no-commitments");
+
 let __debug_totalElapsedTime = {};
 let __timer;
 
@@ -467,7 +469,7 @@ const processEtching = async (
   //This is processed last since it is the most computationally expensive call (we have to call RPC twice)
   const isReserved = !etching.rune;
 
-  if (!isReserved && !useTest && !isGenesis && false) {
+  if (!isReserved && !useTest && !isGenesis && !NO_COMMITMENTS) {
     const hasValidCommitment = await checkCommitment(
       runeName,
       Transaction,
