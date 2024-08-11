@@ -53,49 +53,6 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
   return runestones;
 };
 
-//For the indexer its easier to think of utxos as having a rune_balances property
-//While for sql we optimize by storing each rune balance as an indivudal row, and for the balance amount we store as 2 BigInts
-//To decode the BigInts into a rune_balances object, we use the functions above
-
-const decodeUtxoFromArray = (arrayOfUtxos, storage) => {
-  if (!arrayOfUtxos?.length) return null;
-  const { findOne } = storage;
-  const utxo = arrayOfUtxos[0];
-  return {
-    value_sats: utxo.value_sats,
-    transaction_id: utxo.transaction_id,
-    address_id: utxo.address_id,
-    rune_id: utxo.rune_id,
-    rune_balances: arrayOfUtxos.reduce((acc, utxo) => {
-      acc[
-        findOne("Rune", utxo.rune_id + "@REF@id", false, true).rune_protocol_id
-      ] = utxo.balance;
-      return acc;
-    }, {}),
-    vout_index: utxo.vout_index,
-    block_spent: utxo.block_spent,
-    transaction_spent_id: utxo.transaction_spent_id,
-    children: arrayOfUtxos.map((utxo) => utxo.utxo_index),
-  };
-};
-
-const convertUtxoToArray = (utxo, storage) => {
-  const { findOne } = storage;
-  return Object.keys(utxo.rune_balances).map((rune_protocol_id) => {
-    return {
-      block: utxo.block,
-      value_sats: Number(utxo.value_sats),
-      transaction_id: utxo.transaction_id,
-      address_id: utxo.address_id,
-      rune_id: findOne("Rune", rune_protocol_id, false, true).id,
-      balance: utxo.rune_balances[rune_protocol_id],
-      vout_index: utxo.vout_index,
-      block_spent: utxo.block_spent,
-      transaction_spent_id: utxo.transaction_spent_id,
-    };
-  }, {});
-};
-
 const blockManager = (callRpc, latestBlock) => {
   let { MAX_BLOCK_CACHE_SIZE, GET_BLOCK_CHUNK_SIZE } = process.env;
 
@@ -404,6 +361,4 @@ module.exports = {
   getRunestonesInBlock,
   convertPartsToAmount,
   convertAmountToParts,
-  decodeUtxoFromArray,
-  convertUtxoToArray,
 };

@@ -7,8 +7,6 @@ const {
   updateUnallocated,
   minimumLengthAtHeight,
   checkCommitment,
-  convertUtxoToArray,
-  decodeUtxoFromArray,
 } = require("./runeutils");
 
 const { Op } = require("sequelize");
@@ -580,7 +578,7 @@ const finalizeTransfers = async (
   Transaction,
   storage
 ) => {
-  const { updateAttribute, create, local } = storage;
+  const { updateAttribute, create, local, findOne } = storage;
   const { block, runestone } = Transaction;
 
   let opReturnOutput = pendingUtxos.find((utxo) => utxo.address_id === 2);
@@ -594,16 +592,14 @@ const finalizeTransfers = async (
 
   //Update all input UTXOs as spent
   inputUtxos.forEach((utxo) => {
-    utxo.children.forEach((utxoChildId) => {
-      updateAttribute("Utxo", utxoChildId, "block_spent", block, false);
-      updateAttribute(
-        "Utxo",
-        utxoChildId,
-        "transaction_spent_id",
-        Transaction.virtual_id,
-        false
-      );
-    });
+    updateAttribute("Utxo", utxo.utxo_index, "block_spent", block, false);
+    updateAttribute(
+      "Utxo",
+      utxo.utxo_index,
+      "transaction_spent_id",
+      Transaction.virtual_id,
+      false
+    );
   });
   //Filter out all OP_RETURN and zero rune balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
   pendingUtxos = pendingUtxos.filter(
@@ -618,9 +614,18 @@ const finalizeTransfers = async (
   //Create all new UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt). Ignore on cenotaphs
   pendingUtxos.forEach((utxo) => {
     if (utxo.address_id !== 2) {
-      convertUtxoToArray(utxo, storage).forEach((utxoBalance) =>
-        create("Utxo", utxoBalance)
-      );
+      let resultUtxo = { ...utxo };
+      delete resultUtxo.rune_balances;
+
+      const parentUtxo = create("Utxo", resultUtxo);
+
+      Object.keys(utxo.rune_balances).forEach((runeProtocolId) => {
+        create("Utxo_balance", {
+          utxo_id: parentUtxo.id,
+          rune_id: findOne("Rune", runeProtocolId, false, true).id,
+          amount: utxo.rune_balances[runeProtocolId],
+        });
+      });
     }
   });
 
@@ -687,11 +692,31 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
 
   let inputUtxos = vin[0].coinbase //coinbase txs can still mint runes
     ? []
-    : UtxoFilter.map((groupIndex) =>
-        fetchGroupLocally("Utxo", "utxo_group_index", groupIndex)
-      )
-        .map((utxoGroup) => decodeUtxoFromArray(utxoGroup, storage))
-        .filter(Boolean);
+    : UtxoFilter.map((utxoIndex) => {
+        const utxo = findOne("Utxo", utxoIndex, false, true);
+        if (!utxo) return null;
+
+        const balances = fetchGroupLocally(
+          "Utxo_balance",
+          "utxo_id",
+          parentUtxo.id
+        );
+
+        return {
+          ...utxo,
+          rune_balances: balances.reduce((acc, balance) => {
+            acc[
+              fineOne(
+                "Rune",
+                balance.rune_id + "@REF@id",
+                false,
+                true
+              ).rune_protocol_id
+            ] = balance.amount;
+            return acc;
+          }, {}),
+        };
+      }).filter(Boolean);
 
   stopTimer("body_init_utxo_fetch");
 
@@ -869,6 +894,17 @@ const loadBlockIntoMemory = async (block, storage) => {
   await loadManyIntoMemory("Utxo", query);
 
   const utxosInLocal = local.Utxo;
+
+  const utxoBalancesInBlock = [
+    ...new Set(Object.values(utxosInLocal).map((utxo) => utxo.id)),
+  ];
+
+  await loadManyIntoMemory("Utxo_balance", {
+    utxo_id: {
+      [Op.in]: utxoBalancesInBlock,
+    },
+  });
+
   const addressesInBlock = [
     ...new Set(
       [

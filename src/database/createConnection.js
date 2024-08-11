@@ -22,6 +22,9 @@ async function databaseConnection() {
     models.Event = require("./models/Events")(sequelize);
     models.Transaction = require("./models/Transaction")(sequelize);
     models.Address = require("./models/Address")(sequelize);
+    models.Utxo_balance = require("./models/Utxo_balance")(sequelize);
+
+    models.Utxo_balance.belongsTo(models.Utxo, { foreignKey: "utxo_id" });
 
     // Relationships UTXOS
     models.Utxo.belongsTo(models.Address, { foreignKey: "address_id" });

@@ -45,18 +45,6 @@ module.exports = (sequelize) => {
       },
 
       //4 bytes
-      rune_id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-      },
-
-      //16 bytes stored across two BIGINTS and concat. by the lib
-      balance: {
-        type: Sequelize.DECIMAL,
-        allowNull: true,
-      },
-
-      //4 bytes
       vout_index: {
         type: Sequelize.INTEGER,
         allowNull: false,

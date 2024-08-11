@@ -8,6 +8,7 @@ const {
   chunkify,
 } = require("./utils");
 const { Client } = require("pg");
+const Utxo_balance = require("../database/models/Utxo_balance");
 const storage = async (useSync) => {
   //Configurations
 
@@ -16,14 +17,14 @@ const storage = async (useSync) => {
   //Note: only static fields can be used to build_fields. If it can be changed with update attribute it should not be used
   const BUILD_FIELDS = {
     Utxo: {
-      utxo_group_index: ["transaction_id", "vout_index"],
       utxo_index: ["transaction_id", "vout_index", "rune_id"],
     },
+
     Balance: { balance_index: ["address_id", "rune_id"] },
   };
 
   const BUILD_GROUPS = {
-    Utxo: ["utxo_group_index"],
+    Utxo_balance: ["utxo_id"],
   };
 
   const LOCAL_PRIMARY_KEYS = {
@@ -38,6 +39,7 @@ const storage = async (useSync) => {
     //balance depends on Rune_id so it should be upserted after Rune
     Balance: "balance_index",
     Utxo: "utxo_index",
+    Utxo_balance: "id",
     Event: "id",
   };
 
