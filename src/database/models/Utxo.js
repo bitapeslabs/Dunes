@@ -80,12 +80,6 @@ module.exports = (sequelize) => {
           using: "BTREE",
         },
 
-        {
-          //Composite index for fetching the individual rune balance of an indiviudal UTXO
-          fields: ["transaction_id", "vout_index", "rune_id"],
-          using: "BTREE",
-        },
-
         //Useful for fetching all utxos for an address at a specific block
         {
           fields: ["block_spent", "address_id"],
