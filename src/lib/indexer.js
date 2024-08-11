@@ -139,7 +139,9 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
     balanceFilter,
     true
   ).reduce((acc, balance) => {
-    acc[balance.rune_protocol_id] = balance;
+    acc[
+      findOne("Rune", balance.rune_id + "@REF@id", false, true).rune_protocol_id
+    ] = balance;
     return acc;
   }, {});
 
