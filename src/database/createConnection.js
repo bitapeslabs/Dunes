@@ -53,6 +53,47 @@ async function databaseConnection() {
     models.Balance.belongsTo(models.Address, { foreignKey: "address_id" });
     models.Balance.belongsTo(models.Rune, { foreignKey: "rune_id" });
 
+    //HasMany relationships
+    // Utxo hasMany Utxo_balance
+    models.Utxo.hasMany(models.Utxo_balance, { foreignKey: "utxo_id" });
+
+    // Address hasMany Utxo
+    models.Address.hasMany(models.Utxo, { foreignKey: "address_id" });
+
+    // Transaction hasMany Utxo (for the `transaction_id`)
+    models.Transaction.hasMany(models.Utxo, { foreignKey: "transaction_id" });
+
+    // Transaction hasMany Utxo (for the `transaction_spent_id`)
+    models.Transaction.hasMany(models.Utxo, {
+      foreignKey: "transaction_spent_id",
+    });
+
+    // Transaction hasMany Rune (for the `etch_transaction_id`)
+    models.Transaction.hasMany(models.Rune, {
+      foreignKey: "etch_transaction_id",
+    });
+
+    // Address hasMany Rune (for the `deployer_address_id`)
+    models.Address.hasMany(models.Rune, { foreignKey: "deployer_address_id" });
+
+    // Transaction hasMany Event (for the `transaction_id`)
+    models.Transaction.hasMany(models.Event, { foreignKey: "transaction_id" });
+
+    // Rune hasMany Event (for the `rune_id`)
+    models.Rune.hasMany(models.Event, { foreignKey: "rune_id" });
+
+    // Address hasMany Event (for the `from_address_id`)
+    models.Address.hasMany(models.Event, { foreignKey: "from_address_id" });
+
+    // Address hasMany Event (for the `to_address_id`)
+    models.Address.hasMany(models.Event, { foreignKey: "to_address_id" });
+
+    // Address hasMany Balance (for the `address_id`)
+    models.Address.hasMany(models.Balance, { foreignKey: "address_id" });
+
+    // Rune hasMany Balance (for the `rune_id`)
+    models.Rune.hasMany(models.Balance, { foreignKey: "rune_id" });
+
     models.sequelize = sequelize;
 
     log("Connecting to database...", "Database");
