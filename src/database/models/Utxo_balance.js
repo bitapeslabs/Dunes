@@ -3,7 +3,7 @@ const { Sequelize } = require("sequelize");
 //total: 64 bytes
 module.exports = (sequelize) => {
   return sequelize.define(
-    "Utxo",
+    "Utxo_balance",
     {
       //8 bytes
       id: {

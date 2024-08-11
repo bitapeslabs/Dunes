@@ -905,6 +905,8 @@ const loadBlockIntoMemory = async (block, storage) => {
     },
   });
 
+  const utxoBalancesInLocal = local.Utxo_balance;
+
   const addressesInBlock = [
     ...new Set(
       [
@@ -946,7 +948,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   const runesInBlockByDbId = [
     ...new Set(
       //Get all rune ids in all utxos balance
-      Object.values(utxosInLocal).map((utxo) => utxo.rune_id)
+      Object.values(utxoBalancesInLocal).map((utxo) => utxo.rune_id)
     ),
   ];
 
