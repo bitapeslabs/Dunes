@@ -25,6 +25,7 @@ async function databaseConnection() {
     models.Utxo_balance = require("./models/Utxo_balance")(sequelize);
 
     models.Utxo_balance.belongsTo(models.Utxo, { foreignKey: "utxo_id" });
+    models.Utxo_balance.belongsTo(models.Rune, { foreignKey: "rune_id" });
 
     // Relationships UTXOS
     models.Utxo.belongsTo(models.Address, { foreignKey: "address_id" });
@@ -93,6 +94,8 @@ async function databaseConnection() {
 
     // Rune hasMany Balance (for the `rune_id`)
     models.Rune.hasMany(models.Balance, { foreignKey: "rune_id" });
+
+    models.Rune.hasMany(models.Utxo_balance, { foreignKey: "rune_id" });
 
     models.sequelize = sequelize;
 
