@@ -623,7 +623,7 @@ const finalizeTransfers = async (
         create("Utxo_balance", {
           utxo_id: parentUtxo.id,
           rune_id: findOne("Rune", runeProtocolId, false, true).id,
-          amount: utxo.rune_balances[runeProtocolId],
+          balance: utxo.rune_balances[runeProtocolId],
         });
       });
     }
@@ -704,7 +704,7 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
 
         return {
           ...utxo,
-          rune_balances: balances.reduce((acc, balance) => {
+          rune_balances: balances.reduce((acc, utxoBalance) => {
             acc[
               fineOne(
                 "Rune",
@@ -712,7 +712,7 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
                 false,
                 true
               ).rune_protocol_id
-            ] = balance.amount;
+            ] = utxoBalance.balance;
             return acc;
           }, {}),
         };
