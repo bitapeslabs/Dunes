@@ -617,14 +617,19 @@ const finalizeTransfers = async (
       let resultUtxo = { ...utxo };
       delete resultUtxo.rune_balances;
 
-      const parentUtxo = create("Utxo", resultUtxo);
+      const parentUtxo = create("Utxo", resultUtxo, false, true);
 
       Object.keys(utxo.rune_balances).forEach((runeProtocolId) => {
-        create("Utxo_balance", {
-          utxo_id: parentUtxo.id,
-          rune_id: findOne("Rune", runeProtocolId, false, true).id,
-          balance: utxo.rune_balances[runeProtocolId],
-        });
+        create(
+          "Utxo_balance",
+          {
+            utxo_id: parentUtxo.id,
+            rune_id: findOne("Rune", runeProtocolId, false, true).id,
+            balance: utxo.rune_balances[runeProtocolId],
+          },
+          false,
+          true
+        );
       });
     }
   });
