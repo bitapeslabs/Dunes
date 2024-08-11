@@ -192,7 +192,7 @@ const processEdicts = (
 
   let { edicts, pointer } = runestone;
 
-  if (runestone.cenotaph || vin[0].coinbase) {
+  if (runestone.cenotaph) {
     //Transaction is a cenotaph, input runes are burnt.
     //https://docs.ordinals.com/runes/specification.html#Transferring
     return {};
@@ -222,8 +222,9 @@ const processEdicts = (
 
     let rune = findOne("Rune", runeId, false, true);
 
+    //If coinbase they were not transferred from an address
     let fromAddress = InputData.runes[runeId]
-      ? InputData.sender
+      ? InputData.sender ?? "UNALLOCATED"
       : "UNALLOCATED";
 
     let toAddress = utxo.address_id;
