@@ -713,7 +713,7 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
             acc[
               fineOne(
                 "Rune",
-                balance.rune_id + "@REF@id",
+                utxoBalance.rune_id + "@REF@id",
                 false,
                 true
               ).rune_protocol_id
