@@ -123,13 +123,10 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
   //for example: [{address, proto_id}, {address, proto_id}...]. While address is the same for all, a utxo can have multiple proto ids
   // [[AND], [AND], [AND]] => [OR]
 
-  const runesInUtxo = (
-    findManyInFilter(
-      "Rune",
-      utxoRuneBalances.map((rune) => rune[0]),
-      false,
-      true
-    ) ?? []
+  let runesInUtxo = findManyInFilter(
+    "Rune",
+    utxoRuneBalances.map((rune) => rune[0]),
+    true
   ).reduce((acc, Rune) => {
     //This is safe because rune_protocol_id and id will never overlap as rune_protocol_id is a string that contains a ":"
     acc[Rune.rune_protocol_id] = Rune;
