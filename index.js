@@ -153,12 +153,12 @@ const startServer = async () => {
       log(
         "Committing changes from blocks into memory: " +
           Object.keys(blocksMapped).join(", "),
-        "debug"
+        "info"
       );
       await storage.commitChanges();
       global.gc();
       //Update the current block in the DB
-      log("Block chunk finished processing!", "debug");
+      log("Block chunk finished processing!", "info");
       await Setting.update(
         { value: currentBlock - 1 },
         { where: { name: "last_block_processed" } }
@@ -196,7 +196,7 @@ const startServer = async () => {
       );
     }
 
-    await sleep(process.env.BLOCK_CHECK_INTERVAL);
+    await sleep(parseInt(process.env.BLOCK_CHECK_INTERVAL));
   }
 };
 
