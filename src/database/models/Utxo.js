@@ -79,7 +79,7 @@ module.exports = (sequelize) => {
           fields: ["transaction_id", "vout_index"],
           using: "BTREE",
         },
-        /*
+
         //Useful for fetching all utxos for an address at a specific block
         {
           fields: ["block_spent", "address_id"],
@@ -113,7 +113,6 @@ module.exports = (sequelize) => {
           fields: ["block_spent"],
           using: "BTREE",
         },
-        */
       ],
       tableName: "utxos",
       timestamps: false,
