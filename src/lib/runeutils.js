@@ -17,6 +17,8 @@ const {
   sleep,
   stripObject,
 } = require("./utils");
+const NO_COMMITMENTS = process.argv.includes("--no-commitments");
+
 const decipherRunestone = (txJson) => {
   let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
 
@@ -41,16 +43,45 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
 
   const transactions = block.tx;
 
-  const runestones = transactions.map((tx, txIndex) => ({
-    runestone: decipherRunestone(tx),
-    hash: tx.txid,
-    txIndex,
-    block: blockNumber,
-    vout: tx.vout,
-    vin: tx.vin,
-  }));
+  const transactionsWithRunestones = await Promise.all(
+    transactions.map((tx, txIndex) => {
+      return new Promise(async function (resolve, reject) {
+        let runestone = decipherRunestone(tx);
 
-  return runestones;
+        if (runestone.etching?.rune && !NO_COMMITMENTS) {
+          //populate vins with the block they were created at (only for etchings)
+          tx.vin = await Promise.all(
+            tx.vin.map(async (vin) => {
+              if (!vin.txid) return vin; //incase coinbase
+
+              let parentTx = await callRpc("getrawtransaction", [
+                vin.txid,
+                true,
+              ]);
+              let parentTxBlock = await callRpc("getblockheader", [
+                parentTx.blockhash,
+              ]);
+              return {
+                ...vin,
+                parentTx: { ...parentTx, block: parentTxBlock.height },
+              };
+            })
+          );
+        }
+
+        resolve({
+          runestone: decipherRunestone(tx),
+          hash: tx.txid,
+          txIndex,
+          block: blockNumber,
+          vout: tx.vout,
+          vin: tx.vin,
+        });
+      });
+    })
+  );
+
+  return transactionsWithRunestones;
 };
 
 const blockManager = (callRpc, latestBlock) => {
@@ -145,7 +176,7 @@ const minimumLengthAtHeight = (block) => {
   return INITIAL_AVAILABLE - stepsPassed;
 };
 
-const checkCommitment = async (runeName, Transaction, block, callRpc) => {
+const checkCommitment = (runeName, Transaction, block, callRpc) => {
   //Credits to @me-foundation/runestone-lib for this function.
   //Modified to fit this indexer.
 
@@ -193,21 +224,15 @@ const checkCommitment = async (runeName, Transaction, block, callRpc) => {
 
     //valid commitment, check for confirmations
     try {
-      let inputTx = await callRpc("getrawtransaction", [input.txid, true]);
-
       const isTaproot =
-        inputTx.vout[input.vout].scriptPubKey.type ===
+        input.parentTx.vout[input.vout].scriptPubKey.type ===
         TAPROOT_SCRIPT_PUBKEY_TYPE;
 
       if (!isTaproot) {
         continue;
       }
 
-      const { height: blockHeight } = await callRpc("getblockheader", [
-        inputTx.blockhash,
-      ]);
-
-      const confirmations = block - blockHeight + 1;
+      const confirmations = block - input.parentTx.block + 1;
 
       if (confirmations >= COMMIT_CONFIRMATIONS) return true;
     } catch (e) {

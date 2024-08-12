@@ -97,7 +97,7 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
   });
 };
 
-const burnAllFromUtxo = async (utxo, storage) => {
+const burnAllFromUtxo = (utxo, storage) => {
   const { updateAttribute, findOne } = storage;
 
   Object.entries(utxo.rune_balances).map((entry) => {
@@ -415,7 +415,7 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
   }
 };
 
-const processEtching = async (
+const processEtching = (
   UnallocatedRunes,
   Transaction,
   rpc,
@@ -436,9 +436,6 @@ const processEtching = async (
 
   //This transaction has already etched a rune
   if (findOne("Rune", `${block}:${txIndex}`, false, true)) {
-    if (Transaction.hash === "spyhash") {
-      console.log("STOPA");
-    }
     return UnallocatedRunes;
   }
 
@@ -478,7 +475,7 @@ const processEtching = async (
   const isReserved = !etching.rune;
 
   if (!isReserved && !useTest && !isGenesis && !NO_COMMITMENTS) {
-    const hasValidCommitment = await checkCommitment(
+    const hasValidCommitment = checkCommitment(
       runeName,
       Transaction,
       block,
@@ -579,12 +576,7 @@ const processEtching = async (
   });
 };
 
-const finalizeTransfers = async (
-  inputUtxos,
-  pendingUtxos,
-  Transaction,
-  storage
-) => {
+const finalizeTransfers = (inputUtxos, pendingUtxos, Transaction, storage) => {
   const { updateAttribute, create, local, findOne } = storage;
   const { block, runestone } = Transaction;
 
@@ -654,7 +646,7 @@ const finalizeTransfers = async (
   return;
 };
 
-const handleGenesis = async (Transaction, rpc, storage) => {
+const handleGenesis = (Transaction, rpc, storage) => {
   const { findOrCreate } = storage;
 
   startTimer();
@@ -663,7 +655,7 @@ const handleGenesis = async (Transaction, rpc, storage) => {
   findOrCreate("Address", "UNALLOCATED", { address: "UNALLOCATED" }, true);
   stopTimer("body_init_header");
 
-  await processEtching(
+  processEtching(
     {},
     { ...Transaction, runestone: GENESIS_RUNESTONE },
     rpc,
@@ -674,7 +666,7 @@ const handleGenesis = async (Transaction, rpc, storage) => {
   return;
 };
 
-const processRunestone = async (Transaction, rpc, storage, useTest) => {
+const processRunestone = (Transaction, rpc, storage, useTest) => {
   const { vout, vin, block, hash } = Transaction;
 
   const { create, fetchGroupLocally, findOne, local } = storage;
@@ -738,7 +730,7 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
   Transaction.virtual_id = parentTransaction.id;
 
   if (vin[0].coinbase && block === GENESIS_BLOCK)
-    await handleGenesis(Transaction, rpc, storage);
+    handleGenesis(Transaction, rpc, storage);
 
   startTimer();
 
@@ -766,14 +758,7 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
   stopTimer("body_init_pending_utxo_creation");
 
   startTimer();
-  await processEtching(
-    UnallocatedRunes,
-    Transaction,
-    rpc,
-    storage,
-    false,
-    useTest
-  );
+  processEtching(UnallocatedRunes, Transaction, rpc, storage, false, useTest);
   stopTimer("etch");
 
   //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
@@ -1014,6 +999,12 @@ const loadBlockIntoMemory = async (block, storage) => {
     "debug"
   );
   log(
+    "loaded: " +
+      Object.keys(local.Utxo_balance).length +
+      "  balances into memory",
+    "debug"
+  );
+  log(
     "loaded: " + Object.keys(local.Rune).length + "  runes into memory",
     "debug"
   );
@@ -1021,7 +1012,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   return;
 };
 
-const processBlock = async (block, callRpc, storage, useTest) => {
+const processBlock = (block, callRpc, storage, useTest) => {
   const { blockHeight, blockData } = block;
 
   const formatMemoryUsage = (data) =>
@@ -1043,7 +1034,7 @@ const processBlock = async (block, callRpc, storage, useTest) => {
       //REMOVE THIS! This is for the --test flag
       if (useTest) Transaction.block = blockHeight;
 
-      await processRunestone(Transaction, callRpc, storage, useTest);
+      processRunestone(Transaction, callRpc, storage, useTest);
     } catch (e) {
       log(
         "Indexer panic on the following transaction: " +
