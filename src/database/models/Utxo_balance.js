@@ -35,12 +35,13 @@ module.exports = (sequelize) => {
           fields: ["utxo_id"],
           using: "BTREE",
         },
-
+        /*
         {
           //Composite index for fetching the individual rune balance of an indiviudal UTXO
           fields: ["utxo_id", "rune_id"],
           using: "BTREE",
         },
+        */
       ],
       tableName: "utxo_balances",
       timestamps: false,
