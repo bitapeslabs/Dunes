@@ -11,16 +11,16 @@ module.exports = (sequelize) => {
         autoIncrement: true,
       },
       rune_protocol_id: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.TEXT,
         allowNull: false,
       },
       name: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.TEXT,
         allowNull: false,
       },
 
       raw_name: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.TEXT,
         allowNull: false,
       },
       symbol: {

@@ -170,10 +170,17 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
       });
     }
 
-    const newBalance = (
-      BigInt(balanceFound.balance) +
-      BigInt(amount) * BigInt(direction)
-    ).toString();
+    const newBalance =
+      BigInt(balanceFound.balance) + BigInt(amount) * BigInt(direction);
+
+    if (newBalance < 0n) {
+      console.log("NEGATIVE BALANCE", newBalance, amount, direction);
+      console.log(utxo);
+      console.log(rune_protocol_id);
+      console.log(balanceFound);
+      console.log(utxoRuneBalances);
+      console.log(existingBalanceEntries);
+    }
 
     updateAttribute(
       "Balance",
@@ -630,16 +637,11 @@ const finalizeTransfers = async (
 
       Object.keys(utxo.rune_balances).forEach((runeProtocolId) => {
         if (!utxo.rune_balances[runeProtocolId]) return; //Ignore 0 balances
-        create(
-          "Utxo_balance",
-          {
-            utxo_id: parentUtxo.id,
-            rune_id: findOne("Rune", runeProtocolId, false, true).id,
-            balance: utxo.rune_balances[runeProtocolId],
-          },
-          false,
-          true
-        );
+        create("Utxo_balance", {
+          utxo_id: parentUtxo.id,
+          rune_id: findOne("Rune", runeProtocolId, false, true).id,
+          balance: utxo.rune_balances[runeProtocolId],
+        });
       });
     }
   });
@@ -916,24 +918,27 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   const utxoBalancesInLocal = local.Utxo_balance;
 
-  const addressesInBlock = [
-    ...new Set(
-      [
-        recipientsInBlock,
-        Object.values(utxosInLocal).map((utxo) => utxo.address),
-      ]
-        .flat(Infinity)
-        .filter(Boolean)
-    ),
-  ];
-
   await loadManyIntoMemory("Address", {
-    address: {
-      [Op.in]: ["GENESIS", "UNALLOCATED", "OP_RETURN", ...addressesInBlock],
-    },
+    [Op.or]: [
+      {
+        id: {
+          [Op.in]: [
+            1,
+            2,
+            3,
+            ...Object.values(utxosInLocal).map((utxo) => utxo.address_id),
+          ],
+        },
+      },
+      {
+        address: {
+          [Op.in]: recipientsInBlock,
+        },
+      },
+    ],
   });
 
-  const balancesInBlock = addressesInBlock
+  const balancesInBlock = Object.values(local.Address)
     .map((address) => findOne("Address", address, false, true)?.id)
     .filter(Boolean);
 
