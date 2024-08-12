@@ -904,10 +904,8 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   await loadManyIntoMemory("Utxo", query);
 
-  const utxosInLocal = local.Utxo;
-
   const utxoBalancesInBlock = [
-    ...new Set(Object.values(utxosInLocal).map((utxo) => utxo.id)),
+    ...new Set(Object.values(local.Utxo).map((utxo) => utxo.id)),
   ];
 
   await loadManyIntoMemory("Utxo_balance", {
@@ -926,7 +924,7 @@ const loadBlockIntoMemory = async (block, storage) => {
             1,
             2,
             3,
-            ...Object.values(utxosInLocal).map((utxo) => utxo.address_id),
+            ...Object.values(local.Utxo).map((utxo) => utxo.address_id),
           ],
         },
       },
@@ -938,9 +936,13 @@ const loadBlockIntoMemory = async (block, storage) => {
     ],
   });
 
-  const balancesInBlock = Object.values(local.Address)
-    .map((address) => findOne("Address", address, false, true)?.id)
-    .filter(Boolean);
+  const balancesInBlock = [
+    ...new Set(
+      Object.values(local.Address)
+        .map((address) => address.id)
+        .filter(Boolean)
+    ),
+  ];
 
   //Get all rune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
   const runesInBlockByProtocolId = [
