@@ -131,7 +131,7 @@ const startServer = async () => {
 
       log(
         "Loading blocks into memory: " + Object.keys(blocksMapped).join(", "),
-        "debug"
+        "info"
       );
       //Run the indexers processBlock function
       await Promise.all(
@@ -151,7 +151,7 @@ const startServer = async () => {
       }
 
       log(
-        "Committing changes from blocks into memory: " +
+        "Committing changes from blocks into db: " +
           Object.keys(blocksMapped).join(", "),
         "info"
       );
