@@ -963,24 +963,25 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   //Load all runes that might be transferred into memory. This would be every Rune in a mint, edict or etch
 
+  // Load runes by protocol ID
   await loadManyIntoMemory("Rune", {
-    [Op.or]: [
-      {
-        rune_protocol_id: {
-          [Op.in]: runesInBlockByProtocolId,
-        },
-      },
-      {
-        raw_name: {
-          [Op.in]: runesInBlockByRawName,
-        },
-      },
-      {
-        id: {
-          [Op.in]: runesInBlockByDbId,
-        },
-      },
-    ],
+    rune_protocol_id: {
+      [Op.in]: runesInBlockByProtocolId,
+    },
+  });
+
+  // Load runes by raw name
+  await loadManyIntoMemory("Rune", {
+    raw_name: {
+      [Op.in]: runesInBlockByRawName,
+    },
+  });
+
+  // Load runes by database ID
+  await loadManyIntoMemory("Rune", {
+    id: {
+      [Op.in]: runesInBlockByDbId,
+    },
   });
   stopTimer("load_runes");
 
@@ -1034,7 +1035,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   Object.keys(__debug_totalElapsedTime).forEach((field) => {
     log(
       `Time spent on ${field}: ${__debug_totalElapsedTime[field]}ms`,
-      "dbinfo"
+      "debug"
     );
   });
 

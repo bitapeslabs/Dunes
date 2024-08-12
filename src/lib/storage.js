@@ -215,6 +215,11 @@ const storage = async (useSync) => {
       foundRows.forEach((row) => {
         let rowBody = __buildIndexes({ ...row, __memory: true }, modelName);
 
+        //Do not overwrite if already present or duplicate
+        if (LocalModel[rowBody[primaryKey]]) {
+          return;
+        }
+
         LocalModel[rowBody[primaryKey]] = rowBody;
 
         __updateReferences(modelName, LocalModel[rowBody[primaryKey]]);
