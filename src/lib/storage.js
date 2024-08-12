@@ -17,7 +17,7 @@ const storage = async (useSync) => {
   //Note: only static fields can be used to build_fields. If it can be changed with update attribute it should not be used
   const BUILD_FIELDS = {
     Utxo: {
-      utxo_index: ["transaction_id", "vout_index", "rune_id"],
+      utxo_index: ["transaction_id", "vout_index"],
     },
 
     Balance: { balance_index: ["address_id", "rune_id"] },
@@ -558,10 +558,7 @@ const storage = async (useSync) => {
 
         let chunks = chunkify(rows, parseInt(MAX_COMMIT_CHUNK_SIZE));
 
-        log(
-          `Chunks amount for ${modelName}: ${chunks.length}` + chunks.length,
-          "debug"
-        );
+        log(`Chunks amount for ${modelName}: ${chunks.length}`, "debug");
 
         let chunkIndex = 0;
         for (let chunk of chunks) {

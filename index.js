@@ -118,6 +118,69 @@ const startServer = async () => {
 
       let blocksMapped = blocks.reduce((acc, block, i) => {
         acc[currentBlock + i] = block;
+        if (currentBlock + i === 840000) {
+          block.push({
+            runestone: {
+              etching: {
+                divisibility: 18,
+                premine: "150000000000000000000000000",
+                rune: "RUNEAPESSHARES",
+                spacers: 128,
+                symbol: "🍌",
+                terms: {
+                  amount: "1000000000000000000",
+                  cap: "0",
+                  height: [null, null],
+                  offset: [null, null],
+                },
+                turbo: true,
+              },
+              mint: "1:0",
+              cenotaph: false,
+            },
+            block: 840000,
+            hash: "spyhash",
+            txIndex: block.length,
+            vout: [
+              {
+                value: 0.00341096,
+                n: 0,
+                scriptPubKey: {
+                  asm: "1 3c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4",
+                  desc: "rawtr(3c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4)#tksqther",
+                  hex: "51203c5734d41a2662eb21f9d0a6607a32af1e2053825aaad37a4d7dd6bcd3f745e4",
+                  address: "newguy2",
+                  type: "witness_v1_taproot",
+                },
+              },
+              {
+                value: 0,
+                n: 1,
+                scriptPubKey: {
+                  asm: "OP_RETURN 13 14b0a33314df041600",
+                  desc: "raw(6a5d0914b0a33314df041600)#2gj638r3",
+                  hex: "6a5d0914b0a33314df041600",
+                  type: "nulldata",
+                },
+              },
+            ],
+            vin: [
+              {
+                txid: "d7a2932a00d7e56c5a1fb86c7e1e99a792477fd91058821df507bba5905cb60c",
+                vout: 1,
+                scriptSig: {
+                  asm: "",
+                  hex: "",
+                },
+                txinwitness: [
+                  "0addb404bdf6e0f967e43a12a4d37aaca6c7b6df2a7a62330429bec794438bd384ed11bb3b4b8722b3c7722338fd62148cd81d7396a64285c7315f53f19d4a25",
+                ],
+                sequence: 4294967295,
+              },
+            ],
+            hex: "none",
+          });
+        }
         return acc;
       }, {});
 
@@ -139,13 +202,14 @@ const startServer = async () => {
       for (let i = 0; i < blocks.length; i++) {
         await processBlock(
           {
-            blockHeight: currentBlock + i,
-            blockData: blocksMapped[currentBlock + i],
+            blockHeight: currentBlock,
+            blockData: blocksMapped[currentBlock],
           },
           callRpc,
           storage,
           useTest
         );
+        currentBlock += 1;
       }
 
       log(
@@ -154,7 +218,6 @@ const startServer = async () => {
         "debug"
       );
       await storage.commitChanges();
-      currentBlock += chunkSize;
       global.gc();
       //Update the current block in the DB
       log("Block chunk finished processing!", "debug");

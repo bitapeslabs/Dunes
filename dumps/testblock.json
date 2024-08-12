@@ -24,7 +24,8 @@
       },
       "cenotaph": false
     },
-        "hash": "newhash4",
+    "block": 840002,
+        "hash": "newhash8",
         "txIndex": 1,
         "vout": [
           {
@@ -51,7 +52,19 @@
         ],
         "vin": [
           {
-            "txid": "newhash3",
+            "txid": "newhash7",
+            "vout": 0,
+            "scriptSig": {
+              "asm": "",
+              "hex": ""
+            },
+            "txinwitness": [
+              "0addb404bdf6e0f967e43a12a4d37aaca6c7b6df2a7a62330429bec794438bd384ed11bb3b4b8722b3c7722338fd62148cd81d7396a64285c7315f53f19d4a25"
+            ],
+            "sequence": 4294967295
+          },
+          {
+            "txid": "newhash6",
             "vout": 0,
             "scriptSig": {
               "asm": "",
@@ -62,6 +75,7 @@
             ],
             "sequence": 4294967295
           }
+
         ],
         "hex": "none"
       }

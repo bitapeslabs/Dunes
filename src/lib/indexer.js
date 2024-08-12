@@ -72,7 +72,7 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
       true
     );
 
-    let utxoBody = {
+    return {
       /*
         SEE: https://docs.ordinals.com/runes.html#Burning
         "Runes may be burned by transferring them to an OP_RETURN output with an edict or pointer."
@@ -94,7 +94,6 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
     };
 
     //If the utxo is an OP_RETURN, we dont save it as a UTXO in the database
-    return utxoBody;
   });
 };
 
@@ -124,9 +123,20 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
   //for example: [{address, proto_id}, {address, proto_id}...]. While address is the same for all, a utxo can have multiple proto ids
   // [[AND], [AND], [AND]] => [OR]
 
+  const runesInUtxo = findManyInFilter(
+    "Rune",
+    utxoRuneBalances.map((rune) => rune[0]),
+    false,
+    true
+  ).reduce((acc, Rune) => {
+    //This is safe because rune_protocol_id and id will never overlap as rune_protocol_id is a string that contains a ":"
+    acc[Rune.rune_protocol_id] = Rune;
+    acc[Rune.id] = Rune;
+    return acc;
+  }, {});
+
   const balanceFilter = utxoRuneBalances.map(
-    (runeBalance) =>
-      `${utxo.address_id}:${findOne("Rune", runeBalance[0], false, true).id}`
+    (entry) => `${utxo.address_id}:${runesInUtxo[entry[0]].id}`
   );
 
   //Get the existing balance entries. We can create hashmap of these with proto_id since address is the same
@@ -137,9 +147,7 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
     balanceFilter,
     true
   ).reduce((acc, balance) => {
-    acc[
-      findOne("Rune", balance.rune_id + "@REF@id", false, true).rune_protocol_id
-    ] = balance;
+    acc[runesInUtxo[balance.rune_id].rune_protocol_id] = balance;
     return acc;
   }, {});
 
@@ -184,7 +192,6 @@ const processEdicts = (
   pendingUtxos,
   Transaction,
   InputData,
-  inputUtxos,
   storage
 ) => {
   const { block, txIndex, runestone, vin } = Transaction;
@@ -431,7 +438,10 @@ const processEtching = async (
   }
 
   //This transaction has already etched a rune
-  if (local.Rune[`${block}:${txIndex}`]) {
+  if (findOne("Rune", `${block}:${txIndex}`, false, true)) {
+    if (Transaction.hash === "spyhash") {
+      console.log("STOPA");
+    }
     return UnallocatedRunes;
   }
 
@@ -617,9 +627,10 @@ const finalizeTransfers = async (
       let resultUtxo = { ...utxo };
       delete resultUtxo.rune_balances;
 
-      const parentUtxo = create("Utxo", resultUtxo, false, true);
+      const parentUtxo = create("Utxo", resultUtxo);
 
       Object.keys(utxo.rune_balances).forEach((runeProtocolId) => {
+        if (!utxo.rune_balances[runeProtocolId]) return; //Ignore 0 balances
         create(
           "Utxo_balance",
           {
@@ -674,7 +685,7 @@ const handleGenesis = async (Transaction, rpc, storage) => {
 const processRunestone = async (Transaction, rpc, storage, useTest) => {
   const { vout, vin, block, hash } = Transaction;
 
-  const { create, fetchGroupLocally, findOne } = storage;
+  const { create, fetchGroupLocally, findOne, local } = storage;
 
   //Ignore the coinbase transaction (unless genesis rune is being created)
 
@@ -695,33 +706,28 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
 
   stopTimer("body_init_filter_generator");
 
-  let inputUtxos = vin[0].coinbase //coinbase txs can still mint runes
-    ? []
-    : UtxoFilter.map((utxoIndex) => {
-        const utxo = findOne("Utxo", utxoIndex, false, true);
-        if (!utxo) return null;
+  let inputUtxos = UtxoFilter.map((utxoIndex) => {
+    const utxo = findOne("Utxo", utxoIndex, false, true);
 
-        const balances = fetchGroupLocally(
-          "Utxo_balance",
-          "utxo_id",
-          parentUtxo.id
-        );
+    if (!utxo) return null;
 
-        return {
-          ...utxo,
-          rune_balances: balances.reduce((acc, utxoBalance) => {
-            acc[
-              fineOne(
-                "Rune",
-                utxoBalance.rune_id + "@REF@id",
-                false,
-                true
-              ).rune_protocol_id
-            ] = utxoBalance.balance;
-            return acc;
-          }, {}),
-        };
-      }).filter(Boolean);
+    const balances = fetchGroupLocally("Utxo_balance", "utxo_id", utxo.id);
+
+    return {
+      ...utxo,
+      rune_balances: balances.reduce((acc, utxoBalance) => {
+        acc[
+          findOne(
+            "Rune",
+            utxoBalance.rune_id + "@REF@id",
+            false,
+            true
+          ).rune_protocol_id
+        ] = utxoBalance.balance;
+        return acc;
+      }, {}),
+    };
+  }).filter(Boolean);
 
   stopTimer("body_init_utxo_fetch");
 
