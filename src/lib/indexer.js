@@ -808,6 +808,7 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   //Load all utxos in the block's vin into memory in one call
 
+  startTimer();
   const transactionHashInputsInBlock = [
     ...new Set(
       block
@@ -822,6 +823,9 @@ const loadBlockIntoMemory = async (block, storage) => {
       [Op.in]: transactionHashInputsInBlock,
     },
   });
+  stopTimer("load_transaction_hash");
+
+  startTimer();
 
   //Get a vector of all txHashes in the block
   const utxosInBlock = [
@@ -854,6 +858,36 @@ const loadBlockIntoMemory = async (block, storage) => {
     ),
   ];
 
+  await loadManyIntoMemory("Utxo", {
+    [Op.or]: utxosInBlock.map((utxo) => {
+      const { transaction_id, vout_index } = utxo;
+
+      return {
+        transaction_id,
+        vout_index,
+      };
+    }),
+  });
+
+  stopTimer("load_utxos");
+
+  startTimer();
+  const utxoBalancesInBlock = [
+    ...new Set(Object.values(local.Utxo).map((utxo) => utxo.id)),
+  ];
+
+  await loadManyIntoMemory("Utxo_balance", {
+    utxo_id: {
+      [Op.in]: utxoBalancesInBlock,
+    },
+  });
+
+  stopTimer("load_utxo_balances");
+
+  startTimer();
+
+  const utxoBalancesInLocal = local.Utxo_balance;
+
   //Get a vector of all recipients in the block utxo.scriptPubKey?.address
   const recipientsInBlock = [
     ...new Set(
@@ -866,31 +900,6 @@ const loadBlockIntoMemory = async (block, storage) => {
         .flat(Infinity)
     ),
   ];
-
-  const query = {
-    [Op.or]: utxosInBlock.map((utxo) => {
-      const { transaction_id, vout_index } = utxo;
-
-      return {
-        transaction_id,
-        vout_index,
-      };
-    }),
-  };
-
-  await loadManyIntoMemory("Utxo", query);
-
-  const utxoBalancesInBlock = [
-    ...new Set(Object.values(local.Utxo).map((utxo) => utxo.id)),
-  ];
-
-  await loadManyIntoMemory("Utxo_balance", {
-    utxo_id: {
-      [Op.in]: utxoBalancesInBlock,
-    },
-  });
-
-  const utxoBalancesInLocal = local.Utxo_balance;
 
   await loadManyIntoMemory("Address", {
     [Op.or]: [
@@ -912,13 +921,9 @@ const loadBlockIntoMemory = async (block, storage) => {
     ],
   });
 
-  const balancesInBlock = [
-    ...new Set(
-      Object.values(local.Address)
-        .map((address) => address.id)
-        .filter(Boolean)
-    ),
-  ];
+  stopTimer("load_addresses");
+
+  startTimer();
 
   //Get all rune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
   const runesInBlockByProtocolId = [
@@ -972,6 +977,16 @@ const loadBlockIntoMemory = async (block, storage) => {
       },
     ],
   });
+  stopTimer("load_runes");
+
+  startTimer();
+  const balancesInBlock = [
+    ...new Set(
+      Object.values(local.Address)
+        .map((address) => address.id)
+        .filter(Boolean)
+    ),
+  ];
 
   //Load the balances of all addresses owning a utxo or in a transactions vout
   await loadManyIntoMemory("Balance", {
@@ -979,8 +994,10 @@ const loadBlockIntoMemory = async (block, storage) => {
       [Op.in]: balancesInBlock,
     },
   });
+
+  stopTimer("load_balances");
   log(
-    "loaded: " + Object.keys(local.Address).length + "  adresses into memory",
+    "loaded: " + Object.keys(local.Address).length + "  adresses into memory.",
     "debug"
   );
 
@@ -1008,6 +1025,15 @@ const loadBlockIntoMemory = async (block, storage) => {
     "loaded: " + Object.keys(local.Rune).length + "  runes into memory",
     "debug"
   );
+
+  Object.keys(__debug_totalElapsedTime).forEach((field) => {
+    log(
+      `Time spent on ${field}: ${__debug_totalElapsedTime[field]}ms`,
+      "dbinfo"
+    );
+  });
+
+  __debug_totalElapsedTime = {};
 
   return;
 };

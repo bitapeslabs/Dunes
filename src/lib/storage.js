@@ -221,11 +221,13 @@ const storage = async (useSync) => {
         __addRowToGroups(modelName, LocalModel[rowBody[primaryKey]]);
       });
 
+      /*
       log(modelName + " (fr): " + foundRows.length, "debug");
       log(
         modelName + " (lo): " + Object.keys(local[modelName]).length,
         "debug"
       );
+      */
       return foundRows;
     } catch (error) {
       console.error(
