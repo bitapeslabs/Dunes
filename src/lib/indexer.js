@@ -797,7 +797,6 @@ const processRunestone = async (Transaction, rpc, storage, useTest) => {
     pendingUtxos,
     Transaction,
     InputData,
-    inputUtxos,
     storage
   );
   stopTimer("edicts");
