@@ -72,7 +72,7 @@ const createRpcClient = (rpcConfig) => {
       });
         */
       let processingTime = Date.now() - startTime;
-      log(`RPC call ${method} took ${processingTime / 1000}s`, "debug");
+      //log(`RPC call ${method} took ${processingTime / 1000}s`, "debug");
       return response.result;
     } catch (error) {
       log(error + " on " + method, "panic");
