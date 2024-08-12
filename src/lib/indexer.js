@@ -901,24 +901,29 @@ const loadBlockIntoMemory = async (block, storage) => {
     ),
   ];
 
-  await loadManyIntoMemory("Address", {
-    [Op.or]: [
-      {
-        id: {
-          [Op.in]: [
-            1,
-            2,
-            3,
-            ...Object.values(local.Utxo).map((utxo) => utxo.address_id),
-          ],
-        },
-      },
-      {
+  /*
+{
         address: {
           [Op.in]: recipientsInBlock,
         },
       },
-    ],
+*/
+
+  await loadManyIntoMemory("Address", {
+    id: {
+      [Op.in]: [
+        1,
+        2,
+        3,
+        ...Object.values(local.Utxo).map((utxo) => utxo.address_id),
+      ],
+    },
+  });
+
+  await loadManyIntoMemory("Address", {
+    address: {
+      [Op.in]: recipientsInBlock,
+    },
   });
 
   stopTimer("load_addresses");
