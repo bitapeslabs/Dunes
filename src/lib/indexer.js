@@ -173,15 +173,6 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
     const newBalance =
       BigInt(balanceFound.balance) + BigInt(amount) * BigInt(direction);
 
-    if (newBalance < 0n) {
-      console.log("NEGATIVE BALANCE", newBalance, amount, direction);
-      console.log(utxo);
-      console.log(rune_protocol_id);
-      console.log(balanceFound);
-      console.log(utxoRuneBalances);
-      console.log(existingBalanceEntries);
-    }
-
     updateAttribute(
       "Balance",
       balanceFound.balance_index,
