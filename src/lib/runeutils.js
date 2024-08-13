@@ -257,12 +257,9 @@ const blockManager = async (callRpc, latestBlock) => {
                 };
               }
 
-              let transaction = findOne(
-                "Transaction",
-                vins[0].txid,
-                false,
-                true
-              );
+              let transaction = vins
+                .map((vin) => findOne("Transaction", vin.txid, false, true))
+                .filter(Boolean)[0];
 
               //Check if the transaction hash has already been seen in db
               if (transaction) {
