@@ -8,7 +8,6 @@ const {
   chunkify,
 } = require("./utils");
 const { Client } = require("pg");
-const Utxo_balance = require("../database/models/Utxo_balance");
 const storage = async (useSync) => {
   //Configurations
 
@@ -25,6 +24,7 @@ const storage = async (useSync) => {
 
   const BUILD_GROUPS = {
     Utxo_balance: ["utxo_id"],
+    Utxo: ["transaction_id"],
   };
 
   const LOCAL_PRIMARY_KEYS = {
@@ -47,6 +47,7 @@ const storage = async (useSync) => {
   //These are hashmaps that point back an object in local. This is used to quickly find a row in O(1) time even if the primary key is not the id. Built indicies are not supported with these
   const REFERENCE_FIELDS = {
     Rune: ["raw_name", "id"],
+    Address: ["id"],
   };
 
   // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS

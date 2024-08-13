@@ -180,7 +180,8 @@ const blockManager = async (callRpc, latestBlock) => {
       // Wait for all Promises in the chunk to resolve
       let results = await Promise.all(promises);
 
-      const { loadManyIntoMemory, findOne, local, clear } = readBlockStorage;
+      const { loadManyIntoMemory, findOne, local, clear, fetchGroupLocally } =
+        readBlockStorage;
 
       const transactionsInChunk = [
         ...new Set(
@@ -258,17 +259,21 @@ const blockManager = async (callRpc, latestBlock) => {
 
               let transaction = findOne(
                 "Transaction",
-                { hash: vins[0].txid },
+                vins[0].txid,
                 false,
                 true
               );
 
               //Check if the transaction hash has already been seen in db
               if (transaction) {
-                let sender_id = findOne("Utxo", {
-                  transaction_id: transaction.id,
-                }).address_id;
-                let sender = findOne("Address", { id: sender_id }).address;
+                let sender_id = fetchGroupLocally(
+                  "Utxo",
+                  "transaction_id",
+                  transaction.id
+                )?.[0]?.address_id;
+
+                if (!sender_id) return { ...tx, sender: null };
+                let sender = findOne("Address", sender_id + "@REF@id").address;
                 return {
                   ...tx,
                   sender,
