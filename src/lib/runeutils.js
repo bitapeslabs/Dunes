@@ -129,6 +129,7 @@ const prefetchTransactions = async (block, storage, callRpc) => {
 
           transaction.vout.forEach((utxo, index) => {
             let address = utxo.scriptPubKey.address;
+            if (!address) return; //OP_RETURN
             create("Utxo", {
               value_sats: parseInt(utxo.value * 10 ** 8).toString(),
               block: blockNumber,
