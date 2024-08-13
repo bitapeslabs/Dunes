@@ -192,6 +192,7 @@ const startServer = async () => {
       .map((_, i) => lastBlockProcessed + i + 1 - amountPrefetch);
     await prefetchTransactions(blocksToFetch, storage, callRpcBatch);
     await storage.commitChanges();
+    log("Prefetching complete!", "info");
   }
   return;
 

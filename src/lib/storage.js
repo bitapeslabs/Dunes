@@ -537,6 +537,10 @@ const storage = async (useSync) => {
     return LocalModel[key];
   };
 
+  const clear = () => {
+    __genDefaultCache();
+  };
+
   const commitChanges = async () => {
     const MAX_COMMIT_CHUNK_SIZE = parseInt(
       process.env.MAX_COMMIT_CHUNK_SIZE || 1500
@@ -621,6 +625,7 @@ const storage = async (useSync) => {
     commitChanges,
     loadManyIntoMemory,
     fetchGroupLocally,
+    clear
   };
 };
 

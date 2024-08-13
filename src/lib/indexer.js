@@ -647,14 +647,6 @@ const finalizeTransfers = (inputUtxos, pendingUtxos, Transaction, storage) => {
 };
 
 const handleGenesis = (Transaction, rpc, storage) => {
-  const { findOrCreate } = storage;
-
-  startTimer();
-  findOrCreate("Address", "GENESIS", { address: "GENESIS" }, true);
-  findOrCreate("Address", "OP_RETURN", { address: "OP_RETURN" }, true);
-  findOrCreate("Address", "UNALLOCATED", { address: "UNALLOCATED" }, true);
-  stopTimer("body_init_header");
-
   processEtching(
     {},
     { ...Transaction, runestone: GENESIS_RUNESTONE },

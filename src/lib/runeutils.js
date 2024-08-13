@@ -6,6 +6,8 @@ const {
   COMMIT_CONFIRMATIONS,
   TAPROOT_SCRIPT_PUBKEY_TYPE,
 } = require("./constants");
+const { storage: newStorage } = require("./storage");
+const { Op } = require("sequelize");
 
 const { Rune: OrdJSRune } = require("@ordjs/runestone");
 const { Script } = require("@cmdcode/tapscript");
@@ -81,13 +83,6 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
           These two fields in a runestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
           as the sender the owner of the first vout in the transaction instead.
           */
-          } else if (runestone?.mint || runestone?.etching) {
-            let firstUtxo = await callRpc("getrawtransaction", [
-              vins[0].txid,
-              true,
-            ]);
-
-            sender = firstUtxo.vout[0].scriptPubKey.address ?? null;
           }
         }
 
@@ -109,6 +104,9 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
 
 const prefetchTransactions = async (block, storage, callRpc) => {
   const { create, findOrCreate } = storage;
+  findOrCreate("Address", "COINBASE", { address: "COINBASE" }, true);
+  findOrCreate("Address", "OP_RETURN", { address: "OP_RETURN" }, true);
+  findOrCreate("Address", "UNALLOCATED", { address: "UNALLOCATED" }, true);
   const chunks = chunkify(block, 3);
   for (let chunk of chunks) {
     console.log(chunk);
@@ -147,7 +145,9 @@ const prefetchTransactions = async (block, storage, callRpc) => {
   return;
 };
 
-const blockManager = (callRpc, latestBlock) => {
+const blockManager = async (callRpc, latestBlock) => {
+  const readBlockStorage = await newStorage();
+
   let { MAX_BLOCK_CACHE_SIZE, GET_BLOCK_CHUNK_SIZE } = process.env;
 
   MAX_BLOCK_CACHE_SIZE = parseInt(MAX_BLOCK_CACHE_SIZE ?? 20);
@@ -179,6 +179,95 @@ const blockManager = (callRpc, latestBlock) => {
 
       // Wait for all Promises in the chunk to resolve
       let results = await Promise.all(promises);
+
+      const { loadManyIntoMemory, findOne, local } = readBlockStorage;
+
+      const transactionsInChunk = [
+        ...new Set(
+          results
+            .flat(Infinity)
+            .map((tx) => tx.vin.map((vin) => vin.txid))
+            .flat(Infinity)
+            .filter(Boolean)
+        ),
+      ];
+
+      //Load relevant vin into memory to avoid fetching from bitcoinrpc
+
+      await loadManyIntoMemory("Transaction", {
+        hash: { [Op.in]: transactionsInChunk },
+      });
+
+      await loadManyIntoMemory("Utxo", {
+        transaction_id: {
+          [Op.in]: Object.values(local.Transaction).map((tx) => tx.id),
+        },
+      });
+
+      await loadManyIntoMemory("Address", {
+        address: {
+          [Op.in]: [
+            ...new Set(
+              Object.values(local.Utxo).map((utxo) => utxo.address_id)
+            ),
+          ],
+        },
+      });
+
+      // Hydrate txs with sender
+      results = await Promise.all(
+        results.map(async (block) => {
+          return block.map(async (tx) => {
+            const { vin: vins, runestone } = tx;
+
+            // if coinbase dont populate sender or parentTx
+            if (vins[0].coinbase) {
+              return { ...tx, sender: "COINBASE" };
+            }
+
+            //check if we already have the sender in the cache
+            if (runestone.etching?.rune && !NO_COMMITMENTS) {
+              let senderVin = vins.find(
+                (vin) => vin.parentTx.vout[vin.vout].scriptPubKey.address
+              );
+              return {
+                ...tx,
+                sender:
+                  senderVin.parentTx.vout[senderVin.vout].scriptPubKey.address,
+              };
+            }
+
+            let transaction = findOne(
+              "Transaction",
+              { hash: vins[0].txid },
+              false,
+              true
+            );
+
+            //Check if the transaction hash has already been seen in db
+            if (transaction) {
+              let sender_id = findOne("Utxo", {
+                transaction_id: transaction.id,
+              }).address_id;
+              let sender = findOne("Address", { id: sender_id }).address;
+              return {
+                ...tx,
+                sender,
+              };
+            }
+
+            //If none of the above conditions are met, we must fetch the sender from bitcoinrpc
+            let sender = (
+              await callRpc("getrawtransaction", [vins[0].txid, true])
+            ).vout[vins[0].vout].scriptPubKey.address;
+
+            return {
+              ...tx,
+              sender,
+            };
+          });
+        })
+      );
 
       // Store the results in the cache
       for (let i = 0; i < results.length; i++) {
