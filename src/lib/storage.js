@@ -538,7 +538,7 @@ const storage = async (useSync) => {
   };
 
   const clear = () => {
-    __genDefaultCache();
+    _genDefaultCache();
   };
 
   const commitChanges = async () => {
@@ -625,7 +625,7 @@ const storage = async (useSync) => {
     commitChanges,
     loadManyIntoMemory,
     fetchGroupLocally,
-    clear
+    clear,
   };
 };
 

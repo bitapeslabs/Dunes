@@ -95,6 +95,13 @@ const startServer = async () => {
       )[0].value
     ) || GENESIS_BLOCK - 1;
 
+  let prefetchDone = parseInt(
+    await Setting.findOrCreate({
+      where: { name: "prefetch" },
+      defaults: { value: 0 },
+    })
+  )[0].value;
+
   //Process blocks in range will process blocks start:(startBlock) to end:(endBlock)
   //startBlock and endBlock are inclusive (they are also processed)
   const processBlocksInRange = async (startBlock, endBlock) => {
@@ -179,7 +186,7 @@ const startServer = async () => {
     return;
   }
 
-  if (lastBlockProcessed < GENESIS_BLOCK) {
+  if (!prefetchDone) {
     let amountPrefetch = parseInt(process.env.PREFETCH_BLOCKS ?? 100);
     log(
       "Prefetching previous " +
@@ -193,6 +200,8 @@ const startServer = async () => {
     await prefetchTransactions(blocksToFetch, storage, callRpcBatch);
     await storage.commitChanges();
     log("Prefetching complete!", "info");
+
+    await Setting.update({ value: 1 }, { where: { name: "prefetch" } });
   }
 
   /*
