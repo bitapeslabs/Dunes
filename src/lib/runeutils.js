@@ -228,7 +228,7 @@ const blockManager = async (callRpc, latestBlock) => {
         "debug"
       );
 
-      console.log(results.flat(Infinity).length);
+      console.log(results.flat(Infinity));
 
       //Map all txs in chunk to their hashes to check for vins faster
       let txMapInChunk = results.flat(Infinity).reduce((acc, tx) => {
