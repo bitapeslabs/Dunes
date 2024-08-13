@@ -232,7 +232,8 @@ const blockManager = async (callRpc, latestBlock) => {
         "debug"
       );
 
-      let txmap = results.flat(Infinity).reduce((acc, tx) => {
+      //Map all txs in chunk to their hashes to check for vins faster
+      let txMapInChunk = results.flat(Infinity).reduce((acc, tx) => {
         acc[tx.hash] = tx;
       }, {});
       // Hydrate txs with sender
@@ -262,7 +263,7 @@ const blockManager = async (callRpc, latestBlock) => {
 
               //Check if the tx is referenced in the chunk
               let chunkTx = vins
-                .map((vin) => txmap[vin.txid])
+                .map((vin) => txMapInChunk[vin.txid])
                 .filter(Boolean)[0];
               if (chunkTx) {
                 return {
