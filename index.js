@@ -96,11 +96,13 @@ const startServer = async () => {
     ) || GENESIS_BLOCK - 1;
 
   let prefetchDone = parseInt(
-    await Setting.findOrCreate({
-      where: { name: "prefetch" },
-      defaults: { value: 0 },
-    })
-  )[0].value;
+    (
+      await Setting.findOrCreate({
+        where: { name: "prefetch" },
+        defaults: { value: 0 },
+      })
+    )[0].value
+  );
 
   //Process blocks in range will process blocks start:(startBlock) to end:(endBlock)
   //startBlock and endBlock are inclusive (they are also processed)
