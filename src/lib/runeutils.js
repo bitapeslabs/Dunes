@@ -217,61 +217,64 @@ const blockManager = async (callRpc, latestBlock) => {
       // Hydrate txs with sender
       results = await Promise.all(
         results.map(async (block) => {
-          return block.map(async (tx) => {
-            const { vin: vins, runestone } = tx;
+          return await Promise.all(
+            block.map(async (tx) => {
+              const { vin: vins, runestone } = tx;
 
-            // if coinbase dont populate sender or parentTx
-            if (vins[0].coinbase) {
-              return { ...tx, sender: "COINBASE" };
-            }
+              // if coinbase dont populate sender or parentTx
+              if (vins[0].coinbase) {
+                return { ...tx, sender: "COINBASE" };
+              }
 
-            //check if we already have the sender in the cache
-            if (runestone.etching?.rune && !NO_COMMITMENTS) {
-              let senderVin = vins.find(
-                (vin) => vin.parentTx.vout[vin.vout].scriptPubKey.address
+              //check if we already have the sender in the cache
+              if (runestone.etching?.rune && !NO_COMMITMENTS) {
+                let senderVin = vins.find(
+                  (vin) => vin.parentTx.vout[vin.vout].scriptPubKey.address
+                );
+                return {
+                  ...tx,
+                  sender:
+                    senderVin.parentTx.vout[senderVin.vout].scriptPubKey
+                      .address,
+                };
+              }
+
+              let transaction = findOne(
+                "Transaction",
+                { hash: vins[0].txid },
+                false,
+                true
               );
-              return {
-                ...tx,
-                sender:
-                  senderVin.parentTx.vout[senderVin.vout].scriptPubKey.address,
-              };
-            }
 
-            let transaction = findOne(
-              "Transaction",
-              { hash: vins[0].txid },
-              false,
-              true
-            );
+              //Check if the transaction hash has already been seen in db
+              if (transaction) {
+                let sender_id = findOne("Utxo", {
+                  transaction_id: transaction.id,
+                }).address_id;
+                let sender = findOne("Address", { id: sender_id }).address;
+                return {
+                  ...tx,
+                  sender,
+                };
+              }
 
-            //Check if the transaction hash has already been seen in db
-            if (transaction) {
-              let sender_id = findOne("Utxo", {
-                transaction_id: transaction.id,
-              }).address_id;
-              let sender = findOne("Address", { id: sender_id }).address;
-              return {
-                ...tx,
-                sender,
-              };
-            }
+              //If none of the above conditions are met, we must fetch the sender from bitcoinrpc (if mint or etching)
 
-            //If none of the above conditions are met, we must fetch the sender from bitcoinrpc (if mint or etching)
+              if (runestone?.mint || runestone?.etching) {
+                let sender = (
+                  await callRpc("getrawtransaction", [vins[0].txid, true])
+                ).vout[vins[0].vout].scriptPubKey.address;
 
-            if(runestone?.mint || runestone?.etching) {
-              let sender = (
-                await callRpc("getrawtransaction", [vins[0].txid, true])
-              ).vout[vins[0].vout].scriptPubKey.address;
+                return {
+                  ...tx,
+                  sender,
+                };
+              }
 
-              return {
-                ...tx,
-                sender,
-              };
-            }
-
-            //We dont need the sender for non-rune related txs
-            return { ...tx, sender: null };
-          });
+              //We dont need the sender for non-rune related txs
+              return { ...tx, sender: null };
+            })
+          );
         })
       );
 
