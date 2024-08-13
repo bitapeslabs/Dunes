@@ -587,13 +587,7 @@ const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
           false,
           true
         ).id,
-        to_address_id: findOne(
-          "Address",
-          //Transfer to Unknown if burnt
-          addressId === "burn" ? 2 : addressId,
-          false,
-          true
-        ).id,
+        to_address_id: addressId === "burn" ? 2 : addressId,
       });
     });
   });
