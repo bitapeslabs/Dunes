@@ -234,7 +234,7 @@ const blockManager = async (callRpc, latestBlock) => {
 
       //Map all txs in chunk to their hashes to check for vins faster
       let txMapInChunk = results.flat(Infinity).reduce((acc, tx) => {
-        acc[tx.hash] = tx;
+        acc[tx.txid] = tx;
       }, {});
       // Hydrate txs with sender
       results = await Promise.all(
