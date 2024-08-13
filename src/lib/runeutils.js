@@ -214,6 +214,23 @@ const blockManager = async (callRpc, latestBlock) => {
         },
       });
 
+      log(
+        "(BC) Transactions loaded into memory: " +
+          Object.keys(local.Transaction).length,
+        "debug"
+      );
+
+      log(
+        "(BC) UTXOS loaded into memory: " + Object.keys(local.Utxo).length,
+        "debug"
+      );
+
+      log(
+        "(BC) Addresses loaded into memory: " +
+          Object.keys(local.Address).length,
+        "debug"
+      );
+
       // Hydrate txs with sender
       results = await Promise.all(
         results.map(async (block) => {
