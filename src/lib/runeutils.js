@@ -18,7 +18,8 @@ const {
   stripObject,
 } = require("./utils");
 const NO_COMMITMENTS = process.argv.includes("--no-commitments");
-
+const fs = require("fs");
+const path = require("path");
 const decipherRunestone = (txJson) => {
   let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
 
@@ -47,26 +48,46 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
     transactions.map((tx, txIndex) => {
       return new Promise(async function (resolve, reject) {
         let runestone = decipherRunestone(tx);
+        let sender = "GENESIS";
+        const { vin: vins } = tx;
 
-        if (runestone.etching?.rune && !NO_COMMITMENTS) {
-          //populate vins with the block they were created at (only for etchings)
-          tx.vin = await Promise.all(
-            tx.vin.map(async (vin) => {
-              if (!vin.txid) return vin; //incase coinbase
+        // if coinbase dont populate sender or parentTx
 
-              let parentTx = await callRpc("getrawtransaction", [
-                vin.txid,
-                true,
-              ]);
-              let parentTxBlock = await callRpc("getblockheader", [
-                parentTx.blockhash,
-              ]);
-              return {
-                ...vin,
-                parentTx: { ...parentTx, block: parentTxBlock.height },
-              };
-            })
-          );
+        if (vins[0].txid) {
+          if (runestone.etching?.rune && !NO_COMMITMENTS) {
+            //populate vins with the block they were created at (only for etchings)
+            tx.vin = await Promise.all(
+              vins.map(async (vin) => {
+                if (!vin.txid) return vin; //incase coinbase
+
+                let parentTx = await callRpc("getrawtransaction", [
+                  vin.txid,
+                  true,
+                ]);
+                let parentTxBlock = await callRpc("getblockheader", [
+                  parentTx.blockhash,
+                ]);
+
+                return {
+                  ...vin,
+                  parentTx: { ...parentTx, block: parentTxBlock.height },
+                };
+              })
+            );
+            sender = tx.vin[0].parentTx.vout[0].scriptPubKey.address ?? null;
+
+            /*
+          These two fields in a runestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
+          as the sender the owner of the first vout in the transaction instead.
+          */
+          } else if (runestone?.mint || runestone?.etching) {
+            let firstUtxo = await callRpc("getrawtransaction", [
+              vins[0].txid,
+              true,
+            ]);
+
+            sender = firstUtxo.vout[0].scriptPubKey.address ?? null;
+          }
         }
 
         resolve({
@@ -76,6 +97,7 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
           block: blockNumber,
           vout: tx.vout,
           vin: tx.vin,
+          sender,
         });
       });
     })
