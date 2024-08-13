@@ -194,7 +194,6 @@ const startServer = async () => {
     await storage.commitChanges();
     log("Prefetching complete!", "info");
   }
-  return;
 
   /*
     Main server loop, syncnronize any time a new block is found or we are off by any amount of blocks
