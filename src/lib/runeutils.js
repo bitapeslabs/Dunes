@@ -205,7 +205,7 @@ const blockManager = async (callRpc, latestBlock) => {
       });
 
       await loadManyIntoMemory("Address", {
-        address: {
+        id: {
           [Op.in]: [
             ...new Set(
               Object.values(local.Utxo).map((utxo) => utxo.address_id)
