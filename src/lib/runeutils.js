@@ -280,7 +280,6 @@ const blockManager = async (callRpc, latestBlock) => {
               //If none of the above conditions are met, we must fetch the sender from bitcoinrpc (if mint or etching)
 
               if (runestone?.mint || runestone?.etching) {
-                console.log(vins[0].txid);
                 let sender = (
                   await callRpc("getrawtransaction", [vins[0].txid, true])
                 ).vout[vins[0].vout].scriptPubKey.address;
