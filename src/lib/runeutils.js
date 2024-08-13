@@ -259,13 +259,13 @@ const blockManager = async (callRpc, latestBlock) => {
               }
 
               //Check if the tx is referenced in the chunk
-              let chunkTx = vins
-                .map((vin) => txMapInChunk[vin.txid])
-                .filter(Boolean)[0];
-              if (chunkTx) {
+              let chunkVin = vins.find((vin) => txMapInChunk[vin.txid]);
+
+              if (chunkVin) {
+                let chunkTx = txMapInChunk[chunkVin.txid];
                 return {
                   ...tx,
-                  sender: chunkTx.vout[vin.vout].scriptPubKey.address,
+                  sender: chunkTx.vout[chunkVin.vout].scriptPubKey.address,
                 };
               }
 
