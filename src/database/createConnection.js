@@ -38,6 +38,9 @@ async function databaseConnection() {
     models.Rune.belongsTo(models.Transaction, {
       foreignKey: "etch_transaction_id",
     });
+    models.Rune.belongsTo(models.Address, {
+      foreignKey: "deployer_address_id",
+    });
 
     //Relationships Events
     models.Event.belongsTo(models.Transaction, {
@@ -57,6 +60,9 @@ async function databaseConnection() {
 
     // Address hasMany Utxo
     models.Address.hasMany(models.Utxo, { foreignKey: "address_id" });
+
+    // Address hasMany Utxo
+    models.Address.hasMany(models.Rune, { foreignKey: "deployer_address_id" });
 
     // Transaction hasMany Utxo (for the `transaction_id`)
     models.Transaction.hasMany(models.Utxo, { foreignKey: "transaction_id" });

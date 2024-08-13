@@ -83,6 +83,14 @@ module.exports = (sequelize) => {
         },
         allowNull: true,
       },
+      deployer_address_id: {
+        type: Sequelize.BIGINT,
+        references: {
+          model: "addresses",
+          key: "id",
+        },
+        allowNull: true,
+      },
 
       unmintable: {
         type: Sequelize.INTEGER,
@@ -97,6 +105,10 @@ module.exports = (sequelize) => {
         },
         {
           fields: ["raw_name"],
+          using: "BTREE", // Attempt to specify hash index
+        },
+        {
+          fields: ["deployer_address_id"],
           using: "BTREE", // Attempt to specify hash index
         },
       ],

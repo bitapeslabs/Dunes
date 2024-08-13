@@ -13,6 +13,7 @@ module.exports = (sequelize) => {
         //0 -> Etch
         //1 -> Mint
         //2 -> Transfer
+        //3 -> Burn
         //We store as ints to save space on the database
         type: Sequelize.INTEGER,
         allowNull: false,

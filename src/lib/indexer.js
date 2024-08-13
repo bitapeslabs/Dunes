@@ -199,6 +199,11 @@ const processEdicts = (
   if (runestone.cenotaph) {
     //Transaction is a cenotaph, input runes are burnt.
     //https://docs.ordinals.com/runes/specification.html#Transferring
+
+    transfer.burn = Object.keys(UnallocatedRunes).reduce((acc, runeId) => {
+      acc[runeId] = UnallocatedRunes[runeId];
+      return acc;
+    }, {});
     return {};
   }
 
@@ -224,31 +229,16 @@ const processEdicts = (
     //Dont save transfer events of amount "0"
     if (withDefault === 0n) return;
 
-    let rune = findOne("Rune", runeId, false, true);
+    let toAddress = utxo.address_id === 2 ? "burn" : utxo.address_id;
 
-    //If coinbase they were not transferred from an address
-    let fromAddress = InputData.runes[runeId]
-      ? InputData.sender ?? "UNALLOCATED"
-      : "UNALLOCATED";
+    if (!transfers[toAddress]) {
+      transfers[toAddress] = {};
+    }
+    if (!transfers[toAddress][runeId]) {
+      transfers[toAddress][runeId] = 0n;
+    }
 
-    let toAddress = utxo.address_id;
-
-    create("Event", {
-      type: 2,
-      block,
-      transaction_id: Transaction.virtual_id,
-      rune_id: rune.id,
-      amount: withDefault.toString(),
-      from_address_id: findOrCreate(
-        "Address",
-        fromAddress,
-        {
-          address: fromAddress,
-        },
-        true
-      ).id,
-      to_address_id: toAddress,
-    });
+    transfers[toAddress][runeId] += withDefault;
   };
 
   //References are kept because filter does not clone the array
@@ -387,19 +377,17 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
       transaction_hash: Transaction.virtual_id,
       rune_id: runeToMint.id,
       amount: runeToMint.mint_amount,
-      from_address_id: findOrCreate(
+      from_address_id: findOne(
         "Address",
-        "GENESIS",
-        {
-          address: "GENESIS",
-        },
+        Transaction.sender ?? "UNKNOWN",
+        false,
         true
       ).id,
       to_address_id: findOrCreate(
         "Address",
-        "UNALLOCATED",
+        "UNKNOWN",
         {
-          address: "UNALLOCATED",
+          address: "UNKNOWN",
         },
         true
       ).id,
@@ -504,6 +492,13 @@ const processEtching = (
 
   const symbol = etching.symbol && isSafeChar ? etching.symbol : "¤";
 
+  const etcherId = findOne(
+    "Address",
+    Transaction.sender ?? "UNKNOWN",
+    false,
+    true
+  ).id;
+
   const EtchedRune = create("Rune", {
     rune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
     name: spacedRune ? spacedRune.name : runeName,
@@ -540,6 +535,7 @@ const processEtching = (
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the rune spec (see above)
     unmintable: runestone.cenotaph || !etching.terms?.amount ? 1 : 0,
     etch_transaction_id: Transaction.virtual_id,
+    deployer_address_id: etcherId,
   });
 
   //Emit Etch event on block
@@ -549,16 +545,11 @@ const processEtching = (
     transaction_id: Transaction.virtual_id,
     rune_id: EtchedRune.id,
     amount: etching.premine ?? "0",
-    from_address_id: findOrCreate(
-      "Address",
-      "GENESIS",
-      { address: "GENESIS" },
-      true
-    ).id,
+    from_address_id: etcherId,
     to_address_id: findOrCreate(
       "Address",
-      "UNALLOCATED",
-      { address: "UNALLOCATED" },
+      "UNKNOWN",
+      { address: "UNKNOWN" },
       true
     ).id,
   });
@@ -576,9 +567,60 @@ const processEtching = (
   });
 };
 
-const finalizeTransfers = (inputUtxos, pendingUtxos, Transaction, storage) => {
+const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
+  const { create, findOne } = storage;
+  Object.keys(transfers.burn).forEach((rune_protocol_id) => {
+    create("Event", {
+      type: 3,
+      block: Transaction.block,
+      transaction_id: Transaction.virtual_id,
+      rune_id: findOne("Rune", rune_protocol_id, false, true).id,
+      amount: transfers.burn[rune_protocol_id],
+      from_address_id: findOne(
+        "Address",
+        Transaction.sender ?? "UNKNOWN",
+        false,
+        true
+      ).id,
+      to_address_id: findOne("Address", "UNKNOWN", false, true).id,
+    });
+  });
+
+  delete transfers.burn;
+
+  Object.keys(transfers).forEach((addressId) => {
+    Object.keys(transfers[addressId]).forEach((rune_protocol_id) => {
+      create("Event", {
+        type: 2,
+        block: Transaction.block,
+        transaction_id: Transaction.virtual_id,
+        rune_id: findOne("Rune", rune_protocol_id, false, true).id,
+        amount: transfers[addressId][rune_protocol_id],
+        from_address_id: findOne(
+          "Address",
+          Transaction.sender ?? "UNKNOWN",
+          false,
+          true
+        ).id,
+        to_address_id: addressId,
+      });
+    });
+  });
+
+  return;
+};
+
+const finalizeTransfers = (
+  inputUtxos,
+  pendingUtxos,
+  Transaction,
+  transfers,
+  storage
+) => {
   const { updateAttribute, create, local, findOne } = storage;
   const { block, runestone } = Transaction;
+
+  emitTransferAndBurnEvents(transfers, Transaction, storage);
 
   let opReturnOutput = pendingUtxos.find((utxo) => utxo.address_id === 2);
 
@@ -756,11 +798,15 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
 
   //Allocate all transfers from unallocated payload to the pendingUtxos
   startTimer();
+
+  let transfers = {};
+
   processEdicts(
     UnallocatedRunes,
     pendingUtxos,
     Transaction,
     InputData,
+    transfers,
     storage
   );
   stopTimer("edicts");
@@ -768,7 +814,7 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
   //Commit the utxos to storage and update Balances
 
   startTimer();
-  finalizeTransfers(inputUtxos, pendingUtxos, Transaction, storage);
+  finalizeTransfers(inputUtxos, pendingUtxos, Transaction, transfers, storage);
   stopTimer("transfers");
   return;
 };
@@ -910,6 +956,13 @@ const loadBlockIntoMemory = async (block, storage) => {
   await loadManyIntoMemory("Address", {
     address: {
       [Op.in]: recipientsInBlock,
+    },
+  });
+
+  //load senders
+  await loadManyIntoMemory("Address", {
+    address: {
+      [Op.in]: block.map((transaction) => transaction.sender).filter(Boolean),
     },
   });
 

@@ -102,7 +102,7 @@ const prefetchTransactions = async (block, storage, callRpc) => {
   const { create, findOrCreate } = storage;
   findOrCreate("Address", "COINBASE", { address: "COINBASE" }, true);
   findOrCreate("Address", "OP_RETURN", { address: "OP_RETURN" }, true);
-  findOrCreate("Address", "UNALLOCATED", { address: "UNALLOCATED" }, true);
+  findOrCreate("Address", "UNKNOWN", { address: "UNKNOWN" }, true);
   const chunks = chunkify(block, 3);
   for (let chunk of chunks) {
     console.log(chunk);
@@ -234,6 +234,8 @@ const blockManager = async (callRpc, latestBlock) => {
         return acc;
       }, {});
       // Hydrate txs with sender
+
+      //a little bit of fucking voodoo magic
       results = await Promise.all(
         results.map(async (block) => {
           return await Promise.all(
@@ -315,6 +317,13 @@ const blockManager = async (callRpc, latestBlock) => {
       for (let i = 0; i < results.length; i++) {
         let blockHeight = currentBlock + i;
         cachedBlocks[blockHeight] = results[i];
+      }
+
+      if (cachedBlocks[840000]) {
+        fs.writeFileSync(
+          path.join(__dirname, "../../dumps/blockcache.json"),
+          JSON.stringify(cachedBlocks[840000], null, 2)
+        );
       }
 
       currentBlock += chunkSize;
