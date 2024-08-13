@@ -56,34 +56,31 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
 
         // if coinbase dont populate sender or parentTx
 
-        if (vins[0].txid) {
-          if (runestone.etching?.rune && !NO_COMMITMENTS) {
-            //populate vins with the block they were created at (only for etchings)
-            tx.vin = await Promise.all(
-              vins.map(async (vin) => {
-                if (!vin.txid) return vin; //incase coinbase
+        if (!vins[0].coinbase && runestone.etching?.rune && !NO_COMMITMENTS) {
+          //populate vins with the block they were created at (only for etchings)
+          tx.vin = await Promise.all(
+            vins.map(async (vin) => {
+              if (!vin.txid) return vin; //incase coinbase
 
-                let parentTx = await callRpc("getrawtransaction", [
-                  vin.txid,
-                  true,
-                ]);
-                let parentTxBlock = await callRpc("getblockheader", [
-                  parentTx.blockhash,
-                ]);
+              let parentTx = await callRpc("getrawtransaction", [
+                vin.txid,
+                true,
+              ]);
+              let parentTxBlock = await callRpc("getblockheader", [
+                parentTx.blockhash,
+              ]);
 
-                return {
-                  ...vin,
-                  parentTx: { ...parentTx, block: parentTxBlock.height },
-                };
-              })
-            );
-            sender = tx.vin[0].parentTx.vout[0].scriptPubKey.address ?? null;
+              return {
+                ...vin,
+                parentTx: { ...parentTx, block: parentTxBlock.height },
+              };
+            })
+          );
 
-            /*
+          /*
           These two fields in a runestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
           as the sender the owner of the first vout in the transaction instead.
           */
-          }
         }
 
         resolve({
@@ -93,7 +90,6 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
           block: blockNumber,
           vout: tx.vout,
           vin: tx.vin,
-          sender,
         });
       });
     })
@@ -232,9 +228,11 @@ const blockManager = async (callRpc, latestBlock) => {
         "debug"
       );
 
+      console.log(results.flat(Infinity).length);
+
       //Map all txs in chunk to their hashes to check for vins faster
       let txMapInChunk = results.flat(Infinity).reduce((acc, tx) => {
-        acc[tx.txid] = tx;
+        acc[tx.hash] = tx;
       }, {});
       // Hydrate txs with sender
       results = await Promise.all(
