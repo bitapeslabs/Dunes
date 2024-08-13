@@ -89,9 +89,9 @@ const createRpcClient = (rpcConfig) => {
     try {
       //process the batch
       let batch = queueSnapshot.map((request, index) => request.req);
-      log("Processing batch of " + batch.length + " requests for RPC", "info");
+      log("Processing batch of " + batch.length + " requests for RPC", "debug");
       let batchResult = (await rpcClient.post("", batch))?.data;
-      log("Batch processed for " + batch.length + " requests", "info");
+      log("Batch processed for " + batch.length + " requests", "debug");
 
       queueSnapshot.forEach((request, index) => {
         rpcResults[request.id] = batchResult[index];
