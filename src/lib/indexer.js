@@ -188,7 +188,7 @@ const processEdicts = (
   UnallocatedRunes,
   pendingUtxos,
   Transaction,
-  InputData,
+  transfers,
   storage
 ) => {
   const { block, txIndex, runestone, vin } = Transaction;
@@ -764,10 +764,7 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
   However, if the Rune was not present in the original runes from vin, we can only emit the "From" as "UNALLOCATED" since we dont have the address indexed
   and the runes in the final Unallocated Runes Buffer came from the etching or minting process and were created in the transaction.
   */
-  let InputData = {
-    sender: inputUtxos.length ? inputUtxos[0].address : null,
-    runes: { ...UnallocatedRunes },
-  };
+
   //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
 
   //Delete UTXOs as they are being spent
@@ -796,7 +793,6 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
     UnallocatedRunes,
     pendingUtxos,
     Transaction,
-    InputData,
     transfers,
     storage
   );
