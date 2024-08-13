@@ -377,20 +377,13 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
       transaction_hash: Transaction.virtual_id,
       rune_id: runeToMint.id,
       amount: runeToMint.mint_amount,
-      from_address_id: findOne(
+      from_address_id: findOrCreate(
         "Address",
         Transaction.sender ?? "UNKNOWN",
-        false,
+        { address: Transaction.sender },
         true
       ).id,
-      to_address_id: findOrCreate(
-        "Address",
-        "UNKNOWN",
-        {
-          address: "UNKNOWN",
-        },
-        true
-      ).id,
+      to_address_id: 2,
     });
 
     return updateUnallocated(UnallocatedRunes, {
@@ -492,10 +485,10 @@ const processEtching = (
 
   const symbol = etching.symbol && isSafeChar ? etching.symbol : "¤";
 
-  const etcherId = findOne(
+  const etcherId = findOrCreate(
     "Address",
     Transaction.sender ?? "UNKNOWN",
-    false,
+    { address: Transaction.sender },
     true
   ).id;
 
@@ -546,12 +539,7 @@ const processEtching = (
     rune_id: EtchedRune.id,
     amount: etching.premine ?? "0",
     from_address_id: etcherId,
-    to_address_id: findOrCreate(
-      "Address",
-      "UNKNOWN",
-      { address: "UNKNOWN" },
-      true
-    ).id,
+    to_address_id: 2,
   });
 
   //Add premine runes to input allocations
@@ -568,7 +556,7 @@ const processEtching = (
 };
 
 const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
-  const { create, findOne } = storage;
+  const { create, findOrCreate, findOne } = storage;
 
   Object.keys(transfers).forEach((addressId) => {
     Object.keys(transfers[addressId]).forEach((rune_protocol_id) => {
@@ -581,10 +569,10 @@ const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
         transaction_id: Transaction.virtual_id,
         rune_id: findOne("Rune", rune_protocol_id, false, true).id,
         amount,
-        from_address_id: findOne(
+        from_address_id: findOrCreate(
           "Address",
           Transaction.sender ?? "UNKNOWN",
-          false,
+          { address: Transaction.sender },
           true
         ).id,
         to_address_id: addressId === "burn" ? 2 : addressId,
