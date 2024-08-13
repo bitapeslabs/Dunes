@@ -569,40 +569,31 @@ const processEtching = (
 
 const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
   const { create, findOne } = storage;
-  Object.keys(transfers.burn).forEach((rune_protocol_id) => {
-    create("Event", {
-      type: 3,
-      block: Transaction.block,
-      transaction_id: Transaction.virtual_id,
-      rune_id: findOne("Rune", rune_protocol_id, false, true).id,
-      amount: transfers.burn[rune_protocol_id],
-      from_address_id: findOne(
-        "Address",
-        Transaction.sender ?? "UNKNOWN",
-        false,
-        true
-      ).id,
-      to_address_id: findOne("Address", "UNKNOWN", false, true).id,
-    });
-  });
-
-  delete transfers.burn;
 
   Object.keys(transfers).forEach((addressId) => {
     Object.keys(transfers[addressId]).forEach((rune_protocol_id) => {
+      let amount = transfers[addressId][rune_protocol_id];
+      if (!amount) return; //Ignore 0 balances
+
       create("Event", {
-        type: 2,
+        type: addressId === "burn" ? 3 : 2,
         block: Transaction.block,
         transaction_id: Transaction.virtual_id,
         rune_id: findOne("Rune", rune_protocol_id, false, true).id,
-        amount: transfers[addressId][rune_protocol_id],
+        amount,
         from_address_id: findOne(
           "Address",
           Transaction.sender ?? "UNKNOWN",
           false,
           true
         ).id,
-        to_address_id: addressId,
+        to_address_id: findOne(
+          "Address",
+          //Transfer to Unknown if burnt
+          addressId === "burn" ? 2 : addressId,
+          false,
+          true
+        ).id,
       });
     });
   });
