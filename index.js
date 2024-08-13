@@ -9,7 +9,10 @@ const { log } = require("./src/lib/utils");
 const { storage: newStorage } = require("./src/lib/storage");
 const { GENESIS_BLOCK } = require("./src/lib/constants");
 const { sleep } = require("./src/lib/utils");
-const { blockManager: createBlockManager } = require("./src/lib/runeutils");
+const {
+  blockManager: createBlockManager,
+  prefetchTransactions,
+} = require("./src/lib/runeutils");
 
 const {
   databaseConnection: createConnection,
@@ -175,6 +178,22 @@ const startServer = async () => {
     await processBlocksInRange(lastBlockProcessed + 1, lastBlockProcessed + 1);
     return;
   }
+
+  if (lastBlockProcessed < GENESIS_BLOCK) {
+    let amountPrefetch = parseInt(process.env.PREFETCH_BLOCKS ?? 100);
+    log(
+      "Prefetching previous " +
+        amountPrefetch +
+        " blocks before genesis for fast indexing... (this can take a few minutes)",
+      "info"
+    );
+    const blocksToFetch = new Array(amountPrefetch)
+      .fill(0)
+      .map((_, i) => lastBlockProcessed + i + 1 - amountPrefetch);
+    await prefetchTransactions(blocksToFetch, storage, callRpcBatch);
+    await storage.commitChanges();
+  }
+  return;
 
   /*
     Main server loop, syncnronize any time a new block is found or we are off by any amount of blocks

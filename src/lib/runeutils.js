@@ -16,6 +16,7 @@ const {
   convertPartsToAmount,
   sleep,
   stripObject,
+  chunkify,
 } = require("./utils");
 const NO_COMMITMENTS = process.argv.includes("--no-commitments");
 const fs = require("fs");
@@ -104,6 +105,43 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
   );
 
   return transactionsWithRunestones;
+};
+
+const prefetchTransactions = async (block, storage, callRpc) => {
+  const { create, findOrCreate } = storage;
+  const chunks = chunkify(block, 3);
+  for (let chunk of chunks) {
+    console.log(chunk);
+    await Promise.all(
+      chunk.map(async (blockNumber) => {
+        const blockHash = await callRpc("getblockhash", [
+          parseInt(blockNumber),
+        ]);
+
+        const block = await callRpc("getblock", [blockHash, 2]);
+
+        block.tx.forEach((transaction) => {
+          let Transaction = create("Transaction", {
+            hash: transaction.txid,
+          });
+
+          transaction.vout.forEach((utxo, index) => {
+            let address = utxo.scriptPubKey.address;
+            create("Utxo", {
+              value_sats: parseInt(utxo.value * 10 ** 8).toString(),
+              block: blockNumber,
+              transaction_id: Transaction.id,
+              address_id: findOrCreate("Address", address, { address }).id,
+              vout_index: utxo.n,
+            });
+          });
+        });
+
+        return;
+      })
+    );
+  }
+  return;
 };
 
 const blockManager = (callRpc, latestBlock) => {
@@ -408,4 +446,5 @@ module.exports = {
   getRunestonesInBlock,
   convertPartsToAmount,
   convertAmountToParts,
+  prefetchTransactions,
 };

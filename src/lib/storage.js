@@ -29,9 +29,10 @@ const storage = async (useSync) => {
 
   const LOCAL_PRIMARY_KEYS = {
     //These have no circular dependencies and should be upserted fisrt
-
-    Transaction: "hash",
     Address: "address",
+
+    //Transaction depends on address
+    Transaction: "hash",
 
     //All of these depend on transaction and address
     Rune: "rune_protocol_id",
