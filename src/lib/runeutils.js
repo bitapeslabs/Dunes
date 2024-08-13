@@ -232,6 +232,9 @@ const blockManager = async (callRpc, latestBlock) => {
         "debug"
       );
 
+      let txmap = results.flat(Infinity).reduce((acc, tx) => {
+        acc[tx.hash] = tx;
+      }, {});
       // Hydrate txs with sender
       results = await Promise.all(
         results.map(async (block) => {
@@ -254,6 +257,17 @@ const blockManager = async (callRpc, latestBlock) => {
                   sender:
                     senderVin.parentTx.vout[senderVin.vout].scriptPubKey
                       .address,
+                };
+              }
+
+              //Check if the tx is referenced in the chunk
+              let chunkTx = vins
+                .map((vin) => txmap[vin.txid])
+                .filter(Boolean)[0];
+              if (chunkTx) {
+                return {
+                  ...tx,
+                  sender: chunkTx.vout[vin.vout].scriptPubKey.address,
                 };
               }
 
