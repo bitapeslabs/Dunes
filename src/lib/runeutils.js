@@ -121,6 +121,8 @@ const prefetchTransactions = async (block, storage, callRpc) => {
         const block = await callRpc("getblock", [blockHash, 2]);
 
         block.tx.forEach((transaction) => {
+          if (transaction.vin[0].coinbase) return;
+
           let Transaction = create("Transaction", {
             hash: transaction.txid,
           });
