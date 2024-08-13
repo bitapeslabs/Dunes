@@ -256,15 +256,21 @@ const blockManager = async (callRpc, latestBlock) => {
               };
             }
 
-            //If none of the above conditions are met, we must fetch the sender from bitcoinrpc
-            let sender = (
-              await callRpc("getrawtransaction", [vins[0].txid, true])
-            ).vout[vins[0].vout].scriptPubKey.address;
+            //If none of the above conditions are met, we must fetch the sender from bitcoinrpc (if mint or etching)
 
-            return {
-              ...tx,
-              sender,
-            };
+            if(runestone?.mint || runestone?.etching) {
+              let sender = (
+                await callRpc("getrawtransaction", [vins[0].txid, true])
+              ).vout[vins[0].vout].scriptPubKey.address;
+
+              return {
+                ...tx,
+                sender,
+              };
+            }
+
+            //We dont need the sender for non-rune related txs
+            return { ...tx, sender: null };
           });
         })
       );
