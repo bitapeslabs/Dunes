@@ -200,7 +200,7 @@ const processEdicts = (
     //Transaction is a cenotaph, input runes are burnt.
     //https://docs.ordinals.com/runes/specification.html#Transferring
 
-    transfer.burn = Object.keys(UnallocatedRunes).reduce((acc, runeId) => {
+    transfers.burn = Object.keys(UnallocatedRunes).reduce((acc, runeId) => {
       acc[runeId] = UnallocatedRunes[runeId];
       return acc;
     }, {});
