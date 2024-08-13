@@ -374,7 +374,7 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
     create("Event", {
       type: 1,
       block,
-      transaction_hash: Transaction.virtual_id,
+      transaction_id: Transaction.virtual_id,
       rune_id: runeToMint.id,
       amount: runeToMint.mint_amount,
       from_address_id: findOrCreate(
