@@ -180,7 +180,7 @@ const blockManager = async (callRpc, latestBlock) => {
       // Wait for all Promises in the chunk to resolve
       let results = await Promise.all(promises);
 
-      const { loadManyIntoMemory, findOne, local } = readBlockStorage;
+      const { loadManyIntoMemory, findOne, local, clear } = readBlockStorage;
 
       const transactionsInChunk = [
         ...new Set(
@@ -268,6 +268,8 @@ const blockManager = async (callRpc, latestBlock) => {
           });
         })
       );
+
+      clear();
 
       // Store the results in the cache
       for (let i = 0; i < results.length; i++) {

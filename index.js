@@ -98,7 +98,7 @@ const startServer = async () => {
   //Process blocks in range will process blocks start:(startBlock) to end:(endBlock)
   //startBlock and endBlock are inclusive (they are also processed)
   const processBlocksInRange = async (startBlock, endBlock) => {
-    const { getBlock } = createBlockManager(callRpcBatch, endBlock);
+    const { getBlock } = await createBlockManager(callRpcBatch, endBlock);
     let currentBlock = startBlock;
     let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
     while (currentBlock < endBlock) {
