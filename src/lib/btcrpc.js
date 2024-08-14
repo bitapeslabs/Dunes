@@ -98,12 +98,12 @@ const createRpcClient = (rpcConfig) => {
       let batchResult = [];
       for (let chunk in chunks) {
         log(
-          "Processing batch of " + batch.length + " requests for RPC",
+          "Processing batch of " + chunk.length + " requests for RPC",
           "debug"
         );
         let result = (await rpcClient.post("", chunk))?.data;
         batchResult.push(result);
-        log("Batch processed for " + batch.length + " requests", "debug");
+        log("Batch processed for " + chunk.length + " requests", "debug");
       }
 
       batchResult = batchResult.flat(Infinity);
