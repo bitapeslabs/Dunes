@@ -40,6 +40,15 @@ const decipherRunestone = (txJson) => {
   };
 };
 
+const isUsefulRuneTx = (Transaction) => {
+  const { runestone } = Transaction;
+  if (runestone?.cenotaph) return true; //burn happens
+
+  if (runestone?.mint || runestone?.etching || runestone?.edicts) return true;
+
+  return false;
+};
+
 const getRunestonesInBlock = async (blockNumber, callRpc) => {
   const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
 
@@ -50,39 +59,6 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
   const transactionsWithRunestones = await Promise.all(
     transactions.map((tx, txIndex) => {
       return new Promise(async function (resolve, reject) {
-        let runestone = decipherRunestone(tx);
-        let sender = "GENESIS";
-        const { vin: vins } = tx;
-
-        // if coinbase dont populate sender or parentTx
-
-        if (!vins[0].coinbase && runestone.etching?.rune && !NO_COMMITMENTS) {
-          //populate vins with the block they were created at (only for etchings)
-          tx.vin = await Promise.all(
-            vins.map(async (vin) => {
-              if (!vin.txid) return vin; //incase coinbase
-
-              let parentTx = await callRpc("getrawtransaction", [
-                vin.txid,
-                true,
-              ]);
-              let parentTxBlock = await callRpc("getblockheader", [
-                parentTx.blockhash,
-              ]);
-
-              return {
-                ...vin,
-                parentTx: { ...parentTx, block: parentTxBlock.height },
-              };
-            })
-          );
-
-          /*
-          These two fields in a runestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
-          as the sender the owner of the first vout in the transaction instead.
-          */
-        }
-
         resolve({
           runestone: decipherRunestone(tx),
           hash: tx.txid,
@@ -144,6 +120,164 @@ const prefetchTransactions = async (block, storage, callRpc) => {
   return;
 };
 
+const populateResultsWithPrevoutData = async (results, storage) => {
+  const { loadManyIntoMemory, findOne, local, clear, fetchGroupLocally } =
+    storage;
+
+  const transactionsInChunk = [
+    ...new Set(
+      results
+        .flat(Infinity)
+        .map((tx) => (isUsefulRuneTx(tx) ? tx.vin.map((vin) => vin.txid) : []))
+        .flat(Infinity)
+        .filter(Boolean)
+    ),
+  ];
+
+  //Load relevant vin into memory to avoid fetching from bitcoinrpc
+
+  await loadManyIntoMemory("Transaction", {
+    hash: { [Op.in]: transactionsInChunk },
+  });
+
+  await loadManyIntoMemory("Utxo", {
+    transaction_id: {
+      [Op.in]: Object.values(local.Transaction).map((tx) => tx.id),
+    },
+  });
+
+  await loadManyIntoMemory("Address", {
+    id: {
+      [Op.in]: [
+        ...new Set(Object.values(local.Utxo).map((utxo) => utxo.address_id)),
+      ],
+    },
+  });
+
+  log(
+    "(BC) Transactions loaded into memory: " +
+      Object.keys(local.Transaction).length,
+    "debug"
+  );
+
+  log(
+    "(BC) UTXOS loaded into memory: " + Object.keys(local.Utxo).length,
+    "debug"
+  );
+
+  log(
+    "(BC) Addresses loaded into memory: " + Object.keys(local.Address).length,
+    "debug"
+  );
+
+  //Map all txs in chunk to their hashes to check for vins faster
+  let txMapInChunk = results.flat(Infinity).reduce((acc, tx) => {
+    acc[tx.hash] = tx;
+    return acc;
+  }, {});
+  // Hydrate txs with sender
+
+  //a little bit of fucking voodoo magic
+  return await Promise.all(
+    results.map(async (block) => {
+      return await Promise.all(
+        block.map(async (tx) => {
+          const { vin: vins, runestone } = tx;
+
+          // if coinbase dont populate sender or parentTx
+          if (vins[0].coinbase) {
+            return { ...tx, sender: "COINBASE" };
+          }
+          if (runestone.etching?.rune && !NO_COMMITMENTS) {
+            //populate vins with the block they were created at (only for etchings)
+            let newVins = await Promise.all(
+              tx.vin.map(async (vin) => {
+                if (!vin.txid) return vin; //incase coinbase
+
+                let parentTx = await callRpc("getrawtransaction", [
+                  vin.txid,
+                  true,
+                ]);
+                let parentTxBlock = await callRpc("getblockheader", [
+                  parentTx.blockhash,
+                ]);
+
+                return {
+                  ...vin,
+                  parentTx: { ...parentTx, block: parentTxBlock.height },
+                };
+              })
+            );
+
+            let senderVin = newVins.find(
+              (vin) => vin.parentTx.vout[vin.vout].scriptPubKey.address
+            );
+
+            return {
+              ...tx,
+              vin: newVins,
+              sender:
+                senderVin.parentTx.vout[senderVin.vout].scriptPubKey.address,
+            };
+
+            /*
+                These two fields in a runestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
+                as the sender the owner of the first vout in the transaction instead.
+                */
+          }
+
+          //Check if the tx is referenced in the chunk
+          let chunkVin = vins.find((vin) => txMapInChunk[vin.txid]);
+
+          if (chunkVin) {
+            let chunkTx = txMapInChunk[chunkVin.txid];
+            return {
+              ...tx,
+              sender: chunkTx.vout[chunkVin.vout].scriptPubKey.address,
+            };
+          }
+
+          let transaction = vins
+            .map((vin) => findOne("Transaction", vin.txid, false, true))
+            .filter(Boolean)[0];
+
+          //Check if the transaction hash has already been seen in db
+          if (transaction) {
+            let sender_id = fetchGroupLocally(
+              "Utxo",
+              "transaction_id",
+              transaction.id
+            )?.[0]?.address_id;
+
+            if (!sender_id) return { ...tx, sender: null };
+            let sender = findOne("Address", sender_id + "@REF@id").address;
+            return {
+              ...tx,
+              sender,
+            };
+          }
+
+          //If none of the above conditions are met, we must fetch the sender from bitcoinrpc (if mint or etching)
+
+          if (runestone?.mint || runestone?.etching) {
+            let sender = (
+              await callRpc("getrawtransaction", [vins[0].txid, true])
+            ).vout[vins[0].vout].scriptPubKey.address;
+
+            return {
+              ...tx,
+              sender,
+            };
+          }
+
+          //We dont need the sender for non-rune related txs
+          return { ...tx, sender: null };
+        })
+      );
+    })
+  );
+};
+
 const blockManager = async (callRpc, latestBlock) => {
   const readBlockStorage = await newStorage();
 
@@ -178,143 +312,7 @@ const blockManager = async (callRpc, latestBlock) => {
 
       // Wait for all Promises in the chunk to resolve
       let results = await Promise.all(promises);
-
-      const { loadManyIntoMemory, findOne, local, clear, fetchGroupLocally } =
-        readBlockStorage;
-
-      const transactionsInChunk = [
-        ...new Set(
-          results
-            .flat(Infinity)
-            .map((tx) => tx.vin.map((vin) => vin.txid))
-            .flat(Infinity)
-            .filter(Boolean)
-        ),
-      ];
-
-      //Load relevant vin into memory to avoid fetching from bitcoinrpc
-
-      await loadManyIntoMemory("Transaction", {
-        hash: { [Op.in]: transactionsInChunk },
-      });
-
-      await loadManyIntoMemory("Utxo", {
-        transaction_id: {
-          [Op.in]: Object.values(local.Transaction).map((tx) => tx.id),
-        },
-      });
-
-      await loadManyIntoMemory("Address", {
-        id: {
-          [Op.in]: [
-            ...new Set(
-              Object.values(local.Utxo).map((utxo) => utxo.address_id)
-            ),
-          ],
-        },
-      });
-
-      log(
-        "(BC) Transactions loaded into memory: " +
-          Object.keys(local.Transaction).length,
-        "debug"
-      );
-
-      log(
-        "(BC) UTXOS loaded into memory: " + Object.keys(local.Utxo).length,
-        "debug"
-      );
-
-      log(
-        "(BC) Addresses loaded into memory: " +
-          Object.keys(local.Address).length,
-        "debug"
-      );
-
-      //Map all txs in chunk to their hashes to check for vins faster
-      let txMapInChunk = results.flat(Infinity).reduce((acc, tx) => {
-        acc[tx.hash] = tx;
-        return acc;
-      }, {});
-      // Hydrate txs with sender
-
-      //a little bit of fucking voodoo magic
-      results = await Promise.all(
-        results.map(async (block) => {
-          return await Promise.all(
-            block.map(async (tx) => {
-              const { vin: vins, runestone } = tx;
-
-              // if coinbase dont populate sender or parentTx
-              if (vins[0].coinbase) {
-                return { ...tx, sender: "COINBASE" };
-              }
-
-              //check if we already have the sender in the cache
-              if (runestone.etching?.rune && !NO_COMMITMENTS) {
-                let senderVin = vins.find(
-                  (vin) => vin.parentTx.vout[vin.vout].scriptPubKey.address
-                );
-                return {
-                  ...tx,
-                  sender:
-                    senderVin.parentTx.vout[senderVin.vout].scriptPubKey
-                      .address,
-                };
-              }
-
-              //Check if the tx is referenced in the chunk
-              let chunkVin = vins.find((vin) => txMapInChunk[vin.txid]);
-
-              if (chunkVin) {
-                let chunkTx = txMapInChunk[chunkVin.txid];
-                return {
-                  ...tx,
-                  sender: chunkTx.vout[chunkVin.vout].scriptPubKey.address,
-                };
-              }
-
-              let transaction = vins
-                .map((vin) => findOne("Transaction", vin.txid, false, true))
-                .filter(Boolean)[0];
-
-              //Check if the transaction hash has already been seen in db
-              if (transaction) {
-                let sender_id = fetchGroupLocally(
-                  "Utxo",
-                  "transaction_id",
-                  transaction.id
-                )?.[0]?.address_id;
-
-                if (!sender_id) return { ...tx, sender: null };
-                let sender = findOne("Address", sender_id + "@REF@id").address;
-                return {
-                  ...tx,
-                  sender,
-                };
-              }
-
-              //If none of the above conditions are met, we must fetch the sender from bitcoinrpc (if mint or etching)
-
-              if (runestone?.mint || runestone?.etching) {
-                let sender = (
-                  await callRpc("getrawtransaction", [vins[0].txid, true])
-                ).vout[vins[0].vout].scriptPubKey.address;
-
-                return {
-                  ...tx,
-                  sender,
-                };
-              }
-
-              //We dont need the sender for non-rune related txs
-              return { ...tx, sender: null };
-            })
-          );
-        })
-      );
-
-      clear();
+      results = await populateResultsWithPrevoutData(results, readBlockStorage);
 
       // Store the results in the cache
       for (let i = 0; i < results.length; i++) {
@@ -593,4 +591,5 @@ module.exports = {
   convertPartsToAmount,
   convertAmountToParts,
   prefetchTransactions,
+  isUsefulRuneTx,
 };

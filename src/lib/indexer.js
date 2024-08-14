@@ -7,6 +7,7 @@ const {
   updateUnallocated,
   minimumLengthAtHeight,
   checkCommitment,
+  isUsefulRuneTx,
 } = require("./runeutils");
 
 const { Op } = require("sequelize");
@@ -814,7 +815,11 @@ const loadBlockIntoMemory = async (block, storage) => {
   const transactionHashInputsInBlock = [
     ...new Set(
       block
-        .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
+        .map((transaction) =>
+          isUsefulRuneTx(transaction) //We dont need to search for transactions that dont change rune state
+            ? transaction.vin.map((utxo) => utxo.txid)
+            : []
+        )
         .flat(Infinity)
         .filter(Boolean)
     ),
