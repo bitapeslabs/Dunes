@@ -107,7 +107,6 @@ const createRpcClient = (rpcConfig) => {
       ).flat(Infinity);
       log("Batch processed for " + batch.length + " requests", "debug");
 
-      batchResult = batchResult.flat(Infinity);
       queueSnapshot.forEach((request, index) => {
         rpcResults[request.id] = batchResult[index];
       });
