@@ -196,10 +196,9 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
               tx.vin.map(async (vin) => {
                 if (!vin.txid) return vin; //incase coinbase
 
-                let parentTx = await callRpc("getrawtransaction", [
-                  vin.txid,
-                  true,
-                ]);
+                let parentTx =
+                  txMapInChunk[vin.txid] ??
+                  (await callRpc("getrawtransaction", [vin.txid, true]));
                 let parentTxBlock = await callRpc("getblockheader", [
                   parentTx.blockhash,
                 ]);
