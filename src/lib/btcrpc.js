@@ -105,7 +105,7 @@ const createRpcClient = (rpcConfig) => {
       let batchResult = (
         await Promise.all(chunks.map((chunk) => rpcClient.post("", chunk)))
       ).flat(Infinity);
-      log("Batch processed for " + chunk.length + " requests", "debug");
+      log("Batch processed for " + batch.length + " requests", "debug");
 
       batchResult = batchResult.flat(Infinity);
       queueSnapshot.forEach((request, index) => {
