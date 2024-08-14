@@ -716,7 +716,6 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
 
   stopTimer("body_init_utxo_fetch");
 
-  /*
   if (
     //If no input utxos are provided (with runes inside)
     inputUtxos.length === 0 &&
@@ -726,7 +725,7 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
     //We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions
     if (!(vin[0].coinbase && block == GENESIS_BLOCK)) return;
   }
-  */
+
   const parentTransaction = create("Transaction", { hash }, false, true);
 
   Transaction.virtual_id = parentTransaction.id;
