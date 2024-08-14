@@ -99,12 +99,16 @@ const createRpcClient = (rpcConfig) => {
           batch.length +
           " requests with " +
           chunks.length +
-          "chunks  for RPC",
+          " chunks  for RPC",
         "debug"
       );
       let batchResult = (
         await Promise.all(chunks.map((chunk) => rpcClient.post("", chunk)))
-      ).flat(Infinity);
+      )
+        .map((result) => result?.data)
+        .flat(Infinity)
+        .filter(Boolean);
+
       log("Batch processed for " + batch.length + " requests", "debug");
 
       queueSnapshot.forEach((request, index) => {
