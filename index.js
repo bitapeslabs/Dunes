@@ -37,7 +37,7 @@ const testblock = JSON.parse(
 const emitToDiscord = async (events) => {
   let etchings = events
     .filter((event) => event.type === 0)
-    .filter((_, i) => i <= 10);
+    .filter((_, i) => i <= 5);
   for (let etch of etchings) {
     try {
       const embed = {
