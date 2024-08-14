@@ -540,6 +540,7 @@ const storage = async (useSync) => {
 
   const clear = () => {
     _genDefaultCache();
+    global.gc();
   };
 
   const commitChanges = async () => {
@@ -608,7 +609,7 @@ const storage = async (useSync) => {
     }
 
     //Reset all local cache after commit
-    _genDefaultCache();
+    clear();
 
     return;
   };

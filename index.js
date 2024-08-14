@@ -170,7 +170,6 @@ const startServer = async () => {
         "info"
       );
       await storage.commitChanges();
-      global.gc();
       //Update the current block in the DB
       log("Block chunk finished processing!", "info");
       await Setting.update(
