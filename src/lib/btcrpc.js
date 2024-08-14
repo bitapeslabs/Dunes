@@ -110,7 +110,10 @@ const createRpcClient = (rpcConfig) => {
           .flat(Infinity)
           .filter(Boolean);
         batchResult.push(result);
-        log("Batch processed for " + chunk.length + " requests", "debug");
+        log(
+          "Batch processed for " + batchesInChunk.length + " requests",
+          "debug"
+        );
       }
 
       batchResult = batchResult.flat(Infinity);
