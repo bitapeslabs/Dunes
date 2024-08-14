@@ -735,7 +735,7 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
     //check if it was populated in
     Transaction.sender ??
     //if it wasnt populated in check if its in db froma prev utxo
-    findOne("Address", inputUtxos[0].address_id + "@REF@id", false, true) ??
+    findOne("Address", inputUtxos[0]?.address_id + "@REF@id", false, true) ??
     //rip
     "UNKNOWN";
 
