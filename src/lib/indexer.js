@@ -670,7 +670,7 @@ const handleGenesis = (Transaction, rpc, storage) => {
 const processRunestone = (Transaction, rpc, storage, useTest) => {
   const { vout, vin, block, hash } = Transaction;
 
-  const { create, fetchGroupLocally, findOne, local } = storage;
+  const { create, fetchGroupLocally, findOne, local, findOrCreate } = storage;
 
   //Ignore the coinbase transaction (unless genesis rune is being created)
 
@@ -716,6 +716,7 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
 
   stopTimer("body_init_utxo_fetch");
 
+  //
   if (
     //If no input utxos are provided (with runes inside)
     inputUtxos.length === 0 &&
