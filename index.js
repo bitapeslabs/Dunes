@@ -37,7 +37,7 @@ const testblock = JSON.parse(
 const emitToDiscord = async (events) => {
   let etchings = events
     .filter((event) => event.type === 0)
-    .filter((_, i) => i <= 20);
+    .filter((_, i) => i <= 10);
   for (let etch of etchings) {
     try {
       const embed = {
@@ -60,7 +60,7 @@ const emitToDiscord = async (events) => {
       await axios.post(process.env.DISCORD_WEBHOOK, payload);
       await sleep(200);
     } catch (e) {
-      console.error(e);
+      //silently fail
     }
   }
   return;
