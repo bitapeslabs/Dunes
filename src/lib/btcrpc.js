@@ -98,7 +98,11 @@ const createRpcClient = (rpcConfig) => {
       let batchResult = [];
       for (let batchesInChunk of chunks) {
         log(
-          "Processing batch of " + batchesInChunk.length + " chunk for RPC",
+          "Processing chunks with respective lengths " +
+            Object.values(batchesInChunk)
+              .map((batch) => batch.length)
+              .join(", ") +
+            " for RPC",
           "debug"
         );
         let result = (
@@ -111,7 +115,11 @@ const createRpcClient = (rpcConfig) => {
           .filter(Boolean);
         batchResult.push(result);
         log(
-          "Batch processed for " + batchesInChunk.length + " chunks",
+          "{rocessed chunks with respective lengths " +
+            Object.values(batchesInChunk)
+              .map((batch) => batch.length)
+              .join(", ") +
+            " for RPC",
           "debug"
         );
       }
