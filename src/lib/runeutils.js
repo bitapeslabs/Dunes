@@ -120,7 +120,7 @@ const prefetchTransactions = async (block, storage, callRpc) => {
   return;
 };
 
-const populateResultsWithPrevoutData = async (results, storage) => {
+const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
   const { loadManyIntoMemory, findOne, local, clear, fetchGroupLocally } =
     storage;
 
@@ -314,7 +314,11 @@ const blockManager = async (callRpc, latestBlock) => {
 
       // Wait for all Promises in the chunk to resolve
       let results = await Promise.all(promises);
-      results = await populateResultsWithPrevoutData(results, readBlockStorage);
+      results = await populateResultsWithPrevoutData(
+        results,
+        callRpc,
+        readBlockStorage
+      );
 
       // Store the results in the cache
       for (let i = 0; i < results.length; i++) {
