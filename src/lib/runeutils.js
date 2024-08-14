@@ -108,7 +108,7 @@ const prefetchTransactions = async (block, storage, callRpc) => {
     parseInt(process.env.GET_BLOCK_CHUNK_SIZE ?? 3)
   );
   for (let chunk of chunks) {
-    log("Prefetching blocks: " + Object.keys(chunk).join(", "), "info");
+    log("Prefetching blocks: " + Object.values(chunk).join(", "), "info");
     await Promise.all(
       chunk.map(async (blockNumber) => {
         const blockHash = await callRpc("getblockhash", [
