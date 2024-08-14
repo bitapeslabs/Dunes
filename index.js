@@ -2,6 +2,7 @@
 const bodyParser = require("body-parser");
 const express = require("express");
 const server = express();
+const axios = require("axios");
 
 //Local dependencies
 const { createRpcClient } = require("./src/lib/btcrpc");
@@ -32,6 +33,61 @@ const path = require("path");
 const testblock = JSON.parse(
   fs.readFileSync(path.join(__dirname, "./dumps/testblock.json"), "utf8")
 );
+
+const emitToDiscord = async (events) => {
+  let etchings = events.filter((event) => event.type === 0);
+  for (let etch of etchings) {
+    try {
+      const embed = {
+        title: "New etching!",
+        description: "The rune " + etch.rune.name + " has been etched!",
+        color: 0xffa500, // Color in hexadecimal
+        fields: Object.keys(etch.rune)
+          .filter((_, i) => i <= 10)
+          .map((fieldName) => ({
+            name: fieldName,
+            value: etch.rune[fieldName],
+            inline: true,
+          })),
+        timestamp: new Date(),
+      };
+      const payload = {
+        embeds: [embed],
+      };
+
+      await axios.post(process.env.DISCORD_WEBHOOK, payload);
+      await sleep(200);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  return;
+};
+
+const emitEvents = async (storage) => {
+  const { local, findOne } = storage;
+  let populatedEvents = [
+    ...Object.values(local.Event).map((event) => ({
+      id: event.id,
+      type: event.type,
+      block: event.block,
+      transaction: findOne(
+        "Transaction",
+        event.transaction_id + "@REF@id",
+        false,
+        true
+      ),
+      rune: findOne("Rune", event.rune_id + "@REF@id", false, true),
+      amount: event.amount,
+      from: findOne("Address", event.from_address_id + "@REF@id", false, true),
+      to: findOne("Address", event.to_address_id + "@REF@id", false, true),
+    })),
+  ];
+
+  //For testing, in production this would be sent to a webhook or on an exposed WS
+  emitToDiscord(populatedEvents);
+  return;
+};
 
 const startRpc = async () => {
   log("Connecting to db (rpc)...", "info");
@@ -110,7 +166,7 @@ const startServer = async () => {
     const { getBlock } = await createBlockManager(callRpcBatch, endBlock);
     let currentBlock = startBlock;
     let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
-    while (currentBlock < endBlock) {
+    while (currentBlock <= endBlock) {
       const offset = currentBlock + chunkSize - endBlock;
 
       const blocksToFetch = new Array(chunkSize - (offset > 0 ? offset : 0))
@@ -165,10 +221,12 @@ const startServer = async () => {
       }
 
       log(
-        "Committing changes from blocks into db: " +
+        "Committing changes from blocks into db and emitting events: " +
           Object.keys(blocksMapped).join(", "),
         "info"
       );
+
+      await emitEvents(storage);
       await storage.commitChanges();
       //Update the current block in the DB
       log("Block chunk finished processing!", "info");

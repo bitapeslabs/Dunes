@@ -48,6 +48,7 @@ const storage = async (useSync) => {
   const REFERENCE_FIELDS = {
     Rune: ["raw_name", "id"],
     Address: ["id"],
+    Transaction: ["id"],
   };
 
   // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
