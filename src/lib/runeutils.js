@@ -66,6 +66,7 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
           block: blockNumber,
           vout: tx.vout,
           vin: tx.vin,
+          full_tx: tx,
         });
       });
     })
@@ -197,15 +198,16 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
                 if (!vin.txid) return vin; //incase coinbase
 
                 let parentTx =
-                  txMapInChunk[vin.txid] ??
+                  txMapInChunk[vin.txid]?.full_tx ??
                   (await callRpc("getrawtransaction", [vin.txid, true]));
-                let parentTxBlock = await callRpc("getblockheader", [
-                  parentTx.blockhash,
-                ]);
+                let parentTxBlock =
+                  txMapInChunk[vin.txid]?.block ??
+                  (await callRpc("getblockheader", [parentTx.blockhash]))
+                    .height;
 
                 return {
                   ...vin,
-                  parentTx: { ...parentTx, block: parentTxBlock.height },
+                  parentTx: { ...parentTx, block: parentTxBlock },
                 };
               })
             );
