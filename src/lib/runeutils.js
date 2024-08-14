@@ -103,7 +103,10 @@ const prefetchTransactions = async (block, storage, callRpc) => {
   findOrCreate("Address", "COINBASE", { address: "COINBASE" }, true);
   findOrCreate("Address", "OP_RETURN", { address: "OP_RETURN" }, true);
   findOrCreate("Address", "UNKNOWN", { address: "UNKNOWN" }, true);
-  const chunks = chunkify(block, 3);
+  const chunks = chunkify(
+    block,
+    parseInt(process.env.GET_BLOCK_CHUNK_SIZE ?? 3)
+  );
   for (let chunk of chunks) {
     console.log(chunk);
     await Promise.all(
