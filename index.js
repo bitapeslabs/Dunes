@@ -35,6 +35,7 @@ const testblock = JSON.parse(
 );
 
 const emitToDiscord = async (events) => {
+  if (!process.env.DISCORD_WEBHOOK) return;
   let etchings = events
     .filter((event) => event.type === 0)
     .filter((_, i) => i <= 5);
