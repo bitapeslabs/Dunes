@@ -1096,7 +1096,9 @@ const processBlock = (block, callRpc, storage, useTest) => {
           "/" +
           blockData.length +
           "\nrunestone: " +
-          JSON.stringify(Transaction.runestone),
+          JSON.stringify(Transaction.runestone) +
+          "\ntransaction: " +
+          JSON.stringify(Transaction),
         "panic"
       );
       throw e;
