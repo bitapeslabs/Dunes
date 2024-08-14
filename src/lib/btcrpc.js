@@ -94,17 +94,11 @@ const createRpcClient = (rpcConfig) => {
       //We want to throttle large batch sizes to avoid crashing the Bitcoin RPC
       const maxBatchSize = parseInt(process.env.RPC_MAX_BATCH_SIZE ?? 1000);
       const chunks = chunkify(batch, maxBatchSize);
-
-      let batchResult = [];
-      for (let chunk of chunks) {
-        log(
-          "Processing batch of " + chunk.length + " requests for RPC",
-          "debug"
-        );
-        let result = (await rpcClient.post("", chunk))?.data;
-        batchResult.push(result);
-        log("Batch processed for " + chunk.length + " requests", "debug");
-      }
+      log("Processing batch of " + chunk.length + " requests for RPC", "debug");
+      let batchResult = (
+        await Promise.all(chunks.map((chunk) => rpcClient.post("", chunk)))
+      ).flat(Infinity);
+      log("Batch processed for " + chunk.length + " requests", "debug");
 
       batchResult = batchResult.flat(Infinity);
       queueSnapshot.forEach((request, index) => {
