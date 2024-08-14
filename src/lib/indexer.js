@@ -731,6 +731,13 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
   const parentTransaction = create("Transaction", { hash }, false, true);
 
   Transaction.virtual_id = parentTransaction.id;
+  Transaction.sender =
+    //check if it was populated in
+    Transaction.sender ??
+    //if it wasnt populated in check if its in db froma prev utxo
+    findOne("Address", inputUtxos[0].address_id + "@REF@id", false, true) ??
+    //rip
+    "UNKNOWN";
 
   if (vin[0].coinbase && block === GENESIS_BLOCK)
     handleGenesis(Transaction, rpc, storage);
@@ -815,11 +822,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   const transactionHashInputsInBlock = [
     ...new Set(
       block
-        .map((transaction) =>
-          isUsefulRuneTx(transaction) //We dont need to search for transactions that dont change rune state
-            ? transaction.vin.map((utxo) => utxo.txid)
-            : []
-        )
+        .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
         .flat(Infinity)
         .filter(Boolean)
     ),

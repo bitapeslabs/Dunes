@@ -44,7 +44,7 @@ const isUsefulRuneTx = (Transaction) => {
   const { runestone } = Transaction;
   if (runestone?.cenotaph) return true; //burn happens
 
-  if (runestone?.mint || runestone?.etching || runestone?.edicts) return true;
+  if (runestone?.mint || runestone?.etching) return true;
 
   return false;
 };
@@ -128,6 +128,8 @@ const populateResultsWithPrevoutData = async (results, storage) => {
     ...new Set(
       results
         .flat(Infinity)
+
+        //We can do this because the indexer can interpret the sender from what we have stored in db.
         .map((tx) => (isUsefulRuneTx(tx) ? tx.vin.map((vin) => vin.txid) : []))
         .flat(Infinity)
         .filter(Boolean)
@@ -318,13 +320,6 @@ const blockManager = async (callRpc, latestBlock) => {
       for (let i = 0; i < results.length; i++) {
         let blockHeight = currentBlock + i;
         cachedBlocks[blockHeight] = results[i];
-      }
-
-      if (cachedBlocks[840000]) {
-        fs.writeFileSync(
-          path.join(__dirname, "../../dumps/blockcache.json"),
-          JSON.stringify(cachedBlocks[840000], null, 2)
-        );
       }
 
       currentBlock += chunkSize;
