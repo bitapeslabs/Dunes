@@ -1,6 +1,7 @@
 require("dotenv").config();
 const { log } = require("./utils");
 const axios = require("axios");
+const { chunkify } = require("./utils");
 
 const createRpcClient = (rpcConfig) => {
   let rpcQueue = [];
@@ -89,10 +90,23 @@ const createRpcClient = (rpcConfig) => {
     try {
       //process the batch
       let batch = queueSnapshot.map((request, index) => request.req);
-      log("Processing batch of " + batch.length + " requests for RPC", "debug");
-      let batchResult = (await rpcClient.post("", batch))?.data;
-      log("Batch processed for " + batch.length + " requests", "debug");
 
+      //We want to throttle large batch sizes to avoid crashing the Bitcoin RPC
+      const maxBatchSize = 1000;
+      const chunks = chunkify(batch, maxBatchSize);
+
+      let batchResult = [];
+      for (let chunk in chunks) {
+        log(
+          "Processing batch of " + batch.length + " requests for RPC",
+          "debug"
+        );
+        let result = (await rpcClient.post("", chunk))?.data;
+        batchResult.push(result);
+        log("Batch processed for " + batch.length + " requests", "debug");
+      }
+
+      batchResult = batchResult.flat(Infinity);
       queueSnapshot.forEach((request, index) => {
         rpcResults[request.id] = batchResult[index];
       });
