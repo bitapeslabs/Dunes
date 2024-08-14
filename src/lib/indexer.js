@@ -618,8 +618,15 @@ const finalizeTransfers = (
   });
   //Filter out all OP_RETURN and zero rune balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
   //We still save utxos incase we need to reference them in the future
-  pendingUtxos = pendingUtxos.filter((utxo) => utxo.address_id !== 2);
-
+  //Filter out all OP_RETURN and zero rune balances
+  pendingUtxos = pendingUtxos.filter(
+    (utxo) =>
+      utxo.address_id !== 2 &&
+      Object.values(utxo.rune_balances ?? {}).reduce(
+        (a, b) => a + BigInt(b),
+        0n
+      ) > 0n
+  );
   //Create all new UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt). Ignore on cenotaphs
   pendingUtxos.forEach((utxo) => {
     if (utxo.address_id !== 2) {
