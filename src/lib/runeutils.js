@@ -281,9 +281,7 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
   );
 };
 
-const blockManager = async (callRpc, latestBlock) => {
-  const readBlockStorage = await newStorage();
-
+const blockManager = async (callRpc, latestBlock, readBlockStorage) => {
   let { MAX_BLOCK_CACHE_SIZE, GET_BLOCK_CHUNK_SIZE } = process.env;
 
   MAX_BLOCK_CACHE_SIZE = parseInt(MAX_BLOCK_CACHE_SIZE ?? 20);

@@ -163,11 +163,16 @@ const startServer = async () => {
       })
     )[0].value
   );
+  const readBlockStorage = await newStorage();
 
   //Process blocks in range will process blocks start:(startBlock) to end:(endBlock)
   //startBlock and endBlock are inclusive (they are also processed)
   const processBlocksInRange = async (startBlock, endBlock) => {
-    const { getBlock } = await createBlockManager(callRpcBatch, endBlock);
+    const { getBlock } = await createBlockManager(
+      callRpcBatch,
+      endBlock,
+      readBlockStorage
+    );
     let currentBlock = startBlock;
     let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
     while (currentBlock < endBlock || (useTest && currentBlock === endBlock)) {
