@@ -175,7 +175,7 @@ const startServer = async () => {
     );
     let currentBlock = startBlock;
     let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
-    while (lastBlockProcessed <= endBlock) {
+    while (lastBlockProcessed < endBlock) {
       const offset = currentBlock + chunkSize - endBlock;
 
       const blocksToFetch = new Array(chunkSize - (offset > 0 ? offset : 0))
