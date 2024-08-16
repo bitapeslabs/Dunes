@@ -159,7 +159,7 @@ router.get("/snapshot/:block/address/:address", async function (req, res) {
   try {
     let { db } = req;
 
-    let { Utxo_balance } = db;
+    let { Utxo_balance, Address } = db;
 
     let { address, block } = req.params;
 
@@ -173,9 +173,15 @@ router.get("/snapshot/:block/address/:address", async function (req, res) {
     if (!validInt(block))
       return res.status(400).send({ error: "Invalid block provided" });
 
+    let addressId = (await Address.findOne({ where: { address } }))?.id;
+
+    if (!addressId) {
+      return {};
+    }
+
     let query = getSomeUtxoBalance(db, {
       utxo: {
-        address: { address },
+        address_id: parseInt(addressId),
         block: { [Op.lte]: parseInt(block) },
         block_spent: {
           [Op.or]: [{ [Op.gte]: parseInt(block) }, { [Op.is]: null }],
