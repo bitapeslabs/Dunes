@@ -175,7 +175,7 @@ const startServer = async () => {
     );
     let currentBlock = startBlock;
     let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
-    while (currentBlock < endBlock || (useTest && currentBlock === endBlock)) {
+    while (lastBlockProcessed <= endBlock) {
       const offset = currentBlock + chunkSize - endBlock;
 
       const blocksToFetch = new Array(chunkSize - (offset > 0 ? offset : 0))
@@ -243,8 +243,9 @@ const startServer = async () => {
         { value: currentBlock - 1 },
         { where: { name: "last_block_processed" } }
       );
+      lastBlockProcessed = currentBlock - 1;
     }
-    lastBlockProcessed = currentBlock - 1;
+
     return;
   };
 
