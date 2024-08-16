@@ -244,7 +244,7 @@ const startServer = async () => {
         { where: { name: "last_block_processed" } }
       );
     }
-    lastBlockProcessed = endBlock;
+    lastBlockProcessed = currentBlock - 1;
     return;
   };
 
