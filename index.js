@@ -170,7 +170,7 @@ const startServer = async () => {
     const { getBlock } = await createBlockManager(callRpcBatch, endBlock);
     let currentBlock = startBlock;
     let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
-    while (currentBlock <= endBlock) {
+    while (currentBlock < endBlock || (useTest && currentBlock === endBlock)) {
       const offset = currentBlock + chunkSize - endBlock;
 
       const blocksToFetch = new Array(chunkSize - (offset > 0 ? offset : 0))
