@@ -22,6 +22,9 @@ const validators = {
       return false;
     }
   },
+  validProtocolId: (protocolId) => {
+    return protocolId.includes(":") && !isNaN(protocolId.split(":").join(""));
+  },
 };
 
 module.exports = validators;

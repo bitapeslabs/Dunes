@@ -49,6 +49,76 @@ const pluralize = (word) => {
   }
 };
 
+const stripFields = (obj, fields) => {
+  if (typeof obj !== "object" || obj === null) {
+    return obj; // Base case: if the object is not an object or is null, return it as is
+  }
+  let cloneObj = { ...obj };
+
+  // Recursively call stripFields on each property of the object
+  for (const key in cloneObj) {
+    if (cloneObj.hasOwnProperty(key) && fields.includes(key)) {
+      delete cloneObj[key];
+    }
+  }
+
+  return Object.keys(cloneObj).length ? cloneObj : null;
+};
+
+const includeOnlyFields = (obj, fields) => {
+  if (typeof obj !== "object" || obj === null) {
+    return obj; // Base case: if the object is not an object or is null, return it as is
+  }
+
+  let cloneObj = { ...obj };
+
+  // Recursively call stripFields on each property of the object
+  for (const key in cloneObj) {
+    if (cloneObj.hasOwnProperty(key) && !fields.includes(key)) {
+      delete cloneObj[key];
+    }
+  }
+
+  return Object.keys(cloneObj).length ? cloneObj : null;
+};
+
+const simplify = (obj) => {
+  // Helper function to determine if an object has only one key
+  function hasOneKey(obj) {
+    return (
+      typeof obj === "object" && obj !== null && Object.keys(obj).length === 1
+    );
+  }
+
+  // Recursively simplify the object
+  function process(obj) {
+    if (Array.isArray(obj)) {
+      return obj.map((item) => process(item));
+    } else if (typeof obj === "object" && obj !== null) {
+      let result = {};
+
+      for (const [key, value] of Object.entries(obj)) {
+        if (
+          hasOneKey(value) &&
+          typeof value[Object.keys(value)[0]] !== "object"
+        ) {
+          // If the value is an object with only one key and the value of that key is not an object, simplify it
+          result[key] = value[Object.keys(value)[0]];
+        } else {
+          // Otherwise, recursively process the value
+          result[key] = process(value);
+        }
+      }
+
+      return result;
+    } else {
+      return obj;
+    }
+  }
+
+  return process(obj);
+};
+
 function stripValue(obj) {
   if (typeof obj !== "object" || obj === null) {
     return obj; // Base case: if the object is not an object or is null, return it as is
@@ -169,4 +239,7 @@ module.exports = {
   chunkify,
   convertPartsToAmount,
   convertAmountToParts,
+  simplify,
+  stripFields,
+  includeOnlyFields,
 };

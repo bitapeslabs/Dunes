@@ -82,7 +82,13 @@ module.exports = (sequelize) => {
 
         //Useful for fetching all utxos for an address at a specific block
         {
-          fields: ["block_spent", "address_id"],
+          fields: ["block", "block_spent", "address_id"],
+          using: "BTREE",
+        },
+
+        //This could be useful for fetching all valid utxos at a specific block (we can get holders from this at a specific block)
+        {
+          fields: ["block", "block_spent"],
           using: "BTREE",
         },
 
