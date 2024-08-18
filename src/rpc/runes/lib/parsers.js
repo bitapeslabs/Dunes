@@ -1,6 +1,23 @@
-const { simplify } = require("../../../lib/utils");
+const {
+  simplify,
+  mergeSortArrayOfObj,
+  binarySearchLastOccurrence,
+  binarySearchFirstOccurrence,
+  binarySearchClosestUpper,
+  mergeSort,
+} = require("../../../lib/utils");
+let __debug_totalElapsedTime = {};
+let __timer;
 
-const parseBalances = (rawBalances) => {
+let startTimer = () => {
+  __timer = Date.now();
+};
+
+let stopTimer = (field) => {
+  __debug_totalElapsedTime[field] =
+    (__debug_totalElapsedTime[field] ?? 0) + Date.now() - __timer;
+};
+const parseBalances = (rawBalances, excludeRune) => {
   return rawBalances.reduce((acc, entry) => {
     if (!acc[entry.rune.rune_protocol_id]) {
       acc[entry.rune.rune_protocol_id] = {
@@ -11,6 +28,10 @@ const parseBalances = (rawBalances) => {
     acc[entry.rune.rune_protocol_id].balance = (
       BigInt(acc[entry.rune.rune_protocol_id].balance) + BigInt(entry.balance)
     ).toString();
+
+    if (excludeRune) {
+      delete acc[entry.rune.rune_protocol_id].rune;
+    }
 
     return acc;
   }, {});
@@ -30,11 +51,44 @@ const parseBalancesIntoUtxo = (rawUtxoBalances) => {
   });
 };
 
-const parsePrevUtxoBalancesIntoAddress = (rawUtxoBalances) => {
-  return simplify({
+const parsePrevUtxoBalancesIntoAddress = (
+  rawUtxoBalances,
+  startBlock,
+  endBlock
+) => {
+  startTimer();
+  let balances = new Array(endBlock - startBlock + 1)
+    .fill(0)
+    .reduce((acc, _, i) => {
+      acc[startBlock + i] = {};
+      return acc;
+    }, {});
+
+  for (let utxoBalance of rawUtxoBalances) {
+    let { block, block_spent } = utxoBalance.utxo;
+    block_spent = block_spent ?? endBlock;
+    let [start, end] = [
+      block >= startBlock ? block : startBlock,
+      block_spent <= endBlock ? block_spent : endBlock,
+    ];
+
+    for (let current = start; current <= end; current++) {
+      if (!balances[current][utxoBalance.rune.rune_protocol_id])
+        balances[current][utxoBalance.rune.rune_protocol_id] = "0";
+
+      balances[current][utxoBalance.rune.rune_protocol_id] = (
+        BigInt(balances[current][utxoBalance.rune.rune_protocol_id]) +
+        BigInt(utxoBalance.balance)
+      ).toString();
+    }
+  }
+
+  stopTimer("calc");
+  console.log(__debug_totalElapsedTime);
+  return {
     address: rawUtxoBalances[0].utxo.address,
-    balances: parseBalances(rawUtxoBalances),
-  });
+    balances,
+  };
 };
 
 module.exports = {

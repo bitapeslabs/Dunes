@@ -1,12 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const { Op, Sequelize } = require("sequelize");
+const {
+  process_many_utxo_balances,
+} = require("../lib/native/pkg/nana_parsers.js");
 const validators = require("../lib/validators");
 const {
   parseBalancesIntoUtxo,
   parseBalancesIntoAddress,
-  parsePrevUtxoBalancesIntoAddress,
 } = require("../lib/parsers");
+
 const { getSomeUtxoBalance, getSomeAddressBalance } = require("../lib/queries");
 
 router.get("/utxo/:utxo_index", async function (req, res) {
@@ -155,62 +158,68 @@ router.get("/address/:address/:rune_protocol_id", async function (req, res) {
 
 //Snapshot api below (get what balance was for an address or utxo at a specific block)
 
-router.get("/snapshot/:block/address/:address", async function (req, res) {
-  try {
-    let { db } = req;
-
-    let { Utxo_balance, Address } = db;
-
-    let { address, block } = req.params;
-
-    const { validBitcoinAddress, validInt } = validators;
-
-    //if rune_protocol_id is "0" or undefined, then we want to get all balances for the address
-    //if block is "0" or undefined, then we want to get the latest balance for the address
-
-    if (!validBitcoinAddress(address))
-      return res.status(400).send({ error: "Invalid address provided" });
-    if (!validInt(block))
-      return res.status(400).send({ error: "Invalid block provided" });
-
-    let addressId = (await Address.findOne({ where: { address } }))?.id;
-
-    if (!addressId) {
-      return {};
-    }
-
-    let query = getSomeUtxoBalance(db, {
-      utxo: {
-        address_id: parseInt(addressId),
-        block: { [Op.lte]: parseInt(block) },
-        block_spent: {
-          [Op.or]: [{ [Op.gte]: parseInt(block) }, { [Op.is]: null }],
-        },
-      },
-    });
-
-    let balances = (await Utxo_balance.findAll(query))?.map((balance) =>
-      balance.toJSON()
-    );
-
-    if (!balances?.length) return res.send({});
-
-    res.send(parsePrevUtxoBalancesIntoAddress(balances));
-  } catch (e) {
-    console.log(e);
-    return res.status(500).send({ error: "Internal server error" });
-  }
-});
-
 router.get(
-  "/snapshot/:block/address/:address/:rune_protocol_id",
+  "/snapshot/:start_block/:end_block/address/:address",
   async function (req, res) {
     try {
       let { db } = req;
 
       let { Utxo_balance } = db;
 
-      let { address, block, rune_protocol_id } = req.params;
+      let { address, start_block, end_block } = req.params;
+
+      const { validBitcoinAddress, validInt } = validators;
+
+      //if rune_protocol_id is "0" or undefined, then we want to get all balances for the address
+      //if block is "0" or undefined, then we want to get the latest balance for the address
+
+      if (!validBitcoinAddress(address))
+        return res.status(400).send({ error: "Invalid address provided" });
+      if (!validInt(start_block))
+        return res.status(400).send({ error: "Invalid block provided" });
+      if (!validInt(end_block))
+        return res.status(400).send({ error: "Invalid block provided" });
+
+      let query = getSomeUtxoBalance(db, {
+        utxo: {
+          address: { address },
+          block: {
+            [Op.lte]: parseInt(end_block),
+          },
+        },
+      });
+
+      let balances = (await Utxo_balance.findAll(query))?.map((balance) =>
+        balance.toJSON()
+      );
+
+      if (!balances?.length) return res.send({});
+
+      res.send(
+        JSON.parse(
+          process_many_utxo_balances(
+            JSON.stringify(balances),
+            parseInt(start_block),
+            parseInt(end_block)
+          )
+        )
+      );
+    } catch (e) {
+      console.log(e);
+      return res.status(500).send({ error: "Internal server error" });
+    }
+  }
+);
+
+router.get(
+  "/snapshot/:start_block/:end_block/address/:address/:rune_protocol_id",
+  async function (req, res) {
+    try {
+      let { db } = req;
+
+      let { Utxo_balance } = db;
+
+      let { address, start_block, end_block, rune_protocol_id } = req.params;
 
       const { validBitcoinAddress, validInt, validProtocolId } = validators;
 
@@ -219,21 +228,20 @@ router.get(
 
       if (!validBitcoinAddress(address))
         return res.status(400).send({ error: "Invalid address provided" });
-
+      if (!validInt(start_block))
+        return res.status(400).send({ error: "Invalid block provided" });
+      if (!validInt(end_block))
+        return res.status(400).send({ error: "Invalid block provided" });
       if (!validProtocolId(rune_protocol_id))
         return res
           .status(400)
           .send({ error: "Invalid rune protocol id provided" });
 
-      if (!validInt(block))
-        return res.status(400).send({ error: "Invalid block provided" });
-
       let query = getSomeUtxoBalance(db, {
         utxo: {
           address: { address },
-          block: { [Op.lte]: parseInt(block) },
-          block_spent: {
-            [Op.or]: [{ [Op.gte]: parseInt(block) }, { [Op.is]: null }],
+          block: {
+            [Op.lte]: parseInt(end_block),
           },
         },
         rune: {
@@ -247,8 +255,17 @@ router.get(
 
       if (!balances?.length) return res.send({});
 
-      res.send(parsePrevUtxoBalancesIntoAddress(balances));
+      res.send(
+        JSON.parse(
+          process_many_utxo_balances(
+            JSON.stringify(balances),
+            parseInt(start_block),
+            parseInt(end_block)
+          )
+        )
+      );
     } catch (e) {
+      console.log(e);
       return res.status(500).send({ error: "Internal server error" });
     }
   }
