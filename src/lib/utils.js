@@ -1,5 +1,3 @@
-const { MAX_SIGNED_128_BIT_INT } = require("./constants");
-
 const fromBigInt = (number, decimals) => {
   const quotient = BigInt(number) / BigInt("1" + "0".repeat(decimals));
   const remainder = sum % divisor;
@@ -56,68 +54,6 @@ const mergeObj = (left, right, field) => {
     .concat(right.slice(rightIndex));
 };
 
-function binarySearchFirstOccurrence(arr, field, val) {
-  let start = 0;
-  let end = arr.length - 1;
-  let result = -1;
-
-  while (start <= end) {
-    let mid = Math.floor((start + end) / 2);
-
-    if (arr[mid][field] === val) {
-      result = mid; // Update the result with the current match
-      end = mid - 1; // Move to the left to find the first occurrence
-    } else if (val < arr[mid][field]) {
-      end = mid - 1;
-    } else {
-      start = mid + 1;
-    }
-  }
-
-  return result;
-}
-
-function binarySearchClosestUpper(arr, val) {
-  let start = 0;
-  let end = arr.length - 1;
-  let result = -1;
-
-  while (start <= end) {
-    let mid = Math.floor((start + end) / 2);
-
-    if (arr[mid] === val) {
-      return mid; // Exact match found
-    } else if (arr[mid] < val) {
-      start = mid + 1;
-    } else {
-      result = mid; // Potential closest upper value
-      end = mid - 1;
-    }
-  }
-
-  return result; // Returns the index of the closest upper value or -1 if no such value exists
-}
-
-const binarySearchLastOccurrence = (arr, field, val) => {
-  let start = 0;
-  let end = arr.length - 1;
-  let result = -1;
-
-  while (start <= end) {
-    let mid = Math.floor((start + end) / 2);
-
-    if (arr[mid][field] === val) {
-      result = mid; // Update the result with the current match
-      start = mid + 1; // Move to the right to find the last occurrence
-    } else if (val < arr[mid][field]) {
-      end = mid - 1;
-    } else {
-      start = mid + 1;
-    }
-  }
-
-  return result;
-};
 // Example usage:
 
 const log = (message, type) => {
@@ -327,29 +263,6 @@ const chunkify = (array, len) => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function merge(left, right) {
-  let sortedArr = []; // the sorted items will go here
-  while (left.length && right.length) {
-    // Insert the smallest item into sortedArr
-    if (left[0] < right[0]) {
-      sortedArr.push(left.shift());
-    } else {
-      sortedArr.push(right.shift());
-    }
-  }
-  // Use spread operators to create a new array, combining the three arrays
-  return [...sortedArr, ...left, ...right];
-}
-const mergeSort = (arr) => {
-  // Base case
-  if (arr.length <= 1) return arr;
-  let mid = Math.floor(arr.length / 2);
-  // Recursive calls
-  let left = mergeSort(arr.slice(0, mid));
-  let right = mergeSort(arr.slice(mid));
-  return merge(left, right);
-};
-
 module.exports = {
   fromBigInt,
   toBigInt,
@@ -366,9 +279,4 @@ module.exports = {
   simplify,
   stripFields,
   includeOnlyFields,
-  mergeSortArrayOfObj,
-  mergeSort,
-  binarySearchLastOccurrence,
-  binarySearchFirstOccurrence,
-  binarySearchClosestUpper,
 };

@@ -104,6 +104,15 @@ const startRpc = async () => {
   server.use((req, res, next) => {
     req.callRpc = callRpc;
     req.db = db;
+
+    if (
+      req.headers.authorization !== process.env.RPC_AUTH &&
+      process.env.RPC_AUTH
+    ) {
+      res.status(401).send("Unauthorized");
+      return;
+    }
+
     next();
   });
 
