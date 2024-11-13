@@ -2,18 +2,28 @@
 const bodyParser = require("body-parser");
 const express = require("express");
 const server = express();
+const axios = require("axios");
 
 //Local dependencies
-const { createRpcClient } = require("./src/lib/rpc");
+const { createRpcClient } = require("./src/lib/btcrpc");
 const { log } = require("./src/lib/utils");
 const { storage: newStorage } = require("./src/lib/storage");
 const { GENESIS_BLOCK } = require("./src/lib/constants");
 const { sleep } = require("./src/lib/utils");
-const { blockManager: createBlockManager } = require("./src/lib/runeutils");
+const {
+  blockManager: createBlockManager,
+  prefetchTransactions,
+} = require("./src/lib/runeutils");
 
-const { processBlock } = require("./src/lib/indexer");
-const callRpc = createRpcClient({
-  url: process.env.FAST_BTC_RPC_URL,
+const {
+  databaseConnection: createConnection,
+} = require("./src/database/createConnection");
+
+const { processBlock, loadBlockIntoMemory } = require("./src/lib/indexer");
+const { callRpc, callRpcBatch } = createRpcClient({
+  url: process.env.BTC_RPC_URL,
+  username: process.env.BTC_RPC_USERNAME,
+  password: process.env.BTC_RPC_PASSWORD,
 });
 
 //For testing
@@ -24,25 +34,105 @@ const testblock = JSON.parse(
   fs.readFileSync(path.join(__dirname, "./dumps/testblock.json"), "utf8")
 );
 
+const emitToDiscord = async (events) => {
+  if (!process.env.DISCORD_WEBHOOK) return;
+  let etchings = events
+    .filter((event) => event.type === 0)
+    .filter((_, i) => i <= 5);
+  for (let etch of etchings) {
+    try {
+      const embed = {
+        title: "New etching!",
+        description: "The rune " + etch.rune.name + " has been etched!",
+        color: 0xffa500, // Color in hexadecimal
+        fields: Object.keys(etch.rune)
+          .filter((_, i) => i <= 10)
+          .map((fieldName) => ({
+            name: fieldName,
+            value: etch.rune[fieldName],
+            inline: true,
+          })),
+        timestamp: new Date(),
+      };
+      const payload = {
+        embeds: [embed],
+      };
+
+      await axios.post(process.env.DISCORD_WEBHOOK, payload);
+      await sleep(200);
+    } catch (e) {
+      //silently fail
+    }
+  }
+  return;
+};
+
+const emitEvents = async (storage) => {
+  const { local, findOne } = storage;
+  let populatedEvents = [
+    ...Object.values(local.Event).map((event) => ({
+      id: event.id,
+      type: event.type,
+      block: event.block,
+      transaction: findOne(
+        "Transaction",
+        event.transaction_id + "@REF@id",
+        false,
+        true
+      ),
+      rune: findOne("Rune", event.rune_id + "@REF@id", false, true),
+      amount: event.amount,
+      from: findOne("Address", event.from_address_id + "@REF@id", false, true),
+      to: findOne("Address", event.to_address_id + "@REF@id", false, true),
+    })),
+  ];
+
+  //For testing, in production this would be sent to a webhook or on an exposed WS
+  emitToDiscord(populatedEvents);
+  return;
+};
+
 const startRpc = async () => {
-  server.use(process.env.IAP, bodyParser.urlencoded({ extended: false }));
-  server.use(process.env.IAP, bodyParser.json());
+  log("Connecting to db (rpc)...", "info");
+
+  const db = await createConnection();
+  log("Starting RPC server...", "info");
+
+  server.use("/*", bodyParser.urlencoded({ extended: false }));
+  server.use("/*", bodyParser.json());
 
   server.use((req, res, next) => {
     req.callRpc = callRpc;
+    req.db = db;
+
+    if (
+      req.headers.authorization !== process.env.RPC_AUTH &&
+      process.env.RPC_AUTH
+    ) {
+      res.status(401).send("Unauthorized");
+      return;
+    }
 
     next();
   });
 
-  server.use(`${process.env.IAP}/blocks`, require("./src/routes/blocks"));
+  //rpc endpoints
+  server.use(`/runes/events`, require("./src/rpc/runes/routes/events"));
+  server.use(`/runes/balances`, require("./src/rpc/runes/routes/balances"));
+  server.use(`/runes/rpc`, require("./src/rpc/runes/routes/rpc"));
 
-  server.listen(3000, (err) => {
-    log("RPC server running on port 3000");
+  server.listen(process.env.RPC_PORT, (err) => {
+    log("RPC server running on port " + process.env.RPC_PORT, "info");
   });
 };
 
 //handler defs
 const startServer = async () => {
+  if (!global.gc) {
+    log("Please include --expose-gc flag to run indexer", "error");
+    return;
+  }
+
   //Setup express routes
   /*
       Connect to BTC rpc node, commands managed with rpcapi.js
@@ -57,7 +147,6 @@ const startServer = async () => {
   const useTest = process.argv.includes("--test");
   let storage = await newStorage(useSetup);
 
-  const { getBlock } = createBlockManager(callRpc);
   const { Setting } = storage.db;
 
   /*
@@ -75,29 +164,97 @@ const startServer = async () => {
       )[0].value
     ) || GENESIS_BLOCK - 1;
 
+  let prefetchDone = parseInt(
+    (
+      await Setting.findOrCreate({
+        where: { name: "prefetch" },
+        defaults: { value: 0 },
+      })
+    )[0].value
+  );
+  const readBlockStorage = await newStorage();
+
   //Process blocks in range will process blocks start:(startBlock) to end:(endBlock)
   //startBlock and endBlock are inclusive (they are also processed)
   const processBlocksInRange = async (startBlock, endBlock) => {
-    for (
-      let currentBlock = startBlock;
-      currentBlock <= endBlock;
-      currentBlock++
-    ) {
-      const blockData = useTest
+    const { getBlock } = await createBlockManager(
+      callRpcBatch,
+      endBlock,
+      readBlockStorage
+    );
+    let currentBlock = startBlock;
+    let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
+    while (currentBlock <= endBlock) {
+      const offset = currentBlock + chunkSize - endBlock - 1;
+
+      const blocksToFetch = new Array(chunkSize - (offset > 0 ? offset : 0))
+        .fill(0)
+        .map((_, i) => currentBlock + i);
+
+      const fetchBlocksFromArray = async (blocksToFetch) => {
+        log("Fetching blocks: " + blocksToFetch.join(", "), "info");
+        return await Promise.all(
+          blocksToFetch.map((height) => getBlock(height))
+        );
+      };
+
+      let blocks = useTest
+        ? [testblock]
+        : await fetchBlocksFromArray(blocksToFetch);
+
+      log("Blocks fetched! ", "info");
+
+      let blocksMapped = blocks.reduce((acc, block, i) => {
+        acc[currentBlock + i] = block;
+
+        return acc;
+      }, {});
+
+      /*
+      const { blockHeight, blockData } = useTest
         ? { blockHeight: currentBlock, blockData: testblock }
         : //Attempt to load from cache and if not fetch from RPC
           await getBlock(currentBlock);
+        */
 
+      log(
+        "Loading blocks into memory: " + Object.keys(blocksMapped).join(", "),
+        "info"
+      );
       //Run the indexers processBlock function
-      await processBlock(blockData, callRpc, storage, useTest);
+      await Promise.all(
+        blocks.map((block) => loadBlockIntoMemory(block, storage))
+      );
+      for (let i = 0; i < blocks.length; i++) {
+        processBlock(
+          {
+            blockHeight: currentBlock,
+            blockData: blocksMapped[currentBlock],
+          },
+          callRpc,
+          storage,
+          useTest
+        );
+        currentBlock += 1;
+      }
 
+      log(
+        "Committing changes from blocks into db and emitting events: " +
+          Object.keys(blocksMapped).join(", "),
+        "info"
+      );
+
+      await emitEvents(storage);
+      await storage.commitChanges();
       //Update the current block in the DB
-      log("Block finished processing!", "debug");
+      log("Block chunk finished processing!", "info");
       await Setting.update(
-        { value: currentBlock },
+        { value: currentBlock - 1 },
         { where: { name: "last_block_processed" } }
       );
     }
+    lastBlockProcessed = currentBlock;
+
     return;
   };
 
@@ -107,17 +264,47 @@ const startServer = async () => {
     return;
   }
 
+  if (!prefetchDone) {
+    let amountPrefetch = parseInt(process.env.PREFETCH_BLOCKS ?? 100);
+    log(
+      "Prefetching previous " +
+        amountPrefetch +
+        " blocks before genesis for fast indexing... (this can take a few minutes)",
+      "info"
+    );
+    const blocksToFetch = new Array(amountPrefetch)
+      .fill(0)
+      .map((_, i) => lastBlockProcessed + i + 1 - amountPrefetch);
+    await prefetchTransactions(blocksToFetch, storage, callRpcBatch);
+    await storage.commitChanges();
+    log("Prefetching complete!", "info");
+
+    await Setting.update({ value: 1 }, { where: { name: "prefetch" } });
+  }
+
   /*
     Main server loop, syncnronize any time a new block is found or we are off by any amount of blocks
   */
+  log(
+    "Polling for new blocks... Last Processed: " + lastBlockProcessed,
+    "info"
+  );
   while (true) {
     let latestBlock = parseInt(await callRpc("getblockcount", []));
-    log("latest block height is at " + latestBlock, "info");
-    log("current block height is at " + lastBlockProcessed, "info");
 
-    if (lastBlockProcessed < latestBlock)
+    if (lastBlockProcessed < latestBlock) {
+      log(
+        "Processing blocks " + (lastBlockProcessed + 1) + " - " + latestBlock,
+        "info"
+      );
       await processBlocksInRange(lastBlockProcessed + 1, latestBlock);
-    await sleep(process.env.BLOCK_CHECK_INTERVAL);
+      log(
+        "Polling for new blocks... Last Processed: " + lastBlockProcessed,
+        "info"
+      );
+    }
+
+    await sleep(parseInt(process.env.BLOCK_CHECK_INTERVAL));
   }
 };
 

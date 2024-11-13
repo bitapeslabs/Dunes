@@ -1,26 +1,60 @@
 const { databaseConnection } = require("../database/createConnection");
 const { Op } = require("sequelize");
-const { pluralize, removeItemsWithDuplicateProp, log } = require("./utils");
+const fs = require("fs");
+const {
+  pluralize,
+  removeItemsWithDuplicateProp,
+  log,
+  chunkify,
+} = require("./utils");
 const { Client } = require("pg");
 const storage = async (useSync) => {
   //Configurations
 
   //These are passed as an array and will instruct the storage to create a hashmap of the rows
 
-  const LOCAL_PRIMARY_KEYS = {
-    Balance: "balance_index",
-    Rune: "rune_protocol_id",
-    Utxo: "utxo_index",
+  //Note: only static fields can be used to build_fields. If it can be changed with update attribute it should not be used
+  const BUILD_FIELDS = {
+    Utxo: {
+      utxo_index: ["transaction_id", "vout_index"],
+    },
+
+    Balance: { balance_index: ["address_id", "rune_id"] },
   };
 
-  //These are hashmaps that point back an object in local. This is used to quickly find a row in O(1) time even if the primary key is not the id
+  const BUILD_GROUPS = {
+    Utxo_balance: ["utxo_id"],
+    Utxo: ["transaction_id"],
+  };
+
+  const LOCAL_PRIMARY_KEYS = {
+    //These have no circular dependencies and should be upserted fisrt
+    Address: "address",
+
+    //Transaction depends on address
+    Transaction: "hash",
+
+    //All of these depend on transaction and address
+    Rune: "rune_protocol_id",
+
+    //balance depends on Rune_id so it should be upserted after Rune
+    Balance: "balance_index",
+    Utxo: "utxo_index",
+    Utxo_balance: "id",
+    Event: "id",
+  };
+
+  //These are hashmaps that point back an object in local. This is used to quickly find a row in O(1) time even if the primary key is not the id. Built indicies are not supported with these
   const REFERENCE_FIELDS = {
-    Rune: ["raw_name"],
+    Rune: ["raw_name", "id"],
+    Address: ["id"],
+    Transaction: ["id"],
   };
 
   // This object is mapped to the most common primary key queries for O(1) access. See LOCAL_PRIMARY_KEYS
   let local = {},
     references = {},
+    groups = {},
     db;
 
   const _genDefaultCache = () => {
@@ -30,6 +64,13 @@ const storage = async (useSync) => {
 
     Object.keys(REFERENCE_FIELDS).forEach((key) => {
       references[key] = REFERENCE_FIELDS[key].reduce((acc, field) => {
+        acc[field] = {};
+        return acc;
+      }, {});
+    });
+
+    Object.keys(BUILD_GROUPS).forEach((key) => {
+      groups[key] = BUILD_GROUPS[key].reduce((acc, field) => {
         acc[field] = {};
         return acc;
       }, {});
@@ -86,6 +127,24 @@ const storage = async (useSync) => {
     }
   };
 
+  const __addRowToGroups = (modelName, rowRef) => {
+    /*
+        Note: Only static fields can be used. Fields that can be updated via updateAttribute should not be used here.
+        Note: Groups do not update on delete, just that the underlying pointer will be undefined
+    */
+
+    if (!BUILD_GROUPS[modelName]) return;
+
+    BUILD_GROUPS[modelName].forEach((groupField) => {
+      const rowGroupField = rowRef[groupField];
+      const group = groups[modelName][groupField];
+
+      if (!group[rowGroupField]) group[rowGroupField] = [];
+
+      group[rowGroupField].push(rowRef);
+    });
+  };
+
   const __updateReferences = (modelName, rowRef) => {
     const { [modelName]: RefModel } = references;
 
@@ -102,16 +161,32 @@ const storage = async (useSync) => {
     });
   };
 
-  const __findWithPrimaryOrReference = (modelName, value) => {
-    const { [modelName]: LocalModel } = local;
-    const { [modelName]: RefModel } = references;
+  const __findWithPrimaryOrReference = (modelName, searchValue) => {
+    if (local[modelName][searchValue]) return local[modelName][searchValue];
 
-    if (LocalModel[value]) return LocalModel[value];
+    //To search for a reference you must provide the ref key. This is done by seperating the value and the field with a @REF@
+    if (!searchValue || !references[modelName]) return null;
+    let [value, indexedField] = searchValue.split("@REF@");
 
-    //That model has no references
-    if (!RefModel) return;
+    if (!indexedField) return null;
 
-    return Object.values(RefModel).find((ref) => ref[value]);
+    return references[modelName][indexedField][value] ?? null;
+  };
+
+  const __buildIndexes = (row, modelName) => {
+    if (!BUILD_FIELDS[modelName]) {
+      return row;
+    }
+
+    Object.keys(BUILD_FIELDS[modelName]).map((flag) => {
+      let components = BUILD_FIELDS[modelName][flag].map((component) => {
+        return row[component];
+      });
+
+      row[flag] = components.join(":");
+    });
+
+    return row;
   };
 
   const loadManyIntoMemory = async (modelName, sequelizeQuery) => {
@@ -141,48 +216,66 @@ const storage = async (useSync) => {
       const primaryKey = LOCAL_PRIMARY_KEYS[modelName];
 
       foundRows.forEach((row) => {
-        LocalModel[row[primaryKey]] = { ...row, __memory: true };
+        let rowBody = __buildIndexes({ ...row, __memory: true }, modelName);
 
-        __updateReferences(modelName, LocalModel[row[primaryKey]]);
+        //Do not overwrite if already present or duplicate
+        if (LocalModel[rowBody[primaryKey]]) {
+          return;
+        }
+
+        LocalModel[rowBody[primaryKey]] = rowBody;
+
+        __updateReferences(modelName, LocalModel[rowBody[primaryKey]]);
+        __addRowToGroups(modelName, LocalModel[rowBody[primaryKey]]);
       });
 
+      /*
       log(modelName + " (fr): " + foundRows.length, "debug");
       log(
         modelName + " (lo): " + Object.keys(local[modelName]).length,
         "debug"
       );
+      */
       return foundRows;
     } catch (error) {
       console.error(
-        `(storage) Failed to retrieve ${modelName} in findOne:`,
+        `(storage) Failed to retrieve ${modelName} in loadManyIntoMemory:`,
         error
       );
       throw error;
     }
   };
 
-  const updateAttribute = (modelName, primary, attribute, value) => {
+  const updateAttribute = (
+    modelName,
+    primary,
+    attribute,
+    value,
+    ignoreDatabase = false
+  ) => {
     const { [modelName]: LocalModel } = local;
 
     let mappedObject = __findWithPrimaryOrReference(modelName, primary);
 
     if (mappedObject) {
       mappedObject[attribute] = value;
-
+      __updateReferences(modelName, LocalModel[primary]);
+      __addRowToGroups(modelName, LocalModel[primary]);
       //We have altered the document and therefore we should upsert when we commit changes
       delete mappedObject.__memory;
 
       return mappedObject;
     }
 
-    //findOne could potentially be a Promise, so we have to await it as we are not ignoring database
+    /* Disabled for now.. handles db logic
     return new Promise(async function (resolve, reject) {
-      let liveModel = await findOne(modelName, primary);
+      let liveModel = await findOne(modelName, primary, false, ignoreDatabase);
 
       LocalModel[primary] = { ...liveModel, [attribute]: value };
       __updateReferences(modelName, LocalModel[primary]);
+      __addRowToGroups(modelName, LocalModel[primary]);
       resolve(LocalModel[primary]);
-    });
+    })*/
   };
 
   //Immediately resolves if no fetch to DB
@@ -194,7 +287,7 @@ const storage = async (useSync) => {
 
     if (mappedObject && !attribute) {
       return mappedObject;
-    } else {
+    } else if (attribute) {
       let row = Object.values(LocalModel).find(
         (row) => row[attribute] === value
       );
@@ -208,7 +301,7 @@ const storage = async (useSync) => {
     return new Promise(async function (resolve, reject) {
       try {
         let row = await Model.findOne({
-          where: { [attribute ?? LOCAL_PRIMARY_KEYS[modelName]]: value },
+          where: { [attribute && LOCAL_PRIMARY_KEYS[modelName]]: value },
         });
         resolve(row);
       } catch (error) {
@@ -219,6 +312,10 @@ const storage = async (useSync) => {
         throw error;
       }
     });
+  };
+
+  const fetchGroupLocally = (modelName, groupKey, value) => {
+    return groups?.[modelName]?.[groupKey]?.[value] ?? [];
   };
 
   const findManyInFilter = (modelName, filterArr, ignoreDatabase = false) => {
@@ -317,9 +414,39 @@ const storage = async (useSync) => {
     if (ignoreDatabase) return localRows;
 
     /*
+      Remove local indicies from filter array to do a sequelize AND operation
+      Local indicies are "imaginary" and dont exist in the db. They are used to quickly find a row in O(1) time with two attributes locally.
+      When we do the SQL query, we want to replace these with the actual attributes they represent.
+      see BUILD_FIELDS
+    */
+
+    //Sorry for this bullshit btw
+
+    //Primary key is assumed and refs arent supported for built indicies.
+    let safeSequelizeFilterArr = filterArr.map((filterItem) => {
+      return [filterItem].flat(Infinity).map((item) => {
+        const usePrimary = typeof item === "string";
+
+        if (usePrimary && !item.includes(":")) return item;
+
+        let [itemKey, itemValue] = usePrimary
+          ? Object.entries(item).flat(Infinity)
+          : [LOCAL_PRIMARY_KEYS[modelName], item];
+
+        if (!BUILD_FIELDS[modelName]?.[itemKey]) return item;
+
+        let componentsOfIndex = itemValue.split(":");
+
+        return BUILD_FIELDS[modelName]?.[itemKey].map((componentName) => ({
+          [componentName]: componentsOfIndex.shift(),
+        }));
+      });
+    });
+
+    /*
       Now we must test the db with the same filter array
     */
-    let sequelizeFilter = filterArr
+    let sequelizeFilter = safeSequelizeFilterArr
 
       //Transform filter to be used in sequelize
       .reduce((acc, filterItem) => {
@@ -382,29 +509,29 @@ const storage = async (useSync) => {
     cachedAutoIncrements[modelName] =
       (cachedAutoIncrements[modelName] || 0) + 1;
 
-    data = {
-      id: cachedAutoIncrements[modelName],
-      ...data,
-    };
+    data = __buildIndexes(
+      {
+        id: cachedAutoIncrements[modelName],
+        ...data,
+      },
+      modelName
+    );
 
     //Add the model with the ID that would be generated in the database to cache
     LocalModel[data[primaryKey]] = data;
 
     //The model created needs to be added to the references (on updates we dont need to do this as the reference to the object will stay the same)
     __updateReferences(modelName, LocalModel[data[primaryKey]]);
+    __addRowToGroups(modelName, LocalModel[data[primaryKey]]);
 
     //Return the model created
     return data;
   };
 
-  const findOrCreate = async (
-    modelName,
-    key,
-    ignoreDatabase = true,
-    defaults
-  ) => {
+  //Todo: implement db version
+  const findOrCreate = (modelName, key, defaults, ignoreDatabase = true) => {
     const { [modelName]: LocalModel } = local;
-    let model = await findOne(modelName, key, false, ignoreDatabase);
+    let model = findOne(modelName, key, false, ignoreDatabase);
     if (model) return model;
 
     create(modelName, defaults);
@@ -412,26 +539,57 @@ const storage = async (useSync) => {
     return LocalModel[key];
   };
 
+  const clear = () => {
+    _genDefaultCache();
+    global.gc();
+  };
+
   const commitChanges = async () => {
+    const MAX_COMMIT_CHUNK_SIZE = parseInt(
+      process.env.MAX_COMMIT_CHUNK_SIZE || 1500
+    );
     const transaction = await db.sequelize.transaction();
 
     try {
       let modelEntries = Object.entries(local);
-
       for (let modelEntry of modelEntries) {
         let [modelName, rows] = modelEntry;
-        log(`Committing ${modelName} to db...`, "debug");
-        rows = Object.values(rows).filter((row) => !row.__memory);
 
+        rows = Object.values(rows)
+          .filter((row) => !row.__memory)
+          .map((row) => {
+            //Remove built indicies from row before commiting as they are not real fields
+            if (!BUILD_FIELDS[modelName]) return row;
+            for (let flag in Object.keys(BUILD_FIELDS[modelName])) {
+              delete row[flag];
+            }
+            return row;
+          });
+        log(
+          `Committing ${modelName} with ${rows.length} rows to db...`,
+          "debug"
+        );
         if (0 > rows.length) continue;
 
-        await db[modelName].bulkCreate(rows, {
-          transaction,
-          updateOnDuplicate: Object.keys(db[modelName].rawAttributes).filter(
-            //we want to preserve the createdAt field on update
-            (field) => field !== "createdAt"
-          ),
-        });
+        let chunks = chunkify(rows, parseInt(MAX_COMMIT_CHUNK_SIZE));
+
+        log(`Chunks amount for ${modelName}: ${chunks.length}`, "debug");
+
+        let chunkIndex = 0;
+        for (let chunk of chunks) {
+          chunkIndex++;
+          log(
+            `Committing chunk ${chunkIndex}/${chunks.length} for ${modelName} with ${chunk.length} rows`,
+            "debug"
+          );
+          await db[modelName].bulkCreate(chunk, {
+            transaction,
+            updateOnDuplicate: Object.keys(db[modelName].rawAttributes).filter(
+              //we want to preserve the createdAt field on update
+              (field) => field !== "createdAt"
+            ),
+          });
+        }
 
         const pluralizedTableName = pluralize(modelName.toLowerCase());
 
@@ -452,7 +610,7 @@ const storage = async (useSync) => {
     }
 
     //Reset all local cache after commit
-    _genDefaultCache();
+    clear();
 
     return;
   };
@@ -469,6 +627,8 @@ const storage = async (useSync) => {
     create,
     commitChanges,
     loadManyIntoMemory,
+    fetchGroupLocally,
+    clear,
   };
 };
 

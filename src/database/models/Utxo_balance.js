@@ -1,46 +1,48 @@
 const { Sequelize } = require("sequelize");
 
+//total: 64 bytes
 module.exports = (sequelize) => {
   return sequelize.define(
-    "Balance",
+    "Utxo_balance",
     {
+      //8 bytes
       id: {
         type: Sequelize.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
 
+      utxo_id: {
+        type: Sequelize.BIGINT,
+        allowNull: false,
+      },
+      //4 bytes
       rune_id: {
-        type: Sequelize.BIGINT,
+        type: Sequelize.INTEGER,
         allowNull: false,
       },
-      address_id: {
-        type: Sequelize.BIGINT,
-        allowNull: false,
-      },
+
+      //16 bytes stored across two BIGINTS and concat. by the lib
       balance: {
         type: Sequelize.DECIMAL,
-        allowNull: false,
+        allowNull: true,
       },
     },
     {
       indexes: [
         {
-          fields: ["address_id"],
+          //Composite index for fetching a utxo with transaction id and vout_index
+          fields: ["utxo_id"],
           using: "BTREE",
         },
 
         {
-          fields: ["address_id", "rune_id"],
-          using: "BTREE",
-        },
-
-        {
-          fields: ["rune_id"],
+          //Composite index for fetching the individual rune balance of an indiviudal UTXO
+          fields: ["utxo_id", "rune_id"],
           using: "BTREE",
         },
       ],
-      tableName: "balances",
+      tableName: "utxo_balances",
       timestamps: false,
     }
   );

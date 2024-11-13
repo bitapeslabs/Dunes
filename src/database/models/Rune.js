@@ -11,16 +11,16 @@ module.exports = (sequelize) => {
         autoIncrement: true,
       },
       rune_protocol_id: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.TEXT,
         allowNull: false,
       },
       name: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.TEXT,
         allowNull: false,
       },
 
       raw_name: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.TEXT,
         allowNull: false,
       },
       symbol: {
@@ -32,7 +32,7 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       total_supply: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: false,
       },
       decimals: {
@@ -40,43 +40,55 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       premine: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: false,
       },
       mints: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: false,
       },
       mint_cap: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_start: {
-        type: Sequelize.TEXT,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_end: {
-        type: Sequelize.TEXT,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_offset_start: {
-        type: Sequelize.TEXT,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_offset_end: {
-        type: Sequelize.TEXT,
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       mint_amount: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
       burnt_amount: {
-        type: Sequelize.TEXT("tiny"),
+        type: Sequelize.DECIMAL,
         allowNull: true,
       },
-      etch_transaction: {
-        type: Sequelize.TEXT("medium"),
+      etch_transaction_id: {
+        type: Sequelize.BIGINT,
+        references: {
+          model: "transactions",
+          key: "id",
+        },
+        allowNull: true,
+      },
+      deployer_address_id: {
+        type: Sequelize.BIGINT,
+        references: {
+          model: "addresses",
+          key: "id",
+        },
         allowNull: true,
       },
 
@@ -89,17 +101,19 @@ module.exports = (sequelize) => {
       indexes: [
         {
           fields: ["rune_protocol_id"],
-          using: "HASH", // Attempt to specify hash index
+          using: "BTREE", // Attempt to specify hash index
         },
         {
           fields: ["raw_name"],
-          using: "HASH", // Attempt to specify hash index
+          using: "BTREE", // Attempt to specify hash index
+        },
+        {
+          fields: ["deployer_address_id"],
+          using: "BTREE", // Attempt to specify hash index
         },
       ],
       tableName: "runes",
-      timestamps: true,
-      createdAt: true,
-      updatedAt: true,
+      timestamps: false,
     }
   );
 };

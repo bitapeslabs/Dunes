@@ -6,12 +6,23 @@ const {
   COMMIT_CONFIRMATIONS,
   TAPROOT_SCRIPT_PUBKEY_TYPE,
 } = require("./constants");
+const { storage: newStorage } = require("./storage");
+const { Op } = require("sequelize");
 
 const { Rune: OrdJSRune } = require("@ordjs/runestone");
 const { Script } = require("@cmdcode/tapscript");
 const { runestone } = require("@runeapes/apeutils");
-const { stripObject, sleep } = require("./utils");
-const { log } = require("./utils");
+const {
+  log,
+  convertAmountToParts,
+  convertPartsToAmount,
+  sleep,
+  stripObject,
+  chunkify,
+} = require("./utils");
+const NO_COMMITMENTS = process.argv.includes("--no-commitments");
+const fs = require("fs");
+const path = require("path");
 const decipherRunestone = (txJson) => {
   let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
 
@@ -29,6 +40,15 @@ const decipherRunestone = (txJson) => {
   };
 };
 
+const isUsefulRuneTx = (Transaction) => {
+  const { runestone } = Transaction;
+  if (runestone?.cenotaph) return true; //burn happens
+
+  if (runestone?.mint || runestone?.etching) return true;
+
+  return false;
+};
+
 const getRunestonesInBlock = async (blockNumber, callRpc) => {
   const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
 
@@ -36,53 +56,291 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
 
   const transactions = block.tx;
 
-  const runestones = transactions.map((tx, txIndex) => ({
-    runestone: decipherRunestone(tx),
-    hash: tx.txid,
-    txIndex,
-    block: blockNumber,
-    vout: tx.vout,
-    vin: tx.vin,
-  }));
+  const transactionsWithRunestones = await Promise.all(
+    transactions.map((tx, txIndex) => {
+      return new Promise(async function (resolve, reject) {
+        resolve({
+          runestone: decipherRunestone(tx),
+          hash: tx.txid,
+          txIndex,
+          block: blockNumber,
+          vout: tx.vout,
+          vin: tx.vin,
+          full_tx: tx,
+        });
+      });
+    })
+  );
 
-  return runestones;
+  return transactionsWithRunestones;
 };
 
-const blockManager = (callRpc) => {
-  const MAX_CACHE_SIZE = 20;
+const prefetchTransactions = async (block, storage, callRpc) => {
+  const { create, findOrCreate } = storage;
+  findOrCreate("Address", "COINBASE", { address: "COINBASE" }, true);
+  findOrCreate("Address", "OP_RETURN", { address: "OP_RETURN" }, true);
+  findOrCreate("Address", "UNKNOWN", { address: "UNKNOWN" }, true);
+  const chunks = chunkify(
+    block,
+    parseInt(process.env.GET_BLOCK_CHUNK_SIZE ?? 3)
+  );
+  for (let chunk of chunks) {
+    log("Prefetching blocks: " + Object.values(chunk).join(", "), "info");
+    await Promise.all(
+      chunk.map(async (blockNumber) => {
+        const blockHash = await callRpc("getblockhash", [
+          parseInt(blockNumber),
+        ]);
+
+        const block = await callRpc("getblock", [blockHash, 2]);
+
+        block.tx.forEach((transaction) => {
+          if (transaction.vin[0].coinbase) return;
+
+          let Transaction = create("Transaction", {
+            hash: transaction.txid,
+          });
+
+          transaction.vout.forEach((utxo, index) => {
+            let address = utxo.scriptPubKey.address;
+            if (!address) return; //OP_RETURN
+            create("Utxo", {
+              value_sats: parseInt(utxo.value * 10 ** 8).toString(),
+              block: blockNumber,
+              transaction_id: Transaction.id,
+              address_id: findOrCreate("Address", address, { address }).id,
+              vout_index: utxo.n,
+            });
+          });
+        });
+
+        return;
+      })
+    );
+  }
+  return;
+};
+
+const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
+  const { loadManyIntoMemory, findOne, local, clear, fetchGroupLocally } =
+    storage;
+
+  const transactionsInChunk = [
+    ...new Set(
+      results
+        .flat(Infinity)
+
+        //We can do this because the indexer can interpret the sender from what we have stored in db.
+        .map((tx) => (isUsefulRuneTx(tx) ? tx.vin.map((vin) => vin.txid) : []))
+        .flat(Infinity)
+        .filter(Boolean)
+    ),
+  ];
+
+  //Load relevant vin into memory to avoid fetching from bitcoinrpc
+
+  await loadManyIntoMemory("Transaction", {
+    hash: { [Op.in]: transactionsInChunk },
+  });
+
+  await loadManyIntoMemory("Utxo", {
+    transaction_id: {
+      [Op.in]: Object.values(local.Transaction).map((tx) => tx.id),
+    },
+  });
+
+  await loadManyIntoMemory("Address", {
+    id: {
+      [Op.in]: [
+        ...new Set(Object.values(local.Utxo).map((utxo) => utxo.address_id)),
+      ],
+    },
+  });
+
+  log(
+    "(BC) Transactions loaded into memory: " +
+      Object.keys(local.Transaction).length,
+    "debug"
+  );
+
+  log(
+    "(BC) UTXOS loaded into memory: " + Object.keys(local.Utxo).length,
+    "debug"
+  );
+
+  log(
+    "(BC) Addresses loaded into memory: " + Object.keys(local.Address).length,
+    "debug"
+  );
+
+  //Map all txs in chunk to their hashes to check for vins faster
+  let txMapInChunk = results.flat(Infinity).reduce((acc, tx) => {
+    acc[tx.hash] = tx;
+    return acc;
+  }, {});
+  // Hydrate txs with sender
+
+  //a little bit of fucking voodoo magic
+  return await Promise.all(
+    results.map(async (block) => {
+      return await Promise.all(
+        block.map(async (tx) => {
+          const { vin: vins, runestone } = tx;
+
+          // if coinbase dont populate sender or parentTx
+          if (vins[0].coinbase) {
+            return { ...tx, sender: "COINBASE" };
+          }
+          if (runestone.etching?.rune && !NO_COMMITMENTS) {
+            //populate vins with the block they were created at (only for etchings)
+            let newVins = await Promise.all(
+              tx.vin.map(async (vin) => {
+                if (!vin.txid) return vin; //incase coinbase
+
+                let parentTx =
+                  txMapInChunk[vin.txid]?.full_tx ??
+                  (await callRpc("getrawtransaction", [vin.txid, true]));
+                let parentTxBlock =
+                  txMapInChunk[vin.txid]?.block ??
+                  (await callRpc("getblockheader", [parentTx.blockhash]))
+                    .height;
+
+                return {
+                  ...vin,
+                  parentTx: { ...parentTx, block: parentTxBlock },
+                };
+              })
+            );
+
+            let senderVin = newVins.find(
+              (vin) => vin.parentTx.vout[vin.vout].scriptPubKey.address
+            );
+
+            return {
+              ...tx,
+              vin: newVins,
+              sender:
+                senderVin.parentTx.vout[senderVin.vout].scriptPubKey.address,
+            };
+
+            /*
+                These two fields in a runestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
+                as the sender the owner of the first vout in the transaction instead.
+                */
+          }
+
+          //Check if the tx is referenced in the chunk
+          let chunkVin = vins.find((vin) => txMapInChunk[vin.txid]);
+
+          if (chunkVin) {
+            let chunkTx = txMapInChunk[chunkVin.txid];
+            return {
+              ...tx,
+              sender: chunkTx.vout[chunkVin.vout].scriptPubKey.address,
+            };
+          }
+
+          let transaction = vins
+            .map((vin) => findOne("Transaction", vin.txid, false, true))
+            .filter(Boolean)[0];
+
+          //Check if the transaction hash has already been seen in db
+          if (transaction) {
+            let sender_id = fetchGroupLocally(
+              "Utxo",
+              "transaction_id",
+              transaction.id
+            )?.[0]?.address_id;
+
+            if (!sender_id) return { ...tx, sender: null };
+            let sender = findOne("Address", sender_id + "@REF@id").address;
+            return {
+              ...tx,
+              sender,
+            };
+          }
+
+          //If none of the above conditions are met, we must fetch the sender from bitcoinrpc (if mint or etching)
+
+          if (runestone?.mint || runestone?.etching) {
+            let sender = (
+              await callRpc("getrawtransaction", [vins[0].txid, true])
+            ).vout[vins[0].vout].scriptPubKey.address;
+
+            return {
+              ...tx,
+              sender,
+            };
+          }
+
+          //We dont need the sender for non-rune related txs
+          return { ...tx, sender: null };
+        })
+      );
+    })
+  );
+};
+
+const blockManager = async (callRpc, latestBlock, readBlockStorage) => {
+  let { MAX_BLOCK_CACHE_SIZE, GET_BLOCK_CHUNK_SIZE } = process.env;
+
+  MAX_BLOCK_CACHE_SIZE = parseInt(MAX_BLOCK_CACHE_SIZE ?? 20);
+  GET_BLOCK_CHUNK_SIZE = parseInt(GET_BLOCK_CHUNK_SIZE ?? 10);
 
   let cachedBlocks = {};
 
   let cacheFillProcessing = false;
   const __fillCache = async (requestedBlock) => {
     cacheFillProcessing = true;
-    let latestBlock = parseInt(await callRpc("getblockcount", []));
 
     let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1));
-
     let currentBlock = lastBlockInCache ? lastBlockInCache + 1 : requestedBlock;
     while (
-      currentBlock < latestBlock &&
-      Object.keys(cachedBlocks).length < MAX_CACHE_SIZE
+      currentBlock <= latestBlock &&
+      Object.keys(cachedBlocks).length < MAX_BLOCK_CACHE_SIZE
     ) {
-      cachedBlocks[currentBlock] = {
-        blockHeight: currentBlock,
-        blockData: await getRunestonesInBlock(currentBlock, callRpc),
-      };
-      currentBlock++;
+      // Determine the chunk size to request in this iteration
+      let chunkSize = Math.min(
+        GET_BLOCK_CHUNK_SIZE,
+        latestBlock - currentBlock + 1
+      );
+
+      // Create an array of Promises to fetch blocks in parallel
+      let promises = [];
+      for (let i = 0; i < chunkSize; i++) {
+        promises.push(getRunestonesInBlock(currentBlock + i, callRpc));
+      }
+
+      // Wait for all Promises in the chunk to resolve
+      let results = await Promise.all(promises);
+      results = await populateResultsWithPrevoutData(
+        results,
+        callRpc,
+        readBlockStorage
+      );
+
+      // Store the results in the cache
+      for (let i = 0; i < results.length; i++) {
+        let blockHeight = currentBlock + i;
+        cachedBlocks[blockHeight] = results[i];
+      }
+
+      currentBlock += chunkSize;
       log(
         "Cache updated and now at size of " + Object.keys(cachedBlocks).length,
         "debug"
       );
+
       //-> to avoid getting rate limited
     }
+
     cacheFillProcessing = false;
   };
-  const getBlock = (blockNumber) => {
+  const getBlock = (blockNumber, endBlock) => {
     return new Promise(function (resolve, reject) {
       let foundBlock;
       if (cachedBlocks[blockNumber]) {
-        foundBlock = { ...cachedBlocks[blockNumber] };
+        foundBlock = [...cachedBlocks[blockNumber]];
         delete cachedBlocks[blockNumber];
       }
 
@@ -94,12 +352,12 @@ const blockManager = (callRpc) => {
 
       let checkInterval = setInterval(() => {
         if (cachedBlocks[blockNumber]) {
-          foundBlock = { ...cachedBlocks[blockNumber] };
+          foundBlock = [...cachedBlocks[blockNumber]];
           delete cachedBlocks[blockNumber];
           clearInterval(checkInterval);
           return resolve(foundBlock);
         }
-      }, 20);
+      }, 10);
     });
   };
 
@@ -120,7 +378,7 @@ const minimumLengthAtHeight = (block) => {
   return INITIAL_AVAILABLE - stepsPassed;
 };
 
-const checkCommitment = async (runeName, Transaction, block, callRpc) => {
+const checkCommitment = (runeName, Transaction, block, callRpc) => {
   //Credits to @me-foundation/runestone-lib for this function.
   //Modified to fit this indexer.
 
@@ -168,19 +426,15 @@ const checkCommitment = async (runeName, Transaction, block, callRpc) => {
 
     //valid commitment, check for confirmations
     try {
-      let inputTx = await callRpc("getrawtransaction", [input.txid, true]);
-
       const isTaproot =
-        inputTx.vout[input.vout].scriptPubKey.type ===
+        input.parentTx.vout[input.vout].scriptPubKey.type ===
         TAPROOT_SCRIPT_PUBKEY_TYPE;
 
       if (!isTaproot) {
         continue;
       }
 
-      const blockHeight = await callRpc("getblockheader", [inputTx.blockhash]);
-
-      const confirmations = block - blockHeight + 1;
+      const confirmations = block - input.parentTx.block + 1;
 
       if (confirmations >= COMMIT_CONFIRMATIONS) return true;
     } catch (e) {
@@ -278,8 +532,8 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
 
   //First check if a mint_cap was provided
   if (mint_cap) {
-    //If a mint_cap is provided we can perform the check to see if minting is allowed
-    if (total_mints >= BigInt(mint_cap)) return false;
+    //If a mint_cap is provided we can perform the check to see if minting is allowed (minting is allowed on the cap itself)
+    if (total_mints > BigInt(mint_cap)) return false;
   }
 
   //Define defaults used for calculations below
@@ -332,4 +586,8 @@ module.exports = {
   checkCommitment,
   blockManager,
   getRunestonesInBlock,
+  convertPartsToAmount,
+  convertAmountToParts,
+  prefetchTransactions,
+  isUsefulRuneTx,
 };
