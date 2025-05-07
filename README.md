@@ -1,5 +1,6 @@
 
-![rundexerBanner (2)](https://github.com/runeapespad/Nana/assets/13739426/a9da26ae-da31-47db-891d-c94751abf40d)
+![dunes](https://github.com/user-attachments/assets/151acbc4-8668-43b8-aae7-131f3a5bed09)
+
 
 # Nana
 Nana is an indexer for Runes.
