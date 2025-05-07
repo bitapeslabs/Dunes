@@ -29,7 +29,7 @@ the state of runes that the ORD client creates nad the highest barrier to entry 
 - The original dunes protocol specifies the following:
 
 ```
-If an edict output is greater than the number of outputs of the transaction, an edict dune ID is encountered with block zero and nonzero transaction index, or a field is truncated, meaning a tag is encountered without a value, the decoded dunestone is a cenotaph.
+If an edict output is greater than the number of outputs of the transaction, an edict rune ID is encountered with block zero and nonzero transaction index, or a field is truncated, meaning a tag is encountered without a value, the decoded runestone is a cenotaph.
 
 Note that if a cenotaph is produced here, the cenotaph is not empty, meaning that it contains the fields and edicts, which may include an etching and mint.
 ```
