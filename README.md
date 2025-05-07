@@ -44,7 +44,7 @@ type Etching = {
   premine: DuneAmount; // must be a string
   rune: string; // must be a string
   symbol: string; // must be a string (emoji etc.)
-  terms: Terms; // nested strict object
+  terms: null | Terms; // nested strict object
 };
 
 type Dunestone = {
@@ -57,4 +57,4 @@ type Dunestone = {
 
 ## Useful links
 
-Runes protocol: https://docs.ordinals.com/runes.html
+Original runes protocol: https://docs.ordinals.com/runes.html
