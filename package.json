@@ -24,7 +24,8 @@
     "runelib": "^1.0.6",
     "sequelize": "^6.37.3",
     "tiny-secp256k1": "^2.2.3",
-    "xxhashjs": "^0.2.2"
+    "xxhashjs": "^0.2.2",
+    "zod": "^3.24.4"
   },
   "bin": {
     "nana": "./bin/run.js"
