@@ -8,7 +8,7 @@ const {
   minimumLengthAtHeight,
   checkCommitment,
   isUsefulRuneTx,
-} = require("./runeutils");
+} = require("./duneutils");
 
 const { Op } = require("sequelize");
 
