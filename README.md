@@ -16,19 +16,17 @@ the state of runes that the ORD client creates nad the highest barrier to entry 
 
 **Furthermore, dunes implements the following changes**:
 
-- Dunestones are pushed directly after the OP_RETURN. This means "OP_13 isnt pushed before the dunestone like dunes. A dunestone OP_RETURN looks like this:
+- Dunestones are pushed directly after the OP_RETURN. This means "OP_13 isnt pushed before the dunestone like on runes. A dunestone OP_RETURN looks like this:
   OP_RETURN utf8-encoded-dunestone-string-hex
 
-- Dunes does not require commitments to etch. This means dunes, unlike dunes, does not require any copy of the witness layer! Dunes works with any pre-segwit
+- Dunes does not require commitments to etch. This means dunes, unlike runes, does not require any copy of the witness layer! Dunes works with any pre-segwit
   wallet and chain.
 
-- Any DUNES name is valid, as long as the name contains only letters (A–Z, a–z), numbers (0–9), underscores \_, hyphens -, or periods . — and must be at least one character long, and less than 32 characters long. (names are case sensitive, so "Dunes" and "dunes" are NOT the same.)
+- Any DUNES name is valid, as long as the name contains only letters (A–Z, a–z), numbers (0–9), underscores \_, hyphens -, or periods . — and must be at least one character long, and less than 32 characters long. (names are case sensitive, so "Duni" and "duni" are NOT the same.)
 
-- Because DUNE names are described as strings, the "spacer" field from the original dunes protocol is completely omitted.
+- Because DUNE names are described as strings, the "spacer" field from the original runes protocol is completely omitted.
 
-- DUNE names can only be used once! No two dunes can have the same name - just like Dunes
-
-- A symbol can still only be one character long.
+- DUNE names can only be used once! No two dunes can have the same name - just like runes.
 
 - The original dunes protocol specifies the following:
 
