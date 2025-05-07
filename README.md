@@ -32,7 +32,7 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 
 **NOTE: For simplicity, this has been removed.** This is checked before processing, and if a cenotaph is produced, the entire dunestone will be treated as a cenotaph. This means that the edicts, etching, and mint fields will be null.
 
-# A new genesis Dunestone
+# A new genesis dunestone
 
 "duni" is the genesis dune of Dunes. The following etching looks as follows:
 
@@ -52,7 +52,7 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 }
 ```
 
-# Schema
+# Dunestone schema
 
 The following type definitions describe what a DUNESTONE should look like:
 
