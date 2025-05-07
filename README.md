@@ -2,10 +2,12 @@
 
 # Dunes
 
-**What runes should have been**
+## Useful links
 
 Explorer: https://dunes.sh
 CLI: https://github.com/bitapeslabs/dunes-cli
+
+## What is Dunes?
 
 Dunes is runes, but without the runestone decoder - instead leveraging the new op_return size limit so dunestones (named dunestones on dunes), can be pushed to
 bitcoin as a JSON file directly. This makes it MUCH easier for developers to work with, as the runestone decoder is notriously the most difficult part in reaching
