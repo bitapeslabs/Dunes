@@ -3,7 +3,7 @@ const router = express.Router();
 const { Op, Sequelize } = require("sequelize");
 const {
   process_many_utxo_balances,
-} = require("../lib/native/pkg/nana_parsers.js");
+} = require("../lib/native/pkg/dune_parsers.js");
 const validators = require("../lib/validators.js");
 const {
   parseBalancesIntoUtxo,
