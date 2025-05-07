@@ -1,44 +1,52 @@
 const { z } = require("zod");
 
-const MAX_U128 = (1n << 128n) - 1n;
-const duneAmount = z.string().refine((s) => {
-  try {
-    const n = BigInt(s);
-    return 0n <= n && n <= MAX_U128;
-  } catch {
-    return false;
-  }
-});
+/* ── 1. shared helpers ───────────────────────────────────── */
+const MAX_U128 = (1n << 128n) - 1n; // 2**128‑1
+const MAX_U32 = 0xffff_ffff; // 4 294 967 295
+const MAX_U8 = 0xff; // 255
 
+const duneAmount = z.string().refine(
+  (s) => {
+    try {
+      const n = BigInt(s);
+      return 0n <= n && n <= MAX_U128;
+    } catch {
+      return false;
+    }
+  },
+  { message: "amount must be a decimal string within u128 range" }
+);
+
+const u32 = () => z.number().int().nonnegative().max(MAX_U32);
+const u8 = () => z.number().int().nonnegative().max(MAX_U8);
+
+/* ── 2. schemas with new limits ─────────────────────────── */
 const EdictSchema = z.object({
   id: z.string().regex(/^\d+:\d+$/, "id must look like “0:0”"),
   amount: duneAmount,
-  output: z.number().int().nonnegative(),
+  output: u8(), // ← max u8
 });
 
 const TermsSchema = z.object({
   amount: duneAmount,
   cap: duneAmount,
-  height: z.tuple([z.number().int().nullable(), z.number().int().nullable()]),
-  offset: z.tuple([z.number().int().nullable(), z.number().int().nullable()]),
+  height: z.tuple([u32().nullable(), u32().nullable()]), // ← u32 each
+  offset: z.tuple([u32().nullable(), u32().nullable()]), // ← u32 each
 });
 
 const MintSchema = z.object({
-  block: z.number().int().nonnegative(),
-  tx: z.number().int().nonnegative(),
+  block: u32(), // ← u32
+  tx: u32(), // ← u32
 });
 
 const EtchingSchema = z.object({
-  divisibility: z.number().int().nonnegative(),
+  divisibility: u8(), // ← u8
   premine: duneAmount,
   dune: z
     .string()
-    .regex(/^[A-Za-z0-9_.-]{1,31}$/, {
-      message:
-        "dune must be 1‑31 chars long and may contain only A‑Z, a‑z, 0‑9, _ , - , .",
-    })
+    .regex(/^[A-Za-z0-9_.-]{1,31}$/)
     .min(1)
-    .max(32),
+    .max(31),
   symbol: z.string(),
   terms: z.union([TermsSchema, z.null()]),
   turbo: z.boolean().default(true),
@@ -49,27 +57,31 @@ const DunestoneSchema = z
     edicts: z.array(EdictSchema).optional(),
     etching: EtchingSchema.optional(),
     mint: MintSchema.optional(),
-    pointer: z.number().int().nonnegative().optional(),
+    pointer: u32().optional(), // ← u32
   })
   .strict();
 
+/* ── 3. keys that hold DuneAmounts ───────────────────────── */
 const AMOUNT_KEYS = new Set(["amount", "cap", "premine"]);
 
+/* ── 4. main function ───────────────────────────────────── */
 function decipher(tx) {
+  /* find OP_RETURN */
   const op = tx.vout.find(
     (v) =>
       v.scriptPubKey?.type === "nulldata" ||
       v.scriptPubKey?.asm?.startsWith("OP_RETURN")
   );
-
   if (!op) return { dunestone: {}, cenotaph: false };
 
+  /* payload hex extraction */
   let hex = "";
   if (op.scriptPubKey.asm?.startsWith("OP_RETURN"))
     hex = op.scriptPubKey.asm.split(" ")[1] ?? "";
   else if (op.scriptPubKey.hex?.startsWith("6a"))
     hex = op.scriptPubKey.hex.replace(/^6a(?:4c[0-9a-f]{2})?/i, "");
 
+  /* decode + parse */
   let candidate;
   try {
     candidate = JSON.parse(Buffer.from(hex, "hex").toString("utf8"));
@@ -77,10 +89,12 @@ function decipher(tx) {
     return { dunestone: {}, cenotaph: true };
   }
 
+  /* schema validation */
   const parsed = DunestoneSchema.safeParse(candidate);
   if (!parsed.success) return { dunestone: {}, cenotaph: true };
   const dune = parsed.data;
 
+  /* extra cenotaph rules */
   if (dune.edicts) {
     const voutLen = tx.vout.length;
     const badOutput = dune.edicts.some((e) => e.output > voutLen - 1);
@@ -91,6 +105,7 @@ function decipher(tx) {
     if (badOutput || badZeroDune) return { dunestone: {}, cenotaph: true };
   }
 
+  /* DuneAmount → BigInt conversion */
   const toBig = (obj) => {
     if (Array.isArray(obj)) return obj.map(toBig);
     if (obj && typeof obj === "object") {
@@ -103,6 +118,7 @@ function decipher(tx) {
     }
     return obj;
   };
+
   return { ...toBig(dune), cenotaph: false };
 }
 
