@@ -247,6 +247,13 @@ const removeItemsWithDuplicateProp = (array, prop) => {
     return acc;
   }, []);
 };
+function btcToSats(val) {
+  const str = val.toString();
+  const [whole, frac = ""] = str.split(".");
+  const wholeSats = BigInt(whole) * 100_000_000n;
+  const fracSats = BigInt(frac.padEnd(8, "0").slice(0, 8));
+  return wholeSats + fracSats;
+}
 
 const chunkify = (array, len) => {
   // Initialize an empty array to hold the chunks
@@ -264,6 +271,7 @@ const chunkify = (array, len) => {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 module.exports = {
+  btcToSats,
   fromBigInt,
   toBigInt,
   pluralize,

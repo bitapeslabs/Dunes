@@ -24,7 +24,7 @@ the state of runes that the ORD client creates nad the highest barrier to entry 
 
 **Furthermore, dunes implements the following changes**:
 
-- Dunestones are pushed directly after the OP_RETURN. This means "OP_13 isnt pushed before the dunestone like on runes. A dunestone OP_RETURN looks like this:
+- Dunestones are pushed directly after the OP_RETURN. This means "OP_13" isnt pushed before the dunestone like on runes. A dunestone OP_RETURN looks like this:
   OP_RETURN utf8-encoded-dunestone-string-hex
 
 - Dunes does not require commitments to etch. This means dunes, unlike runes, does not require any copy of the witness layer! Dunes works with any pre-segwit
@@ -35,6 +35,8 @@ the state of runes that the ORD client creates nad the highest barrier to entry 
 - Because DUNE names are described as strings, the "spacer" field from the original runes protocol is completely omitted.
 
 - DUNE names can only be used once! No two dunes can have the same name - just like runes.
+
+- Implements priced mints, originally proposed here: https://github.com/ordinals/ord/issues/3794 and further iterated here to take advantage of the new OP_RETURN size limit. See "priced mints" below for more information.
 
 - The original dunes protocol specifies the following:
 
@@ -76,23 +78,29 @@ type DuneAmount = string; //must be passed as a string and be less than u128::MA
 type Edict = {
   id: string; // must be a string like "0:0"
   amount: DuneAmount; // must be a string
-  output: number; // must be a number
+  output: number; // must be a number, max: u8
 };
 
 type Terms = {
+  price?: PriceTerms; //optional
   amount: DuneAmount; //required if terms are included or cenotaph
   cap: DuneAmount; //required if terms are included or cenotaph
-  height: [null | number, null | number]; //required if terms are included or cenotaph
-  offset: [null | number, null | number]; //required if terms are included or cenotaph
+  height: [null | number, null | number]; //max: u32, required if terms are included or cenotaph
+  offset: [null | number, null | number]; //max: u32, required if terms are included or cenotaph
 };
 
 type Mint = {
-  block: number; //required if mint is included or cenotaph
-  tx: number; //required if mint is included or cenotaph
+  block: number; //max: u32, required if mint is included or cenotaph
+  tx: number; //max: u32, required if mint is included or cenotaph
+};
+
+type PriceTerms = {
+  amount: DuneAmount; //required if priceterms are included or cenotaph
+  pay_to: string; //required if priceterms are included or cenotaph. Maxmium length: 130 characters
 };
 
 type Etching = {
-  divisibility: number; ///required or cenotaph
+  divisibility: number; //max: u8, required or cenotaph
   premine: DuneAmount; //required or cenotaph
   dune: string; //required or cenotaph
   symbol: string; //required or cenotaph
@@ -104,9 +112,21 @@ type Dunestone = {
   edicts?: Edict[]; //optional
   etching?: Etching; //optional
   mint?: Mint; //optional
-  pointer?: number; //optional
+  pointer?: number; //max: u32, optional
 };
 ```
+
+## What are priced mints?
+
+Price is an u128 integer expressed in Satoshi. During an etch, IF the price field is present the following would be added as a requirement:
+
+all mints must include a cumulative amount of etching.terms.price satoshi sent in the tx's vouts to the etching.terms.pay_to address specified in a dune's etching terms.
+
+IF price terms are not met, the mint is invalid.
+
+If no price field is provided in a dune's etching, all functionality above is ignored.
+
+**Rationale:** This allows for decentralized ICOs to take place, without the need of a custodian.
 
 ## Credits
 

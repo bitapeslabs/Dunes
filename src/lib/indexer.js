@@ -3,7 +3,7 @@ require("dotenv").config({ path: "../../.env" });
 const { toBigInt, stripObject, log, sleep } = require("./utils");
 const {
   isMintOpen,
-  getReservedName,
+  isPriceTermsMet,
   updateUnallocated,
   minimumLengthAtHeight,
   isUsefulDuneTx,
@@ -357,6 +357,10 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
     return UnallocatedDunes;
   }
 
+  if (!isPriceTermsMet(duneToMint, Transaction)) {
+    return UnallocatedDunes;
+  }
+
   if (isMintOpen(block, txIndex, duneToMint, true)) {
     //Update new mints to count towards cap
 
@@ -489,6 +493,8 @@ const processEtching = (
     mint_end: etching.terms?.height?.[1]?.toString() ?? null,
     mint_offset_start: etching.terms?.offset?.[0]?.toString() ?? null,
     mint_offset_end: etching.terms?.offset?.[1]?.toString() ?? null,
+    price_amount: etching.terms?.price?.amount ?? null,
+    price_pay_to: etching.terms?.price?.pay_to ?? null,
     turbo: etching.turbo,
     burnt_amount: "0",
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the dune spec (see above)

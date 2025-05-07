@@ -39,6 +39,14 @@ module.exports = (sequelize) => {
         type: Sequelize.DECIMAL,
         allowNull: false,
       },
+      price_amount: {
+        type: Sequelize.DECIMAL,
+        allowNull: true,
+      },
+      price_pay_to: {
+        type: Sequelize.TEXT,
+        allowNull: true,
+      },
       mint_cap: {
         type: Sequelize.DECIMAL,
         allowNull: true,
