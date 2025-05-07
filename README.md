@@ -70,10 +70,9 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
     }
   }
 }
-
-Each duni mint costs 21000 satoshis, or roughly 20.29 USD at the time of writing.
-
 ```
+
+Each duni mint costs **21000 satoshis**, or roughly 20.29 USD (0.20 USD per duni) at the time of writing.
 
 # Dunestone schema
 
