@@ -2,11 +2,16 @@
 
 # Dunes
 
-Dunes is dunes, but without the dunestone decoder - instead leveraging the new op_return size limit so dunestones (named dunestones on dunes), can be pushed to
-bitcoin as a JSON file directly. This makes it MUCH easier for developers to work with, as the dunestone decoder is notriously the most difficult part in reaching
-the state of dunes that ORD creates.
+**What runes should have been**
 
-Furthermore, dunes adds the following changes:
+Explorer: https://dunes.sh
+CLI: https://github.com/bitapeslabs/dunes-cli
+
+Dunes is runes, but without the runestone decoder - instead leveraging the new op_return size limit so dunestones (named dunestones on dunes), can be pushed to
+bitcoin as a JSON file directly. This makes it MUCH easier for developers to work with, as the runestone decoder is notriously the most difficult part in reaching
+the state of runes that the ORD client creates nad the highest barrier to entry for runes.
+
+**Furthermore, dunes implements the following changes**:
 
 - Dunestones are pushed directly after the OP_RETURN. This means "OP_13 isnt pushed before the dunestone like dunes. A dunestone OP_RETURN looks like this:
   OP_RETURN utf8-encoded-dunestone-string-hex
