@@ -13,7 +13,7 @@ const { sleep } = require("./src/lib/utils");
 const {
   blockManager: createBlockManager,
   prefetchTransactions,
-} = require("./src/lib/runeutils");
+} = require("./src/lib/duneutils");
 
 const {
   databaseConnection: createConnection,

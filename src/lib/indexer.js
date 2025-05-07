@@ -6,15 +6,12 @@ const {
   getReservedName,
   updateUnallocated,
   minimumLengthAtHeight,
-  checkCommitment,
   isUsefulRuneTx,
 } = require("./duneutils");
 
 const { Op } = require("sequelize");
 
-const { SpacedRune, Rune: OrdRune } = require("@ordjs/runestone");
-const { GENESIS_BLOCK, GENESIS_RUNESTONE } = require("./constants");
-const { runestone } = require("@runeapes/apeutils");
+const { GENESIS_BLOCK, GENESIS_DUNESTONE } = require("./constants");
 
 const NO_COMMITMENTS = process.argv.includes("--no-commitments");
 
@@ -192,12 +189,12 @@ const processEdicts = (
   transfers,
   storage
 ) => {
-  const { block, txIndex, runestone, vin } = Transaction;
+  const { block, txIndex, dunestone, vin } = Transaction;
   const { findManyInFilter, create, findOne, findOrCreate } = storage;
 
-  let { edicts, pointer } = runestone;
+  let { edicts, pointer } = dunestone;
 
-  if (runestone.cenotaph) {
+  if (dunestone.cenotaph) {
     //Transaction is a cenotaph, input runes are burnt.
     //https://docs.ordinals.com/runes/specification.html#Transferring
 
@@ -266,7 +263,7 @@ const processEdicts = (
 
     for (let edictIndex in edicts) {
       let edict = edicts[edictIndex];
-      //A runestone may contain any number of edicts, which are processed in sequence.
+      //A dunestone may contain any number of edicts, which are processed in sequence.
       if (!existingRunes[edict.id]) {
         //If the rune does not exist, the edict is ignored
         continue;
@@ -285,7 +282,7 @@ const processEdicts = (
           */
 
           const amountOutputs = BigInt(nonOpReturnOutputs.length);
-          //By default all txs have exactly one OP_RETURN, because they are needed for runestones. More than 1 OP_RETURN is considered non-standard and ignored by btc nodes.
+          //By default all txs have exactly one OP_RETURN, because they are needed for dunestones. More than 1 OP_RETURN is considered non-standard and ignored by btc nodes.
 
           /*
             https://github.com/ordinals/ord/pull/3547/commits/30c0b39d398f5f2934c87762f53e0e0591b0aadf?diff=unified&w=0
@@ -344,8 +341,8 @@ const processEdicts = (
 };
 
 const processMint = (UnallocatedRunes, Transaction, storage) => {
-  const { block, txIndex, runestone } = Transaction;
-  const mint = runestone?.mint;
+  const { block, txIndex, dunestone } = Transaction;
+  const mint = dunestone?.mint;
 
   const { findOne, updateAttribute, create, findOrCreate } = storage;
 
@@ -366,7 +363,7 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
     let newMints = (BigInt(runeToMint.mints) + BigInt(1)).toString();
     updateAttribute("Rune", runeToMint.rune_protocol_id, "mints", newMints);
 
-    if (runestone.cenotaph) {
+    if (dunestone.cenotaph) {
       //If the mint is a cenotaph, the minted amount is burnt
       return UnallocatedRunes;
     }
@@ -405,9 +402,9 @@ const processEtching = (
   isGenesis,
   useTest
 ) => {
-  const { block, txIndex, runestone } = Transaction;
+  const { block, txIndex, dunestone } = Transaction;
 
-  const etching = runestone?.etching;
+  const etching = dunestone?.etching;
 
   const { findOne, create, local, findOrCreate } = storage;
 
@@ -426,21 +423,7 @@ const processEtching = (
   //Cenotaphs dont have any other etching properties other than their name
   //If not a cenotaph, check if a rune name was provided, and if not, generate one
 
-  let runeName = runestone.cenotaph
-    ? etching
-    : etching.rune ?? getReservedName(block, txIndex);
-
-  //Check for valid commitment before doing anything (incase non reserved name)
-
-  if (minimumLengthAtHeight(block) > runeName.length) {
-    return UnallocatedRunes;
-  }
-
-  let spacedRune;
-
-  if (etching.spacers && !runestone.cenotaph) {
-    spacedRune = new SpacedRune(OrdRune.fromString(runeName), etching.spacers);
-  }
+  let runeName = etching.rune;
 
   const isRuneNameTaken = !!findOne(
     "Rune",
@@ -453,26 +436,10 @@ const processEtching = (
     return UnallocatedRunes;
   }
 
-  //This is processed last since it is the most computationally expensive call (we have to call RPC twice)
-  const isReserved = !etching.rune;
-
-  if (!isReserved && !useTest && !isGenesis && !NO_COMMITMENTS) {
-    const hasValidCommitment = checkCommitment(
-      runeName,
-      Transaction,
-      block,
-      rpc
-    );
-
-    if (!hasValidCommitment) {
-      return UnallocatedRunes;
-    }
-  }
-
   /*
     Runespec: Runes etched in a transaction with a cenotaph are set as unmintable.
 
-    If the runestone decoded has the cenotaph flag set to true, the rune should be created with no allocationg created
+    If the dunestone decoded has the cenotaph flag set to true, the rune should be created with no allocationg created
 
     see unminable flag in rune model
   */
@@ -495,10 +462,8 @@ const processEtching = (
 
   const EtchedRune = create("Rune", {
     rune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
-    name: spacedRune ? spacedRune.name : runeName,
-    raw_name: runeName,
+    name: runeName,
     symbol,
-    spacers: etching.spacers ?? 0,
 
     //ORD describes no decimals being set as default 0
     decimals: etching.divisibility ?? 0,
@@ -527,7 +492,7 @@ const processEtching = (
     turbo: etching.turbo,
     burnt_amount: "0",
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the rune spec (see above)
-    unmintable: runestone.cenotaph || !etching.terms?.amount ? 1 : 0,
+    unmintable: dunestone.cenotaph || !etching.terms?.amount ? 1 : 0,
     etch_transaction_id: Transaction.virtual_id,
     deployer_address_id: etcherId,
   });
@@ -545,7 +510,7 @@ const processEtching = (
 
   //Add premine runes to input allocations
 
-  if (runestone.cenotaph) {
+  if (dunestone.cenotaph) {
     //No runes are premined if the tx is a cenotaph.
     return UnallocatedRunes;
   }
@@ -592,14 +557,14 @@ const finalizeTransfers = (
   storage
 ) => {
   const { updateAttribute, create, local, findOne } = storage;
-  const { block, runestone } = Transaction;
+  const { block, dunestone } = Transaction;
 
   emitTransferAndBurnEvents(transfers, Transaction, storage);
 
   let opReturnOutput = pendingUtxos.find((utxo) => utxo.address_id === 2);
 
   //Burn all runes from cenotaphs or OP_RETURN outputs (if no cenotaph is present)
-  if (runestone.cenotaph) {
+  if (dunestone.cenotaph) {
     inputUtxos.forEach((utxo) => burnAllFromUtxo(utxo, storage));
   } else if (opReturnOutput) {
     burnAllFromUtxo(opReturnOutput, storage);
@@ -666,7 +631,7 @@ const finalizeTransfers = (
 const handleGenesis = (Transaction, rpc, storage) => {
   processEtching(
     {},
-    { ...Transaction, runestone: GENESIS_RUNESTONE },
+    { ...Transaction, dunestone: GENESIS_DUNESTONE },
     rpc,
     storage,
     true
@@ -675,7 +640,7 @@ const handleGenesis = (Transaction, rpc, storage) => {
   return;
 };
 
-const processRunestone = (Transaction, rpc, storage, useTest) => {
+const processDunestone = (Transaction, rpc, storage, useTest) => {
   const { vout, vin, block, hash } = Transaction;
 
   const { create, fetchGroupLocally, findOne, local, findOrCreate } = storage;
@@ -728,8 +693,8 @@ const processRunestone = (Transaction, rpc, storage, useTest) => {
   if (
     //If no input utxos are provided (with runes inside)
     inputUtxos.length === 0 &&
-    //AND there is no runestone field in the transaction (aside from cenotaph)
-    Object.keys(Transaction.runestone).length === 1
+    //AND there is no dunestone field in the transaction (aside from cenotaph)
+    Object.keys(Transaction.dunestone).length === 1
   ) {
     //We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions
     if (!(vin[0].coinbase && block == GENESIS_BLOCK)) return;
@@ -962,8 +927,8 @@ const loadBlockIntoMemory = async (block, storage) => {
         //Get all rune ids in edicts and mints
 
         block.map((transaction) => [
-          transaction.runestone.mint,
-          transaction.runestone.edicts?.map((edict) => edict.id),
+          transaction.dunestone.mint,
+          transaction.dunestone.edicts?.map((edict) => edict.id),
         ]),
       ]
         .flat(Infinity)
@@ -980,7 +945,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   ];
 
   const runesInBlockByRawName = [
-    ...new Set(block.map((transaction) => transaction.runestone.etching?.rune)),
+    ...new Set(block.map((transaction) => transaction.dunestone.etching?.rune)),
   ]
     .flat(Infinity)
     //0:0 refers to self, not an actual rune
@@ -997,7 +962,7 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   // Load runes by raw name
   await loadManyIntoMemory("Rune", {
-    raw_name: {
+    name: {
       [Op.in]: runesInBlockByRawName,
     },
   });
@@ -1091,7 +1056,7 @@ const processBlock = (block, callRpc, storage, useTest) => {
       //REMOVE THIS! This is for the --test flag
       if (useTest) Transaction.block = blockHeight;
 
-      processRunestone(Transaction, callRpc, storage, useTest);
+      processDunestone(Transaction, callRpc, storage, useTest);
     } catch (e) {
       log(
         "Indexer panic on the following transaction: " +
@@ -1103,8 +1068,8 @@ const processBlock = (block, callRpc, storage, useTest) => {
           TransactionIndex +
           "/" +
           blockData.length +
-          "\nrunestone: " +
-          JSON.stringify(Transaction.runestone) +
+          "\ndunestone: " +
+          JSON.stringify(Transaction.dunestone) +
           "\ntransaction: " +
           JSON.stringify(Transaction),
         "panic"

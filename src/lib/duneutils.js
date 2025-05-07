@@ -2,49 +2,27 @@ const {
   GENESIS_BLOCK,
   UNLOCK_INTERVAL,
   INITIAL_AVAILABLE,
-  TAPROOT_ANNEX_PREFIX,
-  COMMIT_CONFIRMATIONS,
-  TAPROOT_SCRIPT_PUBKEY_TYPE,
 } = require("./constants");
-const { storage: newStorage } = require("./storage");
 const { Op } = require("sequelize");
 
-const { Rune: OrdJSRune } = require("@ordjs/runestone");
-const { Script } = require("@cmdcode/tapscript");
-const { runestone } = require("@runeapes/apeutils");
 const {
   log,
   convertAmountToParts,
   convertPartsToAmount,
-  sleep,
-  stripObject,
   chunkify,
 } = require("./utils");
 const NO_COMMITMENTS = process.argv.includes("--no-commitments");
-const fs = require("fs");
-const path = require("path");
-const decipherRunestone = (txJson) => {
-  let decodedBlob = stripObject(runestone.decipher(txJson.hex) ?? {});
+const dunestone = require("./dunestone");
 
-  //Cenotaph objects and Runestones are both treated as runestones, the differentiation in processing is done at the indexer level
-  return {
-    ...decodedBlob?.Runestone,
-    ...decodedBlob?.Cenotaph,
-    cenotaph:
-      !!decodedBlob?.Cenotaph ||
-      (!decodedBlob?.Runestone &&
-        !!txJson.vout.filter((utxo) =>
-          //PUSHNUM_13 is CRUCIAL for defining a cenotaph, if just an "OP_RETURN" is present, its treated as a normal tx
-          utxo.scriptPubKey.asm.includes("OP_RETURN 13")
-        ).length),
-  };
+const decipherRunestone = (txJson) => {
+  return dunestone.decipher(txJson);
 };
 
 const isUsefulRuneTx = (Transaction) => {
-  const { runestone } = Transaction;
-  if (runestone?.cenotaph) return true; //burn happens
+  const { dunestone } = Transaction;
+  if (dunestone?.cenotaph) return true; //burn happens
 
-  if (runestone?.mint || runestone?.etching) return true;
+  if (dunestone?.mint || dunestone?.etching) return true;
 
   return false;
 };
@@ -60,7 +38,7 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
     transactions.map((tx, txIndex) => {
       return new Promise(async function (resolve, reject) {
         resolve({
-          runestone: decipherRunestone(tx),
+          dunestone: decipherRunestone(tx),
           hash: tx.txid,
           txIndex,
           block: blockNumber,
@@ -185,13 +163,13 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
     results.map(async (block) => {
       return await Promise.all(
         block.map(async (tx) => {
-          const { vin: vins, runestone } = tx;
+          const { vin: vins, dunestone } = tx;
 
           // if coinbase dont populate sender or parentTx
           if (vins[0].coinbase) {
             return { ...tx, sender: "COINBASE" };
           }
-          if (runestone.etching?.rune && !NO_COMMITMENTS) {
+          if (dunestone.etching?.rune && !NO_COMMITMENTS) {
             //populate vins with the block they were created at (only for etchings)
             let newVins = await Promise.all(
               tx.vin.map(async (vin) => {
@@ -224,7 +202,7 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
             };
 
             /*
-                These two fields in a runestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
+                These two fields in a dunestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
                 as the sender the owner of the first vout in the transaction instead.
                 */
           }
@@ -262,7 +240,7 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
 
           //If none of the above conditions are met, we must fetch the sender from bitcoinrpc (if mint or etching)
 
-          if (runestone?.mint || runestone?.etching) {
+          if (dunestone?.mint || dunestone?.etching) {
             let sender = (
               await callRpc("getrawtransaction", [vins[0].txid, true])
             ).vout[vins[0].vout].scriptPubKey.address;
@@ -366,98 +344,10 @@ const blockManager = async (callRpc, latestBlock, readBlockStorage) => {
   };
 };
 
-const getReservedName = (block, tx) => {
-  const baseValue = BigInt("6402364363415443603228541259936211926");
-  const combinedValue = (BigInt(block) << 32n) | BigInt(tx);
-  return Rune(baseValue + combinedValue)?.name;
-};
-
 const minimumLengthAtHeight = (block) => {
   const stepsPassed = Math.floor((block - GENESIS_BLOCK) / UNLOCK_INTERVAL);
 
   return INITIAL_AVAILABLE - stepsPassed;
-};
-
-const checkCommitment = (runeName, Transaction, block, callRpc) => {
-  //Credits to @me-foundation/runestone-lib for this function.
-  //Modified to fit this indexer.
-
-  const commitment = getCommitment(runeName).toString("hex");
-
-  for (const input of Transaction.vin) {
-    if ("coinbase" in input) {
-      continue;
-    }
-
-    const witnessStack = input.txinwitness.map((item) =>
-      Buffer.from(item, "hex")
-    );
-
-    const lastWitnessElement = witnessStack[witnessStack.length - 1];
-    const offset =
-      witnessStack.length >= 2 && lastWitnessElement[0] === TAPROOT_ANNEX_PREFIX
-        ? 3
-        : 2;
-    if (offset > witnessStack.length) {
-      continue;
-    }
-
-    const potentiallyTapscript = witnessStack[witnessStack.length - offset];
-    if (potentiallyTapscript === undefined) {
-      continue;
-    }
-
-    const witnessStackDecompiled = input.txinwitness
-      .map((hex) => {
-        try {
-          let decoded = Script.decode(hex);
-          return decoded;
-        } catch (e) {
-          return false;
-        }
-      })
-
-      .filter((stack) => stack) //remove compilation errors
-      .filter((stack) => stack.includes(commitment)); //decode witness scripts and search for commitment endian
-
-    if (!witnessStackDecompiled.length) {
-      continue;
-    }
-
-    //valid commitment, check for confirmations
-    try {
-      const isTaproot =
-        input.parentTx.vout[input.vout].scriptPubKey.type ===
-        TAPROOT_SCRIPT_PUBKEY_TYPE;
-
-      if (!isTaproot) {
-        continue;
-      }
-
-      const confirmations = block - input.parentTx.block + 1;
-
-      if (confirmations >= COMMIT_CONFIRMATIONS) return true;
-    } catch (e) {
-      log("RPC failed during commitment check", "panic");
-      throw "RPC Error during commitment check";
-    }
-  }
-
-  return false;
-};
-
-const getCommitment = (runeName) => {
-  const value = OrdJSRune.fromString(runeName).value;
-  const bytes = Buffer.alloc(16);
-  bytes.writeBigUInt64LE(0xffffffff_ffffffffn & value, 0);
-  bytes.writeBigUInt64LE(value >> 64n, 8);
-
-  let end = bytes.length;
-  while (end > 0 && bytes.at(end - 1) === 0) {
-    end--;
-  }
-
-  return bytes.subarray(0, end);
 };
 
 const updateUnallocated = (prevUnallocatedRunes, Allocation) => {
@@ -578,12 +468,9 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
 };
 
 module.exports = {
-  getReservedName,
-  isMintOpen,
   updateUnallocated,
+  isMintOpen,
   minimumLengthAtHeight,
-  getCommitment,
-  checkCommitment,
   blockManager,
   getRunestonesInBlock,
   convertPartsToAmount,

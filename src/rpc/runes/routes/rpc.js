@@ -6,12 +6,12 @@ const { Op } = require("sequelize");
 /*
     Gets all Rune events from a specific block
     
-    Documentation: https://nanas.sh/docs/runes-rpc/events#get-runes-block-height
+    Documentation: https://dunes.sh/docs/runes-rpc/events#get-runes-block-height
 */
 /*
     Gets all Rune events from a specific transaction
     
-    Documentation: https://nanas.sh/docs/runes-rpc/events#get-runes-block-height
+    Documentation: https://dunes.sh/docs/runes-rpc/events#get-runes-block-height
 */
 router.get("/info", async function (req, res) {
   try {

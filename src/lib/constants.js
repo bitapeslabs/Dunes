@@ -8,24 +8,22 @@ const INITIAL_AVAILABLE = 13; //https://docs.ordinals.com/runes/specification.ht
 const TAPROOT_SCRIPT_PUBKEY_TYPE = "witness_v1_taproot";
 const MAX_SIGNED_128_BIT_INT = 0x7fffffffffffffffffffffffffffffffn + 1n;
 
-const GENESIS_RUNESTONE = {
+const GENESIS_DUNESTONE = {
   etching: {
-    rune: "UNCOMMONGOODS",
-    spacers: 128,
-    symbol: "⧉",
+    rune: "duni",
+    symbol: "🌵",
     turbo: true,
     terms: {
-      amount: 1n,
-      cap: 0xffffffffffffffffffffffffffffffffn,
-      height: [840000, 1050000],
+      amount: 100n,
+      cap: 100000n,
+      height: [0, null],
       offset: [null, null],
     },
   },
-  cenotaph: false,
 };
 
 module.exports = {
-  GENESIS_RUNESTONE,
+  GENESIS_DUNESTONE,
   GENESIS_BLOCK,
   UNLOCK_INTERVAL,
   INITIAL_AVAILABLE,

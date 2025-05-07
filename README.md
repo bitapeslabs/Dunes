@@ -8,9 +8,15 @@ the state of runes that ORD creates.
 
 Furthermore, dunes adds the following changes:
 
-- Any DUNES name is valid, as the name must contain only letters (A–Z, a–z), numbers (0–9), underscores \_, hyphens -, or periods . — and must be at least one character long, and less than 32 characters long. (names are case sensitive, so "Dunes" and "dunes" are NOT the same.)
+- Dunestones are pushed directly after the OP_RETURN. This means "OP_13 isnt pushed before the dunestone like runes. A dunestone OP_RETURN looks like this:
+  OP_RETURN utf8-encoded-dunestone-string-hex
 
-- Because DUNE names are described as strings, the "spacer" field is completely omitted from the original runes protocol.
+- Dunes does not require commitments to etch. This means dunes, unlike runes, does not require any copy of the witness layer! Dunes works with any pre-segwit
+  wallet and chain.
+
+- Any DUNES name is valid, as long as the name contains only letters (A–Z, a–z), numbers (0–9), underscores \_, hyphens -, or periods . — and must be at least one character long, and less than 32 characters long. (names are case sensitive, so "Dunes" and "dunes" are NOT the same.)
+
+- Because DUNE names are described as strings, the "spacer" field from the original runes protocol is completely omitted.
 
 - DUNE names can only be used once! No two dunes can have the same name - just like Runes
 
@@ -26,6 +32,26 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 
 **NOTE: For simplicity, this has been removed.** This is checked before processing, and if a cenotaph is produced, the entire dunestone will be treated as a cenotaph. This means that the edicts, etching, and mint fields will be null.
 
+# A new genesis Dunestone
+
+"duni" is the genesis dune of Dunes. The following etching looks as follows:
+
+```json
+{
+  "etching": {
+    "rune": "duni",
+    "symbol": "🌵",
+    "turbo": true,
+    "terms": {
+      "amount": 100,
+      "cap": 100000,
+      "height": [0, null],
+      "offset": [null, null]
+    }
+  }
+}
+```
+
 # Schema
 
 The following type definitions describe what a DUNESTONE should look like:
@@ -40,30 +66,31 @@ type Edict = {
 };
 
 type Terms = {
-  amount: DuneAmount; // must be a string
-  cap: DuneAmount; // must be a string
-  height: [null | number, null | number]; // always [null, null]
-  offset: [null | number, null | number]; // always [null, null]
+  amount: DuneAmount; //required if terms are included or cenotaph
+  cap: DuneAmount; //required if terms are included or cenotaph
+  height: [null | number, null | number]; //required if terms are included or cenotaph
+  offset: [null | number, null | number]; //required if terms are included or cenotaph
 };
 
 type Mint = {
-  block: number; // must be a number
-  tx: number; // must be a number
+  block: number; //required if mint is included or cenotaph
+  tx: number; //required if mint is included or cenotaph
 };
 
 type Etching = {
-  divisibility: number; // must be a number
-  premine: DuneAmount; // must be a string
-  rune: string; // must be a string
-  symbol: string; // must be a string (emoji etc.)
-  terms: null | Terms; // nested strict object
+  divisibility: number; ///required or cenotaph
+  premine: DuneAmount; //required or cenotaph
+  rune: string; //required or cenotaph
+  symbol: string; //required or cenotaph
+  terms: null | Terms;
+  turbo: boolean; // if not included, defaults to TRUE
 };
 
 type Dunestone = {
-  edicts: null | Edict[]; // array of edict objects
-  etching: null | Etching; // etching object
-  mint: null | Mint; // mint object
-  pointer: null | number; // must be a number
+  edicts?: Edict[]; //optional
+  etching?: Etching; //optional
+  mint?: Mint; //optional
+  pointer?: number; //optional
 };
 ```
 

@@ -15,7 +15,7 @@ async function databaseConnection() {
         },
       }
     );
-    models.Rune = require("./models/Rune")(sequelize);
+    models.Dune = require("./models/Dune")(sequelize);
     models.Balance = require("./models/Balance")(sequelize);
     models.Utxo = require("./models/Utxo")(sequelize);
     models.Setting = require("./models/Settings")(sequelize);
@@ -28,7 +28,7 @@ async function databaseConnection() {
       foreignKey: "utxo_id",
       as: "utxo",
     });
-    models.Utxo_balance.belongsTo(models.Rune, {
+    models.Utxo_balance.belongsTo(models.Dune, {
       foreignKey: "rune_id",
       as: "rune",
     });
@@ -47,12 +47,12 @@ async function databaseConnection() {
       as: "transaction_spent",
     });
 
-    // Relationships Runes
-    models.Rune.belongsTo(models.Transaction, {
+    // Relationships Dunes
+    models.Dune.belongsTo(models.Transaction, {
       foreignKey: "etch_transaction_id",
       as: "etch_transaction",
     });
-    models.Rune.belongsTo(models.Address, {
+    models.Dune.belongsTo(models.Address, {
       foreignKey: "deployer_address_id",
       as: "deployer_address",
     });
@@ -62,7 +62,7 @@ async function databaseConnection() {
       foreignKey: "transaction_id",
       as: "transaction",
     });
-    models.Event.belongsTo(models.Rune, { foreignKey: "rune_id", as: "rune" });
+    models.Event.belongsTo(models.Dune, { foreignKey: "rune_id", as: "rune" });
     models.Event.belongsTo(models.Address, {
       foreignKey: "from_address_id",
       as: "from_address",
@@ -77,7 +77,7 @@ async function databaseConnection() {
       foreignKey: "address_id",
       as: "address",
     });
-    models.Balance.belongsTo(models.Rune, {
+    models.Balance.belongsTo(models.Dune, {
       foreignKey: "rune_id",
       as: "rune",
     });
@@ -96,7 +96,7 @@ async function databaseConnection() {
     });
 
     // Address hasMany Utxo
-    models.Address.hasMany(models.Rune, {
+    models.Address.hasMany(models.Dune, {
       foreignKey: "deployer_address_id",
       as: "runes_etched",
     });
@@ -113,8 +113,8 @@ async function databaseConnection() {
       as: "utxos_spent",
     });
 
-    // Transaction hasMany Rune (for the `etch_transaction_id`)
-    models.Transaction.hasMany(models.Rune, {
+    // Transaction hasMany Dune (for the `etch_transaction_id`)
+    models.Transaction.hasMany(models.Dune, {
       foreignKey: "etch_transaction_id",
       at: "runes_etched",
     });
@@ -125,8 +125,8 @@ async function databaseConnection() {
       as: "all_events",
     });
 
-    // Rune hasMany Event (for the `rune_id`)
-    models.Rune.hasMany(models.Event, { foreignKey: "rune_id", as: "events" });
+    // Dune hasMany Event (for the `rune_id`)
+    models.Dune.hasMany(models.Event, { foreignKey: "rune_id", as: "events" });
 
     // Address hasMany Event (for the `from_address_id`)
     models.Address.hasMany(models.Event, {
@@ -146,13 +146,13 @@ async function databaseConnection() {
       as: "balances",
     });
 
-    // Rune hasMany Balance (for the `rune_id`)
-    models.Rune.hasMany(models.Balance, {
+    // Dune hasMany Balance (for the `rune_id`)
+    models.Dune.hasMany(models.Balance, {
       foreignKey: "rune_id",
       as: "holders",
     });
 
-    models.Rune.hasMany(models.Utxo_balance, {
+    models.Dune.hasMany(models.Utxo_balance, {
       foreignKey: "rune_id",
       as: "utxo_holders",
     });
