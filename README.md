@@ -24,7 +24,7 @@ If an edict output is greater than the number of outputs of the transaction, an 
 Note that if a cenotaph is produced here, the cenotaph is not empty, meaning that it contains the fields and edicts, which may include an etching and mint.
 ```
 
--> NOTE: For simplicity, we have removed this. This is checked before processing, and if a cenotaph is produced, the entire dunestone will be treated as a cenotaph. This means that the edicts, etching, and mint fields will be null.
+**NOTE: For simplicity, this has been removed.** This is checked before processing, and if a cenotaph is produced, the entire dunestone will be treated as a cenotaph. This means that the edicts, etching, and mint fields will be null.
 
 The following type definitions describe what a DUNESTONE should look like:
 
