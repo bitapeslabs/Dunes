@@ -4,8 +4,9 @@
 
 ## Useful links
 
-Explorer: https://dunes.sh
-CLI: https://github.com/bitapeslabs/dunes-cli
+**Explorer:** https://dunes.sh
+
+**CLI:** https://github.com/bitapeslabs/dunes-cli
 
 ## What is Dunes?
 
