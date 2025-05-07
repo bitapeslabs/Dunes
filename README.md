@@ -128,7 +128,7 @@ IF price terms are not met, the mint is invalid.
 
 If no price field is provided in a dune's etching, all functionality above is ignored.
 
-**Rationale:** This allows for decentralized ICOs to take place, without the need of a custodian.
+**Rationale:** This allows decentralized IDOs (initital dune offerings) to take place, without the need of a custodian.
 
 ## Credits
 
