@@ -18,6 +18,10 @@ const GENESIS_DUNESTONE = {
       cap: 1000000n,
       height: [0, null],
       offset: [null, null],
+      price: {
+        amount: 21000n,
+        pay_to: "bc1qvn6ecmzd42ksa252tntu9yw358yhujcznq9zxs",
+      },
     },
   },
 };
