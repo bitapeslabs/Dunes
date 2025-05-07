@@ -118,11 +118,13 @@ type Dunestone = {
 
 ## What are priced mints?
 
-Price is an u128 integer expressed in Satoshi. During an etch, IF the price field is present the following would be added as a requirement:
+Price is a u128 integer expressed in Satoshi. During an etch, IF the price field is present the following would be added as a requirement:
 
+```
 all mints must include a cumulative amount of etching.terms.price satoshi sent in the tx's vouts to the etching.terms.pay_to address specified in a dune's etching terms.
 
 IF price terms are not met, the mint is invalid.
+```
 
 If no price field is provided in a dune's etching, all functionality above is ignored.
 
