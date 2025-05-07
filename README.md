@@ -6,6 +6,7 @@
 
 **Explorer:** https://dunes.sh
 
+Want to interact with Dunes? Try using the cli:
 **CLI:** https://github.com/bitapeslabs/dunes-cli
 
 ## What is Dunes?
