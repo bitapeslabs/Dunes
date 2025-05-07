@@ -4,13 +4,16 @@ const { Op, Sequelize } = require("sequelize");
 const {
   process_many_utxo_balances,
 } = require("../lib/native/pkg/nana_parsers.js");
-const validators = require("../lib/validators");
+const validators = require("../lib/validators.js");
 const {
   parseBalancesIntoUtxo,
   parseBalancesIntoAddress,
-} = require("../lib/parsers");
+} = require("../lib/parsers.js");
 
-const { getSomeUtxoBalance, getSomeAddressBalance } = require("../lib/queries");
+const {
+  getSomeUtxoBalance,
+  getSomeAddressBalance,
+} = require("../lib/queries.js");
 
 router.get("/utxo/:utxo_index", async function (req, res) {
   try {
@@ -45,7 +48,7 @@ router.get("/utxo/:utxo_index", async function (req, res) {
   }
 });
 
-router.get("/utxo/:utxo_index/:rune_protocol_id", async function (req, res) {
+router.get("/utxo/:utxo_index/:dune_protocol_id", async function (req, res) {
   try {
     const { db } = req;
 
@@ -53,7 +56,7 @@ router.get("/utxo/:utxo_index/:rune_protocol_id", async function (req, res) {
 
     const { validTransactionHash, validInt, validProtocolId } = validators;
 
-    const { rune_protocol_id, utxo_index } = req.params;
+    const { dune_protocol_id, utxo_index } = req.params;
 
     const [hash, vout] = utxo_index?.split(":");
 
@@ -61,14 +64,14 @@ router.get("/utxo/:utxo_index/:rune_protocol_id", async function (req, res) {
       return res.status(400).send({ error: "Invalid utxo index provided" });
     }
 
-    if (!validProtocolId(req.params.rune_protocol_id)) return res;
+    if (!validProtocolId(req.params.dune_protocol_id)) return res;
 
     let query = getSomeUtxoBalance(db, {
       utxo: {
         transaction: { hash },
         vout_index: vout,
       },
-      rune: { rune_protocol_id },
+      dune: { dune_protocol_id },
     });
 
     const utxoBalances = (await Utxo_balance.findAll(query))?.map((balance) =>
@@ -96,7 +99,7 @@ router.get("/address/:address", async function (req, res) {
 
     const { validBitcoinAddress } = validators;
 
-    //if rune_protocol_id is "0" or undefined, then we want to get all balances for the address
+    //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
     //if block is "0" or undefined, then we want to get the latest balance for the address
 
     if (!validBitcoinAddress(address))
@@ -117,30 +120,30 @@ router.get("/address/:address", async function (req, res) {
   }
 });
 
-router.get("/address/:address/:rune_protocol_id", async function (req, res) {
+router.get("/address/:address/:dune_protocol_id", async function (req, res) {
   try {
     let { db } = req;
 
     let { Balance } = db;
 
-    let { address, rune_protocol_id } = req.params;
+    let { address, dune_protocol_id } = req.params;
 
     const { validBitcoinAddress, validProtocolId } = validators;
 
-    //if rune_protocol_id is "0" or undefined, then we want to get all balances for the address
+    //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
     //if block is "0" or undefined, then we want to get the latest balance for the address
 
     if (!validBitcoinAddress(address))
       return res.status(400).send({ error: "Invalid address provided" });
 
-    if (!validProtocolId(rune_protocol_id))
+    if (!validProtocolId(dune_protocol_id))
       return res
         .status(400)
-        .send({ error: "Invalid rune protocol id provided" });
+        .send({ error: "Invalid dune protocol id provided" });
 
     let query = getSomeUtxoBalance(db, {
       address: { address },
-      rune: { rune_protocol_id },
+      dune: { dune_protocol_id },
     });
 
     let balances = (await Balance.findAll(query))?.map((balance) =>
@@ -170,7 +173,7 @@ router.get(
 
       const { validBitcoinAddress, validInt } = validators;
 
-      //if rune_protocol_id is "0" or undefined, then we want to get all balances for the address
+      //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
       //if block is "0" or undefined, then we want to get the latest balance for the address
 
       if (!validBitcoinAddress(address))
@@ -212,18 +215,18 @@ router.get(
 );
 
 router.get(
-  "/snapshot/:start_block/:end_block/address/:address/:rune_protocol_id",
+  "/snapshot/:start_block/:end_block/address/:address/:dune_protocol_id",
   async function (req, res) {
     try {
       let { db } = req;
 
       let { Utxo_balance } = db;
 
-      let { address, start_block, end_block, rune_protocol_id } = req.params;
+      let { address, start_block, end_block, dune_protocol_id } = req.params;
 
       const { validBitcoinAddress, validInt, validProtocolId } = validators;
 
-      //if rune_protocol_id is "0" or undefined, then we want to get all balances for the address
+      //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
       //if block is "0" or undefined, then we want to get the latest balance for the address
 
       if (!validBitcoinAddress(address))
@@ -232,10 +235,10 @@ router.get(
         return res.status(400).send({ error: "Invalid block provided" });
       if (!validInt(end_block))
         return res.status(400).send({ error: "Invalid block provided" });
-      if (!validProtocolId(rune_protocol_id))
+      if (!validProtocolId(dune_protocol_id))
         return res
           .status(400)
-          .send({ error: "Invalid rune protocol id provided" });
+          .send({ error: "Invalid dune protocol id provided" });
 
       let query = getSomeUtxoBalance(db, {
         utxo: {
@@ -244,8 +247,8 @@ router.get(
             [Op.lte]: parseInt(end_block),
           },
         },
-        rune: {
-          rune_protocol_id,
+        dune: {
+          dune_protocol_id,
         },
       });
 

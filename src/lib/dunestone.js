@@ -31,11 +31,11 @@ const MintSchema = z.object({
 const EtchingSchema = z.object({
   divisibility: z.number().int().nonnegative(),
   premine: duneAmount,
-  rune: z
+  dune: z
     .string()
     .regex(/^[A-Za-z0-9_.-]{1,31}$/, {
       message:
-        "rune must be 1‑31 chars long and may contain only A‑Z, a‑z, 0‑9, _ , - , .",
+        "dune must be 1‑31 chars long and may contain only A‑Z, a‑z, 0‑9, _ , - , .",
     })
     .min(1)
     .max(32),
@@ -84,11 +84,11 @@ function decipher(tx) {
   if (dune.edicts) {
     const voutLen = tx.vout.length;
     const badOutput = dune.edicts.some((e) => e.output > voutLen - 1);
-    const badZeroRune = dune.edicts.some((e) => {
+    const badZeroDune = dune.edicts.some((e) => {
       const [blk, idx] = e.id.split(":").map(Number);
       return blk === 0 && idx !== 0;
     });
-    if (badOutput || badZeroRune) return { dunestone: {}, cenotaph: true };
+    if (badOutput || badZeroDune) return { dunestone: {}, cenotaph: true };
   }
 
   const toBig = (obj) => {

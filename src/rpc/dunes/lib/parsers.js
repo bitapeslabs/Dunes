@@ -17,20 +17,20 @@ let stopTimer = (field) => {
   __debug_totalElapsedTime[field] =
     (__debug_totalElapsedTime[field] ?? 0) + Date.now() - __timer;
 };
-const parseBalances = (rawBalances, excludeRune) => {
+const parseBalances = (rawBalances, excludeDune) => {
   return rawBalances.reduce((acc, entry) => {
-    if (!acc[entry.rune.rune_protocol_id]) {
-      acc[entry.rune.rune_protocol_id] = {
+    if (!acc[entry.dune.dune_protocol_id]) {
+      acc[entry.dune.dune_protocol_id] = {
         balance: 0n,
-        rune: entry.rune,
+        dune: entry.dune,
       };
     }
-    acc[entry.rune.rune_protocol_id].balance = (
-      BigInt(acc[entry.rune.rune_protocol_id].balance) + BigInt(entry.balance)
+    acc[entry.dune.dune_protocol_id].balance = (
+      BigInt(acc[entry.dune.dune_protocol_id].balance) + BigInt(entry.balance)
     ).toString();
 
-    if (excludeRune) {
-      delete acc[entry.rune.rune_protocol_id].rune;
+    if (excludeDune) {
+      delete acc[entry.dune.dune_protocol_id].dune;
     }
 
     return acc;
@@ -73,11 +73,11 @@ const parsePrevUtxoBalancesIntoAddress = (
     ];
 
     for (let current = start; current <= end; current++) {
-      if (!balances[current][utxoBalance.rune.rune_protocol_id])
-        balances[current][utxoBalance.rune.rune_protocol_id] = "0";
+      if (!balances[current][utxoBalance.dune.dune_protocol_id])
+        balances[current][utxoBalance.dune.dune_protocol_id] = "0";
 
-      balances[current][utxoBalance.rune.rune_protocol_id] = (
-        BigInt(balances[current][utxoBalance.rune.rune_protocol_id]) +
+      balances[current][utxoBalance.dune.dune_protocol_id] = (
+        BigInt(balances[current][utxoBalance.dune.dune_protocol_id]) +
         BigInt(utxoBalance.balance)
       ).toString();
     }

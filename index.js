@@ -43,13 +43,13 @@ const emitToDiscord = async (events) => {
     try {
       const embed = {
         title: "New etching!",
-        description: "The rune " + etch.rune.name + " has been etched!",
+        description: "The dune " + etch.dune.name + " has been etched!",
         color: 0xffa500, // Color in hexadecimal
-        fields: Object.keys(etch.rune)
+        fields: Object.keys(etch.dune)
           .filter((_, i) => i <= 10)
           .map((fieldName) => ({
             name: fieldName,
-            value: etch.rune[fieldName],
+            value: etch.dune[fieldName],
             inline: true,
           })),
         timestamp: new Date(),
@@ -80,7 +80,7 @@ const emitEvents = async (storage) => {
         false,
         true
       ),
-      rune: findOne("Rune", event.rune_id + "@REF@id", false, true),
+      dune: findOne("Dune", event.dune_id + "@REF@id", false, true),
       amount: event.amount,
       from: findOne("Address", event.from_address_id + "@REF@id", false, true),
       to: findOne("Address", event.to_address_id + "@REF@id", false, true),
@@ -117,9 +117,9 @@ const startRpc = async () => {
   });
 
   //rpc endpoints
-  server.use(`/runes/events`, require("./src/rpc/runes/routes/events"));
-  server.use(`/runes/balances`, require("./src/rpc/runes/routes/balances"));
-  server.use(`/runes/rpc`, require("./src/rpc/runes/routes/rpc"));
+  server.use(`/dunes/events`, require("./src/rpc/dunes/routes/events"));
+  server.use(`/dunes/balances`, require("./src/rpc/dunes/routes/balances"));
+  server.use(`/dunes/rpc`, require("./src/rpc/dunes/routes/rpc"));
 
   server.listen(process.env.RPC_PORT, (err) => {
     log("RPC server running on port " + process.env.RPC_PORT, "info");

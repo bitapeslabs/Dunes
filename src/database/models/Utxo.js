@@ -55,7 +55,7 @@ module.exports = (sequelize) => {
         /*
                 This exists so that the scanner can give insight into what account balances were at a specific block. 
                 This is also useful because we can see if the transaction came from a previous address, or if it was from COINBASE (an edict or a mint)
-                 => If the input utxo didnt have any runes, we can assume that the output was an etch or a mint.
+                 => If the input utxo didnt have any dunes, we can assume that the output was an etch or a mint.
             */
         type: Sequelize.INTEGER,
         allowNull: true,
@@ -63,7 +63,7 @@ module.exports = (sequelize) => {
 
       //8 bytes
       transaction_spent_id: {
-        //For transversing the chain and a rune transfer history
+        //For transversing the chain and a dune transfer history
         type: Sequelize.BIGINT,
         references: {
           model: "transactions",

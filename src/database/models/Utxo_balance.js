@@ -17,7 +17,7 @@ module.exports = (sequelize) => {
         allowNull: false,
       },
       //4 bytes
-      rune_id: {
+      dune_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
@@ -37,8 +37,8 @@ module.exports = (sequelize) => {
         },
 
         {
-          //Composite index for fetching the individual rune balance of an indiviudal UTXO
-          fields: ["utxo_id", "rune_id"],
+          //Composite index for fetching the individual dune balance of an indiviudal UTXO
+          fields: ["utxo_id", "dune_id"],
           using: "BTREE",
         },
       ],

@@ -20,7 +20,7 @@ module.exports = (sequelize) => {
       },
 
       block: {
-        //address:rune_protocol_id -> address:block:vout
+        //address:dune_protocol_id -> address:block:vout
 
         type: Sequelize.INTEGER,
         allowNull: false,
@@ -35,10 +35,10 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
 
-      rune_id: {
+      dune_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: "runes",
+          model: "dunes",
           key: "id",
         },
         allowNull: true,
@@ -72,7 +72,7 @@ module.exports = (sequelize) => {
           using: "BTREE",
         },
         {
-          fields: ["rune_id"],
+          fields: ["dune_id"],
           using: "BTREE",
         },
         {

@@ -1,9 +1,9 @@
 const { Op, Sequelize } = require("sequelize");
 const { stripFields } = require("../../../lib/utils");
 
-const IncludeRune = (models, as, where) => ({
-  model: models.Rune,
-  as: as ?? "rune",
+const IncludeDune = (models, as, where) => ({
+  model: models.Dune,
+  as: as ?? "dune",
   where: stripFields(where, ["etch_transaction", "deployer_address"]),
   include: [
     IncludeTransaction(models, "etch_transaction", where?.etch_transaction),
@@ -45,13 +45,13 @@ const IncludeUtxo = (models, as, where) => ({
 const getSomeAddressBalance = (models, where) => {
   return {
     model: models.Balance,
-    where: stripFields(where, ["address", "rune"]),
+    where: stripFields(where, ["address", "dune"]),
     include: [
       IncludeAddress(models, null, where?.address ?? null),
-      IncludeRune(models, null, where?.rune ?? null),
+      IncludeDune(models, null, where?.dune ?? null),
     ],
     attributes: {
-      exclude: ["address_id", "rune_id", "id"],
+      exclude: ["address_id", "dune_id", "id"],
     },
   };
 };
@@ -59,14 +59,14 @@ const getSomeAddressBalance = (models, where) => {
 const getSomeUtxoBalance = (models, where) => {
   return {
     model: models.Utxo_balance,
-    where: stripFields(where, ["utxo", "rune"]),
+    where: stripFields(where, ["utxo", "dune"]),
     include: [
       IncludeUtxo(models, null, where?.utxo ?? null),
-      IncludeRune(models, null, where?.rune ?? null),
+      IncludeDune(models, null, where?.dune ?? null),
     ],
 
     attributes: {
-      exclude: ["utxo_id", "rune_id", "id"],
+      exclude: ["utxo_id", "dune_id", "id"],
     },
   };
 };
@@ -78,7 +78,7 @@ module.exports = {
 
 /*
 const getUtxo = (hash, vout, models) => {
-  const { Rune, Address, Utxo, Transaction } = models;
+  const { Dune, Address, Utxo, Transaction } = models;
 
   return {
     include: [
@@ -119,8 +119,8 @@ const getUtxo = (hash, vout, models) => {
         },
       },
       {
-        model: Rune,
-        as: "rune",
+        model: Dune,
+        as: "dune",
         include: [
           {
             model: Transaction,
@@ -140,7 +140,7 @@ const getUtxo = (hash, vout, models) => {
     ],
 
     attributes: {
-      exclude: ["utxo_id", "rune_id", "id"],
+      exclude: ["utxo_id", "dune_id", "id"],
     },
   };
 };

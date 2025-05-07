@@ -14,11 +14,11 @@ const {
 const NO_COMMITMENTS = process.argv.includes("--no-commitments");
 const dunestone = require("./dunestone");
 
-const decipherRunestone = (txJson) => {
+const decipherDunestone = (txJson) => {
   return dunestone.decipher(txJson);
 };
 
-const isUsefulRuneTx = (Transaction) => {
+const isUsefulDuneTx = (Transaction) => {
   const { dunestone } = Transaction;
   if (dunestone?.cenotaph) return true; //burn happens
 
@@ -27,18 +27,18 @@ const isUsefulRuneTx = (Transaction) => {
   return false;
 };
 
-const getRunestonesInBlock = async (blockNumber, callRpc) => {
+const getDunestonesInBlock = async (blockNumber, callRpc) => {
   const blockHash = await callRpc("getblockhash", [parseInt(blockNumber)]);
 
   const block = await callRpc("getblock", [blockHash, 2]);
 
   const transactions = block.tx;
 
-  const transactionsWithRunestones = await Promise.all(
+  const transactionsWithDunestones = await Promise.all(
     transactions.map((tx, txIndex) => {
       return new Promise(async function (resolve, reject) {
         resolve({
-          dunestone: decipherRunestone(tx),
+          dunestone: decipherDunestone(tx),
           hash: tx.txid,
           txIndex,
           block: blockNumber,
@@ -50,7 +50,7 @@ const getRunestonesInBlock = async (blockNumber, callRpc) => {
     })
   );
 
-  return transactionsWithRunestones;
+  return transactionsWithDunestones;
 };
 
 const prefetchTransactions = async (block, storage, callRpc) => {
@@ -109,7 +109,7 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
         .flat(Infinity)
 
         //We can do this because the indexer can interpret the sender from what we have stored in db.
-        .map((tx) => (isUsefulRuneTx(tx) ? tx.vin.map((vin) => vin.txid) : []))
+        .map((tx) => (isUsefulDuneTx(tx) ? tx.vin.map((vin) => vin.txid) : []))
         .flat(Infinity)
         .filter(Boolean)
     ),
@@ -169,7 +169,7 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
           if (vins[0].coinbase) {
             return { ...tx, sender: "COINBASE" };
           }
-          if (dunestone.etching?.rune && !NO_COMMITMENTS) {
+          if (dunestone.etching?.dune && !NO_COMMITMENTS) {
             //populate vins with the block they were created at (only for etchings)
             let newVins = await Promise.all(
               tx.vin.map(async (vin) => {
@@ -202,7 +202,7 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
             };
 
             /*
-                These two fields in a dunestone have the ability to create new Runes out of nowehere, with no previous sender. The event should have
+                These two fields in a dunestone have the ability to create new Dunes out of nowehere, with no previous sender. The event should have
                 as the sender the owner of the first vout in the transaction instead.
                 */
           }
@@ -251,7 +251,7 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
             };
           }
 
-          //We dont need the sender for non-rune related txs
+          //We dont need the sender for non-dune related txs
           return { ...tx, sender: null };
         })
       );
@@ -286,7 +286,7 @@ const blockManager = async (callRpc, latestBlock, readBlockStorage) => {
       // Create an array of Promises to fetch blocks in parallel
       let promises = [];
       for (let i = 0; i < chunkSize; i++) {
-        promises.push(getRunestonesInBlock(currentBlock + i, callRpc));
+        promises.push(getDunestonesInBlock(currentBlock + i, callRpc));
       }
 
       // Wait for all Promises in the chunk to resolve
@@ -350,21 +350,21 @@ const minimumLengthAtHeight = (block) => {
   return INITIAL_AVAILABLE - stepsPassed;
 };
 
-const updateUnallocated = (prevUnallocatedRunes, Allocation) => {
+const updateUnallocated = (prevUnallocatedDunes, Allocation) => {
   /*
     An "Allocation" looks like the following:
     {
-        rune_id: string,
+        dune_id: string,
         amount: BigInt
     }
   */
 
-  prevUnallocatedRunes[Allocation.rune_id] =
-    BigInt(prevUnallocatedRunes[Allocation.rune_id] ?? "0") + Allocation.amount;
-  return prevUnallocatedRunes;
+  prevUnallocatedDunes[Allocation.dune_id] =
+    BigInt(prevUnallocatedDunes[Allocation.dune_id] ?? "0") + Allocation.amount;
+  return prevUnallocatedDunes;
 };
 
-const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
+const isMintOpen = (block, txIndex, Dune, mint_offset = false) => {
   /*
     if mint_offset is false, this function uses the current supply for calculation. If mint_offset is true,
     the total_supply + mint_amount is used (it is used to calculate if a mint WOULD be allowed)
@@ -378,15 +378,15 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
     mint_end,
     mint_offset_start,
     mint_offset_end,
-    rune_protocol_id,
+    dune_protocol_id,
     unmintable,
-  } = Rune;
+  } = Dune;
 
   if (unmintable) {
     return false;
-  } //If the rune is unmintable, minting is globally not allowed
+  } //If the dune is unmintable, minting is globally not allowed
 
-  let [creationBlock, creationTxIndex] = rune_protocol_id
+  let [creationBlock, creationTxIndex] = dune_protocol_id
     .split(":")
     .map((arg) => parseInt(arg));
 
@@ -394,7 +394,7 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
 
   if (block === creationBlock && creationTxIndex === txIndex) return false;
 
-  if (rune_protocol_id === "1:0") creationBlock = GENESIS_BLOCK;
+  if (dune_protocol_id === "1:0") creationBlock = GENESIS_BLOCK;
 
   /*
         Setup variable defs according to ord spec,
@@ -411,8 +411,8 @@ const isMintOpen = (block, txIndex, Rune, mint_offset = false) => {
     https://github.com/ordinals/ord/blob/6103de9780e0274cf5010f3865f0e34cb1564b58/src/index/entry.rs#L60
   line 95 
   
-  for this reason when calculating if a Rune has reached its mint cap, we must first remove the premine from the total supply to get
-  the actual runes generated from mints alone.
+  for this reason when calculating if a Dune has reached its mint cap, we must first remove the premine from the total supply to get
+  the actual dunes generated from mints alone.
   */
 
   //This should always be perfectly divisible, since mint_amount is the only amount always added to the total supply
@@ -472,9 +472,9 @@ module.exports = {
   isMintOpen,
   minimumLengthAtHeight,
   blockManager,
-  getRunestonesInBlock,
+  getDunestonesInBlock,
   convertPartsToAmount,
   convertAmountToParts,
   prefetchTransactions,
-  isUsefulRuneTx,
+  isUsefulDuneTx,
 };

@@ -4,14 +4,14 @@ const validators = require("../lib/validators");
 const { Op } = require("sequelize");
 
 /*
-    Gets all Rune events from a specific block
+    Gets all Dune events from a specific block
     
-    Documentation: https://dunes.sh/docs/runes-rpc/events#get-runes-block-height
+    Documentation: https://dunes.sh/docs/dunes-rpc/events#get-dunes-block-height
 */
 /*
-    Gets all Rune events from a specific transaction
+    Gets all Dune events from a specific transaction
     
-    Documentation: https://dunes.sh/docs/runes-rpc/events#get-runes-block-height
+    Documentation: https://dunes.sh/docs/dunes-rpc/events#get-dunes-block-height
 */
 router.get("/info", async function (req, res) {
   try {

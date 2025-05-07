@@ -10,7 +10,7 @@ module.exports = (sequelize) => {
         autoIncrement: true,
       },
 
-      rune_id: {
+      dune_id: {
         type: Sequelize.BIGINT,
         allowNull: false,
       },
@@ -31,12 +31,12 @@ module.exports = (sequelize) => {
         },
 
         {
-          fields: ["address_id", "rune_id"],
+          fields: ["address_id", "dune_id"],
           using: "BTREE",
         },
 
         {
-          fields: ["rune_id"],
+          fields: ["dune_id"],
           using: "BTREE",
         },
       ],

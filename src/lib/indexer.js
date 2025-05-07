@@ -6,7 +6,7 @@ const {
   getReservedName,
   updateUnallocated,
   minimumLengthAtHeight,
-  isUsefulRuneTx,
+  isUsefulDuneTx,
 } = require("./duneutils");
 
 const { Op } = require("sequelize");
@@ -27,31 +27,31 @@ let stopTimer = (field) => {
     (__debug_totalElapsedTime[field] ?? 0) + Date.now() - __timer;
 };
 
-const getUnallocatedRunesFromUtxos = (inputUtxos) => {
+const getUnallocatedDunesFromUtxos = (inputUtxos) => {
   /*
-        Important: Rune Balances from this function are returned in big ints in the following format
+        Important: Dune Balances from this function are returned in big ints in the following format
         {
-            [rune_protocol_id]: BigInt(amount)
+            [dune_protocol_id]: BigInt(amount)
         }
 
-        rune_protocol_id => is the rune_id used by the Runes Protocol and is recognized, 
-        different from rune_id which is used by the DB for indexing.
+        dune_protocol_id => is the dune_id used by the Dunes Protocol and is recognized, 
+        different from dune_id which is used by the DB for indexing.
     */
 
   return (
     inputUtxos
 
-      //Get allocated runes and store them in an array
+      //Get allocated dunes and store them in an array
       .reduce((acc, utxo) => {
-        let RuneBalances = utxo.rune_balances
-          ? Object.entries(utxo.rune_balances)
+        let DuneBalances = utxo.dune_balances
+          ? Object.entries(utxo.dune_balances)
           : [];
 
-        //Sum up all Rune balances for each input UTXO
-        RuneBalances.forEach((rune) => {
-          const [rune_protocol_id, amount] = rune;
-          acc[rune_protocol_id] =
-            (acc[rune_protocol_id] ?? 0n) + BigInt(amount);
+        //Sum up all Dune balances for each input UTXO
+        DuneBalances.forEach((dune) => {
+          const [dune_protocol_id, amount] = dune;
+          acc[dune_protocol_id] =
+            (acc[dune_protocol_id] ?? 0n) + BigInt(amount);
         });
 
         return acc;
@@ -72,10 +72,10 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
 
     return {
       /*
-        SEE: https://docs.ordinals.com/runes.html#Burning
-        "Runes may be burned by transferring them to an OP_RETURN output with an edict or pointer."
+        SEE: https://docs.ordinals.com/dunes.html#Burning
+        "Dunes may be burned by transferring them to an OP_RETURN output with an edict or pointer."
 
-        This means that an OP_RETURN vout must be saved for processing edicts and unallocated runes,
+        This means that an OP_RETURN vout must be saved for processing edicts and unallocated dunes,
         however mustnt be saved as a UTXO in the database as they are burnt.
 
         Therefore, we mark a utxo as an OP_RETURN by setting its address to such
@@ -86,7 +86,7 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
       transaction_id: Transaction.virtual_id,
       vout_index: utxo.n,
       block: parseInt(Transaction.block),
-      rune_balances: {},
+      dune_balances: {},
       block_spent: null,
       transaction_spent_id: null,
     };
@@ -98,16 +98,16 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
 const burnAllFromUtxo = (utxo, storage) => {
   const { updateAttribute, findOne } = storage;
 
-  Object.entries(utxo.rune_balances).map((entry) => {
-    const [runeId, amount] = entry;
+  Object.entries(utxo.dune_balances).map((entry) => {
+    const [duneId, amount] = entry;
 
-    const rune = findOne("Rune", runeId, false, true);
+    const dune = findOne("Dune", duneId, false, true);
 
     return updateAttribute(
-      "Rune",
-      runeId,
+      "Dune",
+      duneId,
       "burnt_amount",
-      (BigInt(rune.burnt_amount) + BigInt(amount)).toString()
+      (BigInt(dune.burnt_amount) + BigInt(amount)).toString()
     );
   });
 };
@@ -115,25 +115,25 @@ const burnAllFromUtxo = (utxo, storage) => {
 const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
   const { findManyInFilter, create, updateAttribute, findOne } = storage;
 
-  const utxoRuneBalances = Object.entries(utxo.rune_balances);
+  const utxoDuneBalances = Object.entries(utxo.dune_balances);
 
   //This filter is an OR filter of ANDs passed to storage, it fetches all corresponding Balances that the utxo is calling
   //for example: [{address, proto_id}, {address, proto_id}...]. While address is the same for all, a utxo can have multiple proto ids
   // [[AND], [AND], [AND]] => [OR]
 
-  let runesInUtxo = findManyInFilter(
-    "Rune",
-    utxoRuneBalances.map((rune) => rune[0]),
+  let dunesInUtxo = findManyInFilter(
+    "Dune",
+    utxoDuneBalances.map((dune) => dune[0]),
     true
-  ).reduce((acc, Rune) => {
-    //This is safe because rune_protocol_id and id will never overlap as rune_protocol_id is a string that contains a ":"
-    acc[Rune.rune_protocol_id] = Rune;
-    acc[Rune.id] = Rune;
+  ).reduce((acc, Dune) => {
+    //This is safe because dune_protocol_id and id will never overlap as dune_protocol_id is a string that contains a ":"
+    acc[Dune.dune_protocol_id] = Dune;
+    acc[Dune.id] = Dune;
     return acc;
   }, {});
 
-  const balanceFilter = utxoRuneBalances.map(
-    (entry) => `${utxo.address_id}:${runesInUtxo[entry[0]].id}`
+  const balanceFilter = utxoDuneBalances.map(
+    (entry) => `${utxo.address_id}:${dunesInUtxo[entry[0]].id}`
   );
 
   //Get the existing balance entries. We can create hashmap of these with proto_id since address is the same
@@ -144,25 +144,25 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
     balanceFilter,
     true
   ).reduce((acc, balance) => {
-    acc[runesInUtxo[balance.rune_id].rune_protocol_id] = balance;
+    acc[dunesInUtxo[balance.dune_id].dune_protocol_id] = balance;
     return acc;
   }, {});
 
   /*
     The return value of 'existingBalanceEntries' looks looks like this after reduce (mapped by id):
     {
-      1: {id: 1, rune_protocol_id: '1:0', address: 'address', balance: '0'}
+      1: {id: 1, dune_protocol_id: '1:0', address: 'address', balance: '0'}
     }
   */
 
-  for (let entry of utxoRuneBalances) {
-    const [rune_protocol_id, amount] = entry;
+  for (let entry of utxoDuneBalances) {
+    const [dune_protocol_id, amount] = entry;
 
-    let balanceFound = existingBalanceEntries[rune_protocol_id];
+    let balanceFound = existingBalanceEntries[dune_protocol_id];
 
     if (!balanceFound) {
       balanceFound = create("Balance", {
-        rune_id: findOne("Rune", rune_protocol_id, false, true).id,
+        dune_id: findOne("Dune", dune_protocol_id, false, true).id,
         address_id: utxo.address_id,
         balance: 0,
       });
@@ -183,7 +183,7 @@ const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
 };
 
 const processEdicts = (
-  UnallocatedRunes,
+  UnallocatedDunes,
   pendingUtxos,
   Transaction,
   transfers,
@@ -195,34 +195,34 @@ const processEdicts = (
   let { edicts, pointer } = dunestone;
 
   if (dunestone.cenotaph) {
-    //Transaction is a cenotaph, input runes are burnt.
-    //https://docs.ordinals.com/runes/specification.html#Transferring
+    //Transaction is a cenotaph, input dunes are burnt.
+    //https://docs.ordinals.com/dunes/specification.html#Transferring
 
-    transfers.burn = Object.keys(UnallocatedRunes).reduce((acc, runeId) => {
-      acc[runeId] = UnallocatedRunes[runeId];
+    transfers.burn = Object.keys(UnallocatedDunes).reduce((acc, duneId) => {
+      acc[duneId] = UnallocatedDunes[duneId];
       return acc;
     }, {});
     return {};
   }
 
-  let allocate = (utxo, runeId, amount) => {
+  let allocate = (utxo, duneId, amount) => {
     /*
-        See: https://docs.ordinals.com/runes/specification.html#Trasnferring
+        See: https://docs.ordinals.com/dunes/specification.html#Trasnferring
         
-        An edict with amount zero allocates all remaining units of rune id.
+        An edict with amount zero allocates all remaining units of dune id.
       
-        If an edict would allocate more runes than are currently unallocated, the amount is reduced to the number of currently unallocated runes. In other words, the edict allocates all remaining unallocated units of rune id.
+        If an edict would allocate more dunes than are currently unallocated, the amount is reduced to the number of currently unallocated dunes. In other words, the edict allocates all remaining unallocated units of dune id.
 
 
     */
-    let unallocated = UnallocatedRunes[runeId];
+    let unallocated = UnallocatedDunes[duneId];
     let withDefault =
       unallocated < amount || amount === 0n ? unallocated : amount;
 
-    UnallocatedRunes[runeId] = (unallocated ?? 0n) - withDefault;
+    UnallocatedDunes[duneId] = (unallocated ?? 0n) - withDefault;
 
-    utxo.rune_balances[runeId] =
-      (utxo.rune_balances[runeId] ?? 0n) + withDefault;
+    utxo.dune_balances[duneId] =
+      (utxo.dune_balances[duneId] ?? 0n) + withDefault;
 
     //Dont save transfer events of amount "0"
     if (withDefault === 0n) return;
@@ -232,45 +232,45 @@ const processEdicts = (
     if (!transfers[toAddress]) {
       transfers[toAddress] = {};
     }
-    if (!transfers[toAddress][runeId]) {
-      transfers[toAddress][runeId] = 0n;
+    if (!transfers[toAddress][duneId]) {
+      transfers[toAddress][duneId] = 0n;
     }
 
-    transfers[toAddress][runeId] += withDefault;
+    transfers[toAddress][duneId] += withDefault;
   };
 
   //References are kept because filter does not clone the array
   let nonOpReturnOutputs = pendingUtxos.filter((utxo) => utxo.address_id !== 2);
 
   if (edicts) {
-    const transactionRuneId = `${block}:${txIndex}`;
+    const transactionDuneId = `${block}:${txIndex}`;
 
-    //Replace all references of 0:0 with the actual rune id which we have stored on db (Transferring#5)
+    //Replace all references of 0:0 with the actual dune id which we have stored on db (Transferring#5)
     edicts.forEach(
-      (edict) => (edict.id = edict.id === "0:0" ? transactionRuneId : edict.id)
+      (edict) => (edict.id = edict.id === "0:0" ? transactionDuneId : edict.id)
     );
 
-    //Get rune ids from edicts for filter below (the rune id is the PrimaryKey)
+    //Get dune ids from edicts for filter below (the dune id is the PrimaryKey)
     let edictFilter = edicts.map((edict) => edict.id);
 
-    //Cache all runes that are currently in DB in a hashmap, if a rune doesnt exist edict will be ignored
+    //Cache all dunes that are currently in DB in a hashmap, if a dune doesnt exist edict will be ignored
 
-    //uses optimized lookup by using rune_protocol_id
-    let existingRunes = findManyInFilter("Rune", edictFilter, true).reduce(
-      (acc, rune) => ({ ...acc, [rune.rune_protocol_id]: rune }),
+    //uses optimized lookup by using dune_protocol_id
+    let existingDunes = findManyInFilter("Dune", edictFilter, true).reduce(
+      (acc, dune) => ({ ...acc, [dune.dune_protocol_id]: dune }),
       {}
     );
 
     for (let edictIndex in edicts) {
       let edict = edicts[edictIndex];
       //A dunestone may contain any number of edicts, which are processed in sequence.
-      if (!existingRunes[edict.id]) {
-        //If the rune does not exist, the edict is ignored
+      if (!existingDunes[edict.id]) {
+        //If the dune does not exist, the edict is ignored
         continue;
       }
 
-      if (!UnallocatedRunes[edict.id]) {
-        //If the rune is not in the unallocated runes, it is ignored
+      if (!UnallocatedDunes[edict.id]) {
+        //If the dune is not in the unallocated dunes, it is ignored
         continue;
       }
 
@@ -278,7 +278,7 @@ const processEdicts = (
         //Edict amount is in string, not bigint
         if (edict.amount === "0") {
           /*
-              An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of rune id between each non OP_RETURN output.
+              An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of dune id between each non OP_RETURN output.
           */
 
           const amountOutputs = BigInt(nonOpReturnOutputs.length);
@@ -290,9 +290,9 @@ const processEdicts = (
             https://twitter.com/raphjaph/status/1782581416716357998/photo/2
           */
           if (amountOutputs > 0) {
-            const amount = BigInt(UnallocatedRunes[edict.id]) / amountOutputs;
+            const amount = BigInt(UnallocatedDunes[edict.id]) / amountOutputs;
             const remainder =
-              BigInt(UnallocatedRunes[edict.id]) % amountOutputs;
+              BigInt(UnallocatedDunes[edict.id]) % amountOutputs;
 
             const withRemainder = amount + BigInt(1);
 
@@ -305,7 +305,7 @@ const processEdicts = (
             );
           }
         } else {
-          //If an edict would allocate more runes than are currently unallocated, the amount is reduced to the number of currently unallocated runes. In other words, the edict allocates all remaining unallocated units of rune id.
+          //If an edict would allocate more dunes than are currently unallocated, the amount is reduced to the number of currently unallocated dunes. In other words, the edict allocates all remaining unallocated units of dune id.
 
           nonOpReturnOutputs.forEach((utxo) =>
             allocate(utxo, edict.id, BigInt(edict.amount))
@@ -319,7 +319,7 @@ const processEdicts = (
     }
   }
 
-  //Transfer remaining runes to the first non-opreturn output
+  //Transfer remaining dunes to the first non-opreturn output
   //(edge case) If only an OP_RETURN output is present in the Transaction, transfer to the OP_RETURN
 
   let pointerOutput = pendingUtxos[pointer] ?? nonOpReturnOutputs[0];
@@ -331,41 +331,41 @@ const processEdicts = (
     pointerOutput = pendingUtxos.find((utxo) => utxo.address_id === 2);
   }
 
-  //move Unallocated runes to pointer output
-  Object.entries(UnallocatedRunes).forEach((allocationData) =>
+  //move Unallocated dunes to pointer output
+  Object.entries(UnallocatedDunes).forEach((allocationData) =>
     allocate(pointerOutput, allocationData[0], allocationData[1])
   );
 
-  //Function returns the burnt runes
+  //Function returns the burnt dunes
   return;
 };
 
-const processMint = (UnallocatedRunes, Transaction, storage) => {
+const processMint = (UnallocatedDunes, Transaction, storage) => {
   const { block, txIndex, dunestone } = Transaction;
   const mint = dunestone?.mint;
 
   const { findOne, updateAttribute, create, findOrCreate } = storage;
 
   if (!mint) {
-    return UnallocatedRunes;
+    return UnallocatedDunes;
   }
-  //We use the same  process used to calculate the Rune Id in the etch function if "0:0" is referred to
-  const runeToMint = findOne("Rune", mint, false, true);
+  //We use the same  process used to calculate the Dune Id in the etch function if "0:0" is referred to
+  const duneToMint = findOne("Dune", mint, false, true);
 
-  if (!runeToMint) {
-    //The rune requested to be minted does not exist.
-    return UnallocatedRunes;
+  if (!duneToMint) {
+    //The dune requested to be minted does not exist.
+    return UnallocatedDunes;
   }
 
-  if (isMintOpen(block, txIndex, runeToMint, true)) {
+  if (isMintOpen(block, txIndex, duneToMint, true)) {
     //Update new mints to count towards cap
 
-    let newMints = (BigInt(runeToMint.mints) + BigInt(1)).toString();
-    updateAttribute("Rune", runeToMint.rune_protocol_id, "mints", newMints);
+    let newMints = (BigInt(duneToMint.mints) + BigInt(1)).toString();
+    updateAttribute("Dune", duneToMint.dune_protocol_id, "mints", newMints);
 
     if (dunestone.cenotaph) {
       //If the mint is a cenotaph, the minted amount is burnt
-      return UnallocatedRunes;
+      return UnallocatedDunes;
     }
 
     //Emit MINT event on block
@@ -373,8 +373,8 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
       type: 1,
       block,
       transaction_id: Transaction.virtual_id,
-      rune_id: runeToMint.id,
-      amount: runeToMint.mint_amount,
+      dune_id: duneToMint.id,
+      amount: duneToMint.mint_amount,
       from_address_id: findOrCreate(
         "Address",
         Transaction.sender ?? "UNKNOWN",
@@ -384,18 +384,18 @@ const processMint = (UnallocatedRunes, Transaction, storage) => {
       to_address_id: 2,
     });
 
-    return updateUnallocated(UnallocatedRunes, {
-      rune_id: runeToMint.rune_protocol_id,
-      amount: BigInt(runeToMint.mint_amount),
+    return updateUnallocated(UnallocatedDunes, {
+      dune_id: duneToMint.dune_protocol_id,
+      amount: BigInt(duneToMint.mint_amount),
     });
   } else {
     //Minting is closed
-    return UnallocatedRunes;
+    return UnallocatedDunes;
   }
 };
 
 const processEtching = (
-  UnallocatedRunes,
+  UnallocatedDunes,
   Transaction,
   rpc,
   storage,
@@ -410,38 +410,38 @@ const processEtching = (
 
   //If no etching, return the input allocations
   if (!etching) {
-    return UnallocatedRunes;
+    return UnallocatedDunes;
   }
 
-  //This transaction has already etched a rune
-  if (findOne("Rune", `${block}:${txIndex}`, false, true)) {
-    return UnallocatedRunes;
+  //This transaction has already etched a dune
+  if (findOne("Dune", `${block}:${txIndex}`, false, true)) {
+    return UnallocatedDunes;
   }
 
-  //If rune name already taken, it is non standard, return the input allocations
+  //If dune name already taken, it is non standard, return the input allocations
 
   //Cenotaphs dont have any other etching properties other than their name
-  //If not a cenotaph, check if a rune name was provided, and if not, generate one
+  //If not a cenotaph, check if a dune name was provided, and if not, generate one
 
-  let runeName = etching.rune;
+  let duneName = etching.dune;
 
-  const isRuneNameTaken = !!findOne(
-    "Rune",
-    runeName + "@REF@raw_name",
+  const isDuneNameTaken = !!findOne(
+    "Dune",
+    duneName + "@REF@raw_name",
     false,
     true
   );
 
-  if (isRuneNameTaken) {
-    return UnallocatedRunes;
+  if (isDuneNameTaken) {
+    return UnallocatedDunes;
   }
 
   /*
-    Runespec: Runes etched in a transaction with a cenotaph are set as unmintable.
+    Dunespec: Dunes etched in a transaction with a cenotaph are set as unmintable.
 
-    If the dunestone decoded has the cenotaph flag set to true, the rune should be created with no allocationg created
+    If the dunestone decoded has the cenotaph flag set to true, the dune should be created with no allocationg created
 
-    see unminable flag in rune model
+    see unminable flag in dune model
   */
 
   //FAILS AT 842255:596 111d77cbcb1ee54e0392de588cb7ef794c4a0a382155814e322d93535abc9c66)
@@ -460,9 +460,9 @@ const processEtching = (
     true
   ).id;
 
-  const EtchedRune = create("Rune", {
-    rune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
-    name: runeName,
+  const EtchedDune = create("Dune", {
+    dune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
+    name: duneName,
     symbol,
 
     //ORD describes no decimals being set as default 0
@@ -491,7 +491,7 @@ const processEtching = (
     mint_offset_end: etching.terms?.offset?.[1]?.toString() ?? null,
     turbo: etching.turbo,
     burnt_amount: "0",
-    //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the rune spec (see above)
+    //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the dune spec (see above)
     unmintable: dunestone.cenotaph || !etching.terms?.amount ? 1 : 0,
     etch_transaction_id: Transaction.virtual_id,
     deployer_address_id: etcherId,
@@ -502,22 +502,22 @@ const processEtching = (
     type: 0,
     block,
     transaction_id: Transaction.virtual_id,
-    rune_id: EtchedRune.id,
+    dune_id: EtchedDune.id,
     amount: etching.premine ?? "0",
     from_address_id: etcherId,
     to_address_id: 2,
   });
 
-  //Add premine runes to input allocations
+  //Add premine dunes to input allocations
 
   if (dunestone.cenotaph) {
-    //No runes are premined if the tx is a cenotaph.
-    return UnallocatedRunes;
+    //No dunes are premined if the tx is a cenotaph.
+    return UnallocatedDunes;
   }
 
-  return updateUnallocated(UnallocatedRunes, {
-    rune_id: EtchedRune.rune_protocol_id,
-    amount: BigInt(EtchedRune.premine),
+  return updateUnallocated(UnallocatedDunes, {
+    dune_id: EtchedDune.dune_protocol_id,
+    amount: BigInt(EtchedDune.premine),
   });
 };
 
@@ -525,15 +525,15 @@ const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
   const { create, findOrCreate, findOne } = storage;
 
   Object.keys(transfers).forEach((addressId) => {
-    Object.keys(transfers[addressId]).forEach((rune_protocol_id) => {
-      let amount = transfers[addressId][rune_protocol_id];
+    Object.keys(transfers[addressId]).forEach((dune_protocol_id) => {
+      let amount = transfers[addressId][dune_protocol_id];
       if (!amount) return; //Ignore 0 balances
 
       create("Event", {
         type: addressId === "burn" ? 3 : 2,
         block: Transaction.block,
         transaction_id: Transaction.virtual_id,
-        rune_id: findOne("Rune", rune_protocol_id, false, true).id,
+        dune_id: findOne("Dune", dune_protocol_id, false, true).id,
         amount,
         from_address_id: findOrCreate(
           "Address",
@@ -563,7 +563,7 @@ const finalizeTransfers = (
 
   let opReturnOutput = pendingUtxos.find((utxo) => utxo.address_id === 2);
 
-  //Burn all runes from cenotaphs or OP_RETURN outputs (if no cenotaph is present)
+  //Burn all dunes from cenotaphs or OP_RETURN outputs (if no cenotaph is present)
   if (dunestone.cenotaph) {
     inputUtxos.forEach((utxo) => burnAllFromUtxo(utxo, storage));
   } else if (opReturnOutput) {
@@ -581,13 +581,13 @@ const finalizeTransfers = (
       false
     );
   });
-  //Filter out all OP_RETURN and zero rune balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
+  //Filter out all OP_RETURN and zero dune balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
   //We still save utxos incase we need to reference them in the future
-  //Filter out all OP_RETURN and zero rune balances
+  //Filter out all OP_RETURN and zero dune balances
   pendingUtxos = pendingUtxos.filter(
     (utxo) =>
       utxo.address_id !== 2 &&
-      Object.values(utxo.rune_balances ?? {}).reduce(
+      Object.values(utxo.dune_balances ?? {}).reduce(
         (a, b) => a + BigInt(b),
         0n
       ) > 0n
@@ -596,16 +596,16 @@ const finalizeTransfers = (
   pendingUtxos.forEach((utxo) => {
     if (utxo.address_id !== 2) {
       let resultUtxo = { ...utxo };
-      delete resultUtxo.rune_balances;
+      delete resultUtxo.dune_balances;
 
       const parentUtxo = create("Utxo", resultUtxo);
 
-      Object.keys(utxo.rune_balances).forEach((runeProtocolId) => {
-        if (!utxo.rune_balances[runeProtocolId]) return; //Ignore 0 balances
+      Object.keys(utxo.dune_balances).forEach((duneProtocolId) => {
+        if (!utxo.dune_balances[duneProtocolId]) return; //Ignore 0 balances
         create("Utxo_balance", {
           utxo_id: parentUtxo.id,
-          rune_id: findOne("Rune", runeProtocolId, false, true).id,
-          balance: utxo.rune_balances[runeProtocolId],
+          dune_id: findOne("Dune", duneProtocolId, false, true).id,
+          balance: utxo.dune_balances[duneProtocolId],
         });
       });
     }
@@ -645,11 +645,11 @@ const processDunestone = (Transaction, rpc, storage, useTest) => {
 
   const { create, fetchGroupLocally, findOne, local, findOrCreate } = storage;
 
-  //Ignore the coinbase transaction (unless genesis rune is being created)
+  //Ignore the coinbase transaction (unless genesis dune is being created)
 
   //Setup Transaction for processing
 
-  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain runes
+  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain dunes
 
   //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
 
@@ -673,14 +673,14 @@ const processDunestone = (Transaction, rpc, storage, useTest) => {
 
     return {
       ...utxo,
-      rune_balances: balances.reduce((acc, utxoBalance) => {
+      dune_balances: balances.reduce((acc, utxoBalance) => {
         acc[
           findOne(
-            "Rune",
-            utxoBalance.rune_id + "@REF@id",
+            "Dune",
+            utxoBalance.dune_id + "@REF@id",
             false,
             true
-          ).rune_protocol_id
+          ).dune_protocol_id
         ] = utxoBalance.balance;
         return acc;
       }, {}),
@@ -691,7 +691,7 @@ const processDunestone = (Transaction, rpc, storage, useTest) => {
 
   //
   if (
-    //If no input utxos are provided (with runes inside)
+    //If no input utxos are provided (with dunes inside)
     inputUtxos.length === 0 &&
     //AND there is no dunestone field in the transaction (aside from cenotaph)
     Object.keys(Transaction.dunestone).length === 1
@@ -719,13 +719,13 @@ const processDunestone = (Transaction, rpc, storage, useTest) => {
 
   let pendingUtxos = createNewUtxoBodies(vout, Transaction, storage);
 
-  let UnallocatedRunes = getUnallocatedRunesFromUtxos(inputUtxos);
+  let UnallocatedDunes = getUnallocatedDunesFromUtxos(inputUtxos);
 
   /*
-  Create clone of Unallocated Runes, this will be used when emitting the "Transfer" event. If the Rune was present in the original
-  runes from vin we have the address indexed on db and can emit the transfer event with the "From" equalling the address of transaction signer.
-  However, if the Rune was not present in the original runes from vin, we can only emit the "From" as "UNALLOCATED" since we dont have the address indexed
-  and the runes in the final Unallocated Runes Buffer came from the etching or minting process and were created in the transaction.
+  Create clone of Unallocated Dunes, this will be used when emitting the "Transfer" event. If the Dune was present in the original
+  dunes from vin we have the address indexed on db and can emit the transfer event with the "From" equalling the address of transaction signer.
+  However, if the Dune was not present in the original dunes from vin, we can only emit the "From" as "UNALLOCATED" since we dont have the address indexed
+  and the dunes in the final Unallocated Dunes Buffer came from the etching or minting process and were created in the transaction.
   */
 
   //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
@@ -733,18 +733,18 @@ const processDunestone = (Transaction, rpc, storage, useTest) => {
   //Delete UTXOs as they are being spent
   // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
 
-  //Reference of UnallocatedRunes and pendingUtxos is passed around in follwoing functions
+  //Reference of UnallocatedDunes and pendingUtxos is passed around in follwoing functions
   //Process etching is potentially asyncrhnous because of commitment checks
   stopTimer("body_init_pending_utxo_creation");
 
   startTimer();
-  processEtching(UnallocatedRunes, Transaction, rpc, storage, false, useTest);
+  processEtching(UnallocatedDunes, Transaction, rpc, storage, false, useTest);
   stopTimer("etch");
 
-  //Mints are processed next and added to the RuneAllocations, with caps being updated (and burnt in case of cenotaphs)
+  //Mints are processed next and added to the DuneAllocations, with caps being updated (and burnt in case of cenotaphs)
 
   startTimer();
-  processMint(UnallocatedRunes, Transaction, storage);
+  processMint(UnallocatedDunes, Transaction, storage);
   stopTimer("mint");
 
   //Allocate all transfers from unallocated payload to the pendingUtxos
@@ -753,7 +753,7 @@ const processDunestone = (Transaction, rpc, storage, useTest) => {
   let transfers = {};
 
   processEdicts(
-    UnallocatedRunes,
+    UnallocatedDunes,
     pendingUtxos,
     Transaction,
     transfers,
@@ -776,7 +776,7 @@ const loadBlockIntoMemory = async (block, storage) => {
   Transaction -> hash
   Utxo -> ( transaction_id, vout_index )
   Address -> address
-  Rune -> rune_protocol_id, raw_name
+  Dune -> dune_protocol_id, raw_name
     Balance -> address_id
   */
 
@@ -920,11 +920,11 @@ const loadBlockIntoMemory = async (block, storage) => {
 
   startTimer();
 
-  //Get all rune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
-  const runesInBlockByProtocolId = [
+  //Get all dune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
+  const dunesInBlockByProtocolId = [
     ...new Set(
       [
-        //Get all rune ids in edicts and mints
+        //Get all dune ids in edicts and mints
 
         block.map((transaction) => [
           transaction.dunestone.mint,
@@ -932,48 +932,48 @@ const loadBlockIntoMemory = async (block, storage) => {
         ]),
       ]
         .flat(Infinity)
-        //0:0 refers to self, not an actual rune
-        .filter((rune) => rune && rune?.rune_protocol_id !== "0:0")
+        //0:0 refers to self, not an actual dune
+        .filter((dune) => dune && dune?.dune_protocol_id !== "0:0")
     ),
   ];
 
-  const runesInBlockByDbId = [
+  const dunesInBlockByDbId = [
     ...new Set(
-      //Get all rune ids in all utxos balance
-      Object.values(utxoBalancesInLocal).map((utxo) => utxo.rune_id)
+      //Get all dune ids in all utxos balance
+      Object.values(utxoBalancesInLocal).map((utxo) => utxo.dune_id)
     ),
   ];
 
-  const runesInBlockByRawName = [
-    ...new Set(block.map((transaction) => transaction.dunestone.etching?.rune)),
+  const dunesInBlockByRawName = [
+    ...new Set(block.map((transaction) => transaction.dunestone.etching?.dune)),
   ]
     .flat(Infinity)
-    //0:0 refers to self, not an actual rune
-    .filter((rune) => rune);
+    //0:0 refers to self, not an actual dune
+    .filter((dune) => dune);
 
-  //Load all runes that might be transferred into memory. This would be every Rune in a mint, edict or etch
+  //Load all dunes that might be transferred into memory. This would be every Dune in a mint, edict or etch
 
-  // Load runes by protocol ID
-  await loadManyIntoMemory("Rune", {
-    rune_protocol_id: {
-      [Op.in]: runesInBlockByProtocolId,
+  // Load dunes by protocol ID
+  await loadManyIntoMemory("Dune", {
+    dune_protocol_id: {
+      [Op.in]: dunesInBlockByProtocolId,
     },
   });
 
-  // Load runes by raw name
-  await loadManyIntoMemory("Rune", {
+  // Load dunes by raw name
+  await loadManyIntoMemory("Dune", {
     name: {
-      [Op.in]: runesInBlockByRawName,
+      [Op.in]: dunesInBlockByRawName,
     },
   });
 
-  // Load runes by database ID
-  await loadManyIntoMemory("Rune", {
+  // Load dunes by database ID
+  await loadManyIntoMemory("Dune", {
     id: {
-      [Op.in]: runesInBlockByDbId,
+      [Op.in]: dunesInBlockByDbId,
     },
   });
-  stopTimer("load_runes");
+  stopTimer("load_dunes");
 
   startTimer();
   const balancesInBlock = [
@@ -1018,7 +1018,7 @@ const loadBlockIntoMemory = async (block, storage) => {
     "debug"
   );
   log(
-    "loaded: " + Object.keys(local.Rune).length + "  runes into memory",
+    "loaded: " + Object.keys(local.Dune).length + "  dunes into memory",
     "debug"
   );
 

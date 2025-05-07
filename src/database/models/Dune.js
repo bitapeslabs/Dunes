@@ -3,14 +3,14 @@ const { Sequelize } = require("sequelize");
 
 module.exports = (sequelize) => {
   return sequelize.define(
-    "Rune",
+    "Dune",
     {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
       },
-      rune_protocol_id: {
+      dune_protocol_id: {
         type: Sequelize.TEXT,
         allowNull: false,
       },
@@ -92,7 +92,7 @@ module.exports = (sequelize) => {
     {
       indexes: [
         {
-          fields: ["rune_protocol_id"],
+          fields: ["dune_protocol_id"],
           using: "BTREE", // Attempt to specify hash index
         },
         {
@@ -100,7 +100,7 @@ module.exports = (sequelize) => {
           using: "BTREE", // Attempt to specify hash index
         },
       ],
-      tableName: "runes",
+      tableName: "dunes",
       timestamps: false,
     }
   );

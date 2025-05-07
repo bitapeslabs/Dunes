@@ -2,30 +2,30 @@
 
 # Dunes
 
-Dunes is runes, but without the runestone decoder - instead leveraging the new op_return size limit so runestones (named dunestones on dunes), can be pushed to
-bitcoin as a JSON file directly. This makes it MUCH easier for developers to work with, as the runestone decoder is notriously the most difficult part in reaching
-the state of runes that ORD creates.
+Dunes is dunes, but without the dunestone decoder - instead leveraging the new op_return size limit so dunestones (named dunestones on dunes), can be pushed to
+bitcoin as a JSON file directly. This makes it MUCH easier for developers to work with, as the dunestone decoder is notriously the most difficult part in reaching
+the state of dunes that ORD creates.
 
 Furthermore, dunes adds the following changes:
 
-- Dunestones are pushed directly after the OP_RETURN. This means "OP_13 isnt pushed before the dunestone like runes. A dunestone OP_RETURN looks like this:
+- Dunestones are pushed directly after the OP_RETURN. This means "OP_13 isnt pushed before the dunestone like dunes. A dunestone OP_RETURN looks like this:
   OP_RETURN utf8-encoded-dunestone-string-hex
 
-- Dunes does not require commitments to etch. This means dunes, unlike runes, does not require any copy of the witness layer! Dunes works with any pre-segwit
+- Dunes does not require commitments to etch. This means dunes, unlike dunes, does not require any copy of the witness layer! Dunes works with any pre-segwit
   wallet and chain.
 
 - Any DUNES name is valid, as long as the name contains only letters (A–Z, a–z), numbers (0–9), underscores \_, hyphens -, or periods . — and must be at least one character long, and less than 32 characters long. (names are case sensitive, so "Dunes" and "dunes" are NOT the same.)
 
-- Because DUNE names are described as strings, the "spacer" field from the original runes protocol is completely omitted.
+- Because DUNE names are described as strings, the "spacer" field from the original dunes protocol is completely omitted.
 
-- DUNE names can only be used once! No two dunes can have the same name - just like Runes
+- DUNE names can only be used once! No two dunes can have the same name - just like Dunes
 
 - A symbol can still only be one character long.
 
-- The original runes protocol specifies the following:
+- The original dunes protocol specifies the following:
 
 ```
-If an edict output is greater than the number of outputs of the transaction, an edict rune ID is encountered with block zero and nonzero transaction index, or a field is truncated, meaning a tag is encountered without a value, the decoded runestone is a cenotaph.
+If an edict output is greater than the number of outputs of the transaction, an edict dune ID is encountered with block zero and nonzero transaction index, or a field is truncated, meaning a tag is encountered without a value, the decoded dunestone is a cenotaph.
 
 Note that if a cenotaph is produced here, the cenotaph is not empty, meaning that it contains the fields and edicts, which may include an etching and mint.
 ```
@@ -39,7 +39,7 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 ```json
 {
   "etching": {
-    "rune": "duni",
+    "dune": "duni",
     "symbol": "🌵",
     "turbo": true,
     "terms": {
@@ -80,7 +80,7 @@ type Mint = {
 type Etching = {
   divisibility: number; ///required or cenotaph
   premine: DuneAmount; //required or cenotaph
-  rune: string; //required or cenotaph
+  dune: string; //required or cenotaph
   symbol: string; //required or cenotaph
   terms: null | Terms;
   turbo: boolean; // if not included, defaults to TRUE
@@ -96,4 +96,4 @@ type Dunestone = {
 
 ## Useful links
 
-Original runes protocol: https://docs.ordinals.com/runes.html
+Original dunes protocol: https://docs.ordinals.com/dunes.html

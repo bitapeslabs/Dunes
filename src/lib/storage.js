@@ -19,7 +19,7 @@ const storage = async (useSync) => {
       utxo_index: ["transaction_id", "vout_index"],
     },
 
-    Balance: { balance_index: ["address_id", "rune_id"] },
+    Balance: { balance_index: ["address_id", "dune_id"] },
   };
 
   const BUILD_GROUPS = {
@@ -35,9 +35,9 @@ const storage = async (useSync) => {
     Transaction: "hash",
 
     //All of these depend on transaction and address
-    Rune: "rune_protocol_id",
+    Dune: "dune_protocol_id",
 
-    //balance depends on Rune_id so it should be upserted after Rune
+    //balance depends on Dune_id so it should be upserted after Dune
     Balance: "balance_index",
     Utxo: "utxo_index",
     Utxo_balance: "id",
@@ -46,7 +46,7 @@ const storage = async (useSync) => {
 
   //These are hashmaps that point back an object in local. This is used to quickly find a row in O(1) time even if the primary key is not the id. Built indicies are not supported with these
   const REFERENCE_FIELDS = {
-    Rune: ["raw_name", "id"],
+    Dune: ["raw_name", "id"],
     Address: ["id"],
     Transaction: ["id"],
   };
@@ -349,9 +349,9 @@ const storage = async (useSync) => {
     const testWithAttributeFilter = (row, attributeFilter) => {
       /*
         An attribute array can contain any nested number of items like this
-        {"id", "rune_protocol_id"}
-        [{"id", "rune_protocol_id"}, ...]
-        [{"id", "rune_protocol_id}], ["id", "rune_protocol_id"]]
+        {"id", "dune_protocol_id"}
+        [{"id", "dune_protocol_id"}, ...]
+        [{"id", "dune_protocol_id}], ["id", "dune_protocol_id"]]
         
         every array in the attribute array should always have exactly 2 items, the value and the attribute
 

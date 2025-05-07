@@ -2,15 +2,15 @@ require("dotenv").config();
 
 const GENESIS_BLOCK = parseInt(process.env.GENESIS_BLOCK ?? 0);
 const TAPROOT_ANNEX_PREFIX = 0x50;
-const UNLOCK_INTERVAL = 17500; //https://docs.ordinals.com/runes/specification.html -> Etching the runestone
+const UNLOCK_INTERVAL = 17500; //https://docs.ordinals.com/dunes/specification.html -> Etching the dunestone
 const COMMIT_CONFIRMATIONS = 6;
-const INITIAL_AVAILABLE = 13; //https://docs.ordinals.com/runes/specification.html -> Etching the runestone
+const INITIAL_AVAILABLE = 13; //https://docs.ordinals.com/dunes/specification.html -> Etching the dunestone
 const TAPROOT_SCRIPT_PUBKEY_TYPE = "witness_v1_taproot";
 const MAX_SIGNED_128_BIT_INT = 0x7fffffffffffffffffffffffffffffffn + 1n;
 
 const GENESIS_DUNESTONE = {
   etching: {
-    rune: "duni",
+    dune: "duni",
     symbol: "🌵",
     turbo: true,
     terms: {

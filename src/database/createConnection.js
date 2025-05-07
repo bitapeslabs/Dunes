@@ -29,8 +29,8 @@ async function databaseConnection() {
       as: "utxo",
     });
     models.Utxo_balance.belongsTo(models.Dune, {
-      foreignKey: "rune_id",
-      as: "rune",
+      foreignKey: "dune_id",
+      as: "dune",
     });
 
     // Relationships UTXOS
@@ -62,7 +62,7 @@ async function databaseConnection() {
       foreignKey: "transaction_id",
       as: "transaction",
     });
-    models.Event.belongsTo(models.Dune, { foreignKey: "rune_id", as: "rune" });
+    models.Event.belongsTo(models.Dune, { foreignKey: "dune_id", as: "dune" });
     models.Event.belongsTo(models.Address, {
       foreignKey: "from_address_id",
       as: "from_address",
@@ -78,8 +78,8 @@ async function databaseConnection() {
       as: "address",
     });
     models.Balance.belongsTo(models.Dune, {
-      foreignKey: "rune_id",
-      as: "rune",
+      foreignKey: "dune_id",
+      as: "dune",
     });
 
     //HasMany relationships
@@ -98,7 +98,7 @@ async function databaseConnection() {
     // Address hasMany Utxo
     models.Address.hasMany(models.Dune, {
       foreignKey: "deployer_address_id",
-      as: "runes_etched",
+      as: "dunes_etched",
     });
 
     // Transaction hasMany Utxo (for the `transaction_id`)
@@ -116,7 +116,7 @@ async function databaseConnection() {
     // Transaction hasMany Dune (for the `etch_transaction_id`)
     models.Transaction.hasMany(models.Dune, {
       foreignKey: "etch_transaction_id",
-      at: "runes_etched",
+      at: "dunes_etched",
     });
 
     // Transaction hasMany Event (for the `transaction_id`)
@@ -125,8 +125,8 @@ async function databaseConnection() {
       as: "all_events",
     });
 
-    // Dune hasMany Event (for the `rune_id`)
-    models.Dune.hasMany(models.Event, { foreignKey: "rune_id", as: "events" });
+    // Dune hasMany Event (for the `dune_id`)
+    models.Dune.hasMany(models.Event, { foreignKey: "dune_id", as: "events" });
 
     // Address hasMany Event (for the `from_address_id`)
     models.Address.hasMany(models.Event, {
@@ -146,14 +146,14 @@ async function databaseConnection() {
       as: "balances",
     });
 
-    // Dune hasMany Balance (for the `rune_id`)
+    // Dune hasMany Balance (for the `dune_id`)
     models.Dune.hasMany(models.Balance, {
-      foreignKey: "rune_id",
+      foreignKey: "dune_id",
       as: "holders",
     });
 
     models.Dune.hasMany(models.Utxo_balance, {
-      foreignKey: "rune_id",
+      foreignKey: "dune_id",
       as: "utxo_holders",
     });
 
