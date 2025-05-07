@@ -2,12 +2,9 @@
 
 # Dunes
 
-## Useful links
+**Want to interact with Dunes? Try using the cli:** https://github.com/bitapeslabs/dunes-cli
 
-**Explorer:** https://dunes.sh
-
-Want to interact with Dunes? Try using the cli:
-**CLI:** https://github.com/bitapeslabs/dunes-cli
+**Dunes explorer:** https://dunes.sh
 
 ## What is Dunes?
 
