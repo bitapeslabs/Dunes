@@ -108,6 +108,6 @@ type Dunestone = {
 };
 ```
 
-## Useful links
+## Credits
 
-Original dunes protocol: https://docs.ordinals.com/dunes.html
+Original runes protocol: https://docs.ordinals.com/runes.html
