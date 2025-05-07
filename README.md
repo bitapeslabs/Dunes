@@ -2,7 +2,17 @@
 
 # Dunes
 
-**Want to interact with Dunes? Try using the cli:** https://github.com/bitapeslabs/dunes-cli
+**Want to interact with Dunes? Use the CLI!**
+
+To install:
+
+```bash
+npm i -g dunes-cli
+
+dunes-cli --help
+```
+
+**More information on the commands you can use can be found here:** https://github.com/bitapeslabs/dunes-cli
 
 **Dunes explorer:** https://dunes.sh
 
@@ -48,7 +58,7 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
     "turbo": true,
     "terms": {
       "amount": 100,
-      "cap": 100000,
+      "cap": 1000000,
       "height": [0, null],
       "offset": [null, null]
     }
