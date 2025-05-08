@@ -133,7 +133,7 @@ router.get("/address/:address/:dune_protocol_id", async function (req, res) {
         .status(400)
         .send({ error: "Invalid dune protocol id provided" });
 
-    let query = getSomeUtxoBalance(db, {
+    let query = getSomeAddressBalance(db, {
       address: { address },
       dune: { dune_protocol_id },
     });
