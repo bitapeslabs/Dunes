@@ -83,12 +83,6 @@ router.get("/address/:address", async function (req, res) {
 
     const { Event } = db;
 
-    const { validBitcoinAddress } = validators;
-
-    if (!validBitcoinAddress(req.params.address)) {
-      return res.status(400).send({ error: "Invalid address provided" });
-    }
-
     const events = await Event.findAll({
       raw: true,
       attributes: { exclude: ["createdAt", "updatedAt"] },
