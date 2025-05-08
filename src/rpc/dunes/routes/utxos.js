@@ -1,64 +1,58 @@
 const express = require("express");
 const router = express.Router();
+const { Op } = require("sequelize");
 
-router.get("/:address", async function (req, res) {
+router.get("/:address", async (req, res) => {
   try {
     const { db } = req;
     const { Utxo, Address, Transaction } = db;
 
-    const addressText = req.params.address;
-
-    if (typeof addressText !== "string" || addressText.length > 130) {
-      return res.status(400).send({ error: "Invalid address format" });
-    }
-
-    const addressRow = await Address.findOne({
-      where: { address: addressText },
+    const address = await Address.findOne({
+      where: { address: req.params.address },
       attributes: ["id"],
-      raw: true,
     });
 
-    if (!addressRow) {
-      return res.send([]);
+    if (!address) {
+      return res.status(404).json({ error: "Address not found" });
     }
 
     const utxos = await Utxo.findAll({
+      where: { address_id: address.id },
       attributes: ["id", "value_sats", "block", "vout_index", "block_spent"],
-      where: {
-        address_id: addressRow.id,
-      },
       include: [
         {
           model: Transaction,
           as: "transaction",
-          attributes: [["hash", "transaction"]],
+          attributes: ["hash"],
           required: false,
         },
         {
           model: Transaction,
           as: "transaction_spent",
-          attributes: [["hash", "transaction_spent"]],
+          attributes: ["hash"],
           required: false,
         },
       ],
-      raw: true,
+      order: [["block", "ASC"]],
     });
 
-    // Format response to use flat keys and drop internal joins
-    const result = utxos.map((utxo) => ({
-      id: utxo.id,
-      value_sats: utxo.value_sats,
-      block: utxo.block,
-      vout_index: utxo.vout_index,
-      block_spent: utxo.block_spent,
-      transaction: utxo.transaction ?? null,
-      transaction_spent: utxo.transaction_spent ?? null,
-    }));
+    const serialized = utxos.map((utxo) => {
+      const obj = utxo.toJSON();
+      return {
+        id: obj.id,
+        value_sats: obj.value_sats,
+        block: obj.block,
+        vout_index: obj.vout_index,
+        block_spent: obj.block_spent,
+        transaction: obj.transaction?.hash ?? null,
+        transaction_spent: obj.transaction_spent?.hash ?? null,
+      };
+    });
 
-    return res.send(result);
-  } catch (e) {
-    console.error(e);
-    return res.status(500).send({ error: "Internal server error" });
+    return res.json(serialized);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });
 
