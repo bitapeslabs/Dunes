@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-router.get("/utxos/:address", async function (req, res) {
+rourouter.get("/utxos/:address", async function (req, res) {
   try {
     const { db } = req;
     const { Utxo, Address, Transaction } = db;
@@ -23,10 +23,7 @@ router.get("/utxos/:address", async function (req, res) {
     }
 
     const utxos = await Utxo.findAll({
-      raw: true,
-      attributes: {
-        exclude: ["createdAt", "updatedAt"],
-      },
+      attributes: ["id", "value_sats", "block", "vout_index", "block_spent"],
       where: {
         address_id: addressRow.id,
       },
@@ -34,21 +31,28 @@ router.get("/utxos/:address", async function (req, res) {
         {
           model: Transaction,
           as: "transaction",
-          attributes: ["hash"],
+          attributes: [["hash", "transaction"]],
+          required: false,
         },
         {
           model: Transaction,
           as: "transaction_spent",
-          attributes: ["hash"],
+          attributes: [["hash", "transaction_spent"]],
+          required: false,
         },
       ],
+      raw: true,
     });
 
-    // Rename fields to match desired response
+    // Format response to use flat keys and drop internal joins
     const result = utxos.map((utxo) => ({
-      ...utxo,
-      transaction: utxo["transaction.hash"] ?? null,
-      transaction_spent: utxo["transaction_spent.hash"] ?? null,
+      id: utxo.id,
+      value_sats: utxo.value_sats,
+      block: utxo.block,
+      vout_index: utxo.vout_index,
+      block_spent: utxo.block_spent,
+      transaction: utxo.transaction ?? null,
+      transaction_spent: utxo.transaction_spent ?? null,
     }));
 
     return res.send(result);
