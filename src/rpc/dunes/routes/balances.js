@@ -97,13 +97,8 @@ router.get("/address/:address", async function (req, res) {
 
     let { address } = req.params;
 
-    const { validBitcoinAddress } = validators;
-
     //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
     //if block is "0" or undefined, then we want to get the latest balance for the address
-
-    if (!validBitcoinAddress(address))
-      return res.status(400).send({ error: "Invalid address provided" });
 
     let query = getSomeAddressBalance(db, { address: { address } });
 

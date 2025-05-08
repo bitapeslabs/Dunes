@@ -14,14 +14,6 @@ const validators = {
     return regex.test(hash);
   },
 
-  validBitcoinAddress: (address) => {
-    try {
-      bitcoin.address.toOutputScript(address);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  },
   validProtocolId: (protocolId) => {
     return protocolId.includes(":") && !isNaN(protocolId.split(":").join(""));
   },
