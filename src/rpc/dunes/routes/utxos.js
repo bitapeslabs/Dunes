@@ -17,7 +17,7 @@ router.get("/:address", async (req, res) => {
     }
 
     const utxos = await Utxo.findAll({
-      where: { address_id: address.id },
+      where: { address_id: address.id, block_spent: null },
       attributes: ["id", "value_sats", "block", "vout_index", "block_spent"],
       include: [
         {
