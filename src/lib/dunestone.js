@@ -51,7 +51,12 @@ const EtchingSchema = z.object({
     .regex(/^[A-Za-z0-9_.-]{1,31}$/)
     .min(1)
     .max(31),
-  symbol: z.string().min(1).max(1), // ← max length 1
+  symbol: z
+    .string()
+    .min(1)
+    .refine((s) => [...s].length === 1, {
+      message: "symbol must be exactly one visible character or emoji",
+    }),
   terms: z.union([TermsSchema, z.null()]),
   turbo: z.boolean().default(true),
 });

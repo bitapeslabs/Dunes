@@ -20,7 +20,7 @@ module.exports = (sequelize) => {
       },
 
       symbol: {
-        type: Sequelize.STRING(1),
+        type: Sequelize.STRING(8),
         allowNull: false,
       },
       total_supply: {
