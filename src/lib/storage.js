@@ -46,7 +46,7 @@ const storage = async (useSync) => {
 
   //These are hashmaps that point back an object in local. This is used to quickly find a row in O(1) time even if the primary key is not the id. Built indicies are not supported with these
   const REFERENCE_FIELDS = {
-    Dune: ["raw_name", "id"],
+    Dune: ["name", "id"],
     Address: ["id"],
     Transaction: ["id"],
   };

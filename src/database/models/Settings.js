@@ -17,7 +17,7 @@ module.exports = (sequelize) => {
       },
       value: {
         type: Sequelize.TEXT,
-        allowNull: false,
+        allowNull: true,
       },
     },
     {

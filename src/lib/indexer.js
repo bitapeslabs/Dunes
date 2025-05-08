@@ -431,7 +431,7 @@ const processEtching = (
 
   const isDuneNameTaken = !!findOne(
     "Dune",
-    duneName + "@REF@raw_name",
+    duneName + "@REF@name",
     false,
     true
   );

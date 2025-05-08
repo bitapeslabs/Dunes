@@ -162,7 +162,7 @@ const startServer = async () => {
           defaults: { value: 0 },
         })
       )[0].value
-    ) || GENESIS_BLOCK - 1;
+    ) || null;
 
   let prefetchDone = parseInt(
     (
@@ -258,11 +258,9 @@ const startServer = async () => {
     return;
   };
 
-  //Use test flag only processes the testblock.json file. This is used to test the indexer in controlled scenarios.
-  if (useTest) {
-    await processBlocksInRange(lastBlockProcessed + 1, lastBlockProcessed + 1);
-    return;
-  }
+  let currentBlock = lastBlockProcessed
+    ? lastBlockProcessed + 1
+    : GENESIS_BLOCK;
 
   if (!prefetchDone) {
     let amountPrefetch = parseInt(process.env.PREFETCH_BLOCKS ?? 100);
@@ -274,7 +272,7 @@ const startServer = async () => {
     );
     const blocksToFetch = new Array(amountPrefetch)
       .fill(0)
-      .map((_, i) => lastBlockProcessed + i + 1 - amountPrefetch);
+      .map((_, i) => GENESIS_BLOCK - amountPrefetch);
     await prefetchTransactions(blocksToFetch, storage, callRpcBatch);
     await storage.commitChanges();
     log("Prefetching complete!", "info");
@@ -292,12 +290,12 @@ const startServer = async () => {
   while (true) {
     let latestBlock = parseInt(await callRpc("getblockcount", []));
 
-    if (lastBlockProcessed < latestBlock) {
-      log(
-        "Processing blocks " + (lastBlockProcessed + 1) + " - " + latestBlock,
-        "info"
-      );
-      await processBlocksInRange(lastBlockProcessed + 1, latestBlock);
+    if (currentBlock < latestBlock) {
+      log("Processing blocks " + currentBlock + " - " + latestBlock, "info");
+      await processBlocksInRange(currentBlock, latestBlock);
+      currentBlock = latestBlock + 1;
+      lastBlockProcessed = currentBlock;
+
       log(
         "Polling for new blocks... Last Processed: " + lastBlockProcessed,
         "info"
