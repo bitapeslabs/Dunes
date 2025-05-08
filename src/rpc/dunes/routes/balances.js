@@ -123,13 +123,10 @@ router.get("/address/:address/:dune_protocol_id", async function (req, res) {
 
     let { address, dune_protocol_id } = req.params;
 
-    const { validBitcoinAddress, validProtocolId } = validators;
+    const { validProtocolId } = validators;
 
     //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
     //if block is "0" or undefined, then we want to get the latest balance for the address
-
-    if (!validBitcoinAddress(address))
-      return res.status(400).send({ error: "Invalid address provided" });
 
     if (!validProtocolId(dune_protocol_id))
       return res
@@ -166,13 +163,11 @@ router.get(
 
       let { address, start_block, end_block } = req.params;
 
-      const { validBitcoinAddress, validInt } = validators;
+      const { validInt } = validators;
 
       //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
       //if block is "0" or undefined, then we want to get the latest balance for the address
 
-      if (!validBitcoinAddress(address))
-        return res.status(400).send({ error: "Invalid address provided" });
       if (!validInt(start_block))
         return res.status(400).send({ error: "Invalid block provided" });
       if (!validInt(end_block))
@@ -219,13 +214,11 @@ router.get(
 
       let { address, start_block, end_block, dune_protocol_id } = req.params;
 
-      const { validBitcoinAddress, validInt, validProtocolId } = validators;
+      const { validInt, validProtocolId } = validators;
 
       //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
       //if block is "0" or undefined, then we want to get the latest balance for the address
 
-      if (!validBitcoinAddress(address))
-        return res.status(400).send({ error: "Invalid address provided" });
       if (!validInt(start_block))
         return res.status(400).send({ error: "Invalid block provided" });
       if (!validInt(end_block))
