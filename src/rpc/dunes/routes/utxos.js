@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-rourouter.get("/utxos/:address", async function (req, res) {
+router.get("/:address", async function (req, res) {
   try {
     const { db } = req;
     const { Utxo, Address, Transaction } = db;
