@@ -1,10 +1,11 @@
 const express = require("express");
 const router = express.Router();
 
-router.get("/:address", async function (req, res) {
+router.get("/utxos/:address", async function (req, res) {
   try {
     const { db } = req;
-    const { Utxo, Address } = db;
+    const { Utxo, Address, Transaction } = db;
+
     const addressText = req.params.address;
 
     if (typeof addressText !== "string" || addressText.length > 130) {
@@ -18,18 +19,39 @@ router.get("/:address", async function (req, res) {
     });
 
     if (!addressRow) {
-      return res.send([]); // Return empty list if address not found
+      return res.send([]);
     }
 
     const utxos = await Utxo.findAll({
       raw: true,
-      attributes: { exclude: ["createdAt", "updatedAt"] },
+      attributes: {
+        exclude: ["createdAt", "updatedAt"],
+      },
       where: {
         address_id: addressRow.id,
       },
+      include: [
+        {
+          model: Transaction,
+          as: "transaction",
+          attributes: ["hash"],
+        },
+        {
+          model: Transaction,
+          as: "transaction_spent",
+          attributes: ["hash"],
+        },
+      ],
     });
 
-    return res.send(utxos);
+    // Rename fields to match desired response
+    const result = utxos.map((utxo) => ({
+      ...utxo,
+      transaction: utxo["transaction.hash"] ?? null,
+      transaction_spent: utxo["transaction_spent.hash"] ?? null,
+    }));
+
+    return res.send(result);
   } catch (e) {
     console.error(e);
     return res.status(500).send({ error: "Internal server error" });
