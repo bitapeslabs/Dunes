@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { Op } = require("sequelize");
 const { getSomeUtxoBalance } = require("../lib/queries.js");
-const { parseBalancesIntoUtxo } = require("../lib/parsers.js");
+const { simplify } = require("../../../lib/utils.js");
 
 router.get("/:address", async (req, res) => {
   try {
@@ -72,7 +72,7 @@ router.get("/balances/:address", async function (req, res) {
     });
 
     const balances = (await Utxo_balance.findAll(query))?.map((b) =>
-      b.toJSON()
+      simplify(b.toJSON())
     );
 
     if (!balances?.length) {
