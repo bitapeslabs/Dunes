@@ -68,7 +68,7 @@ router.get("/balances/:address", async function (req, res) {
     const { Utxo_balance } = db;
 
     const query = getSomeUtxoBalance(db, {
-      utxo: { address: { address }, transaction: { block_spent: null } },
+      utxo: { address: { address }, block_spent: null },
     });
 
     const balances = (await Utxo_balance.findAll(query))?.map((b) =>
