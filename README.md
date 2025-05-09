@@ -38,6 +38,9 @@ the state of runes that the ORD client creates nad the highest barrier to entry 
 
 - Implements priced mints, originally proposed here: https://github.com/ordinals/ord/issues/3794 and further iterated here to take advantage of the new OP_RETURN size limit. See "priced mints" below for more information.
 
+- Inclusion of the "p" field, which has to be the literal "dunes" or the dunes website "https://dunes.sh". This is so external users can see a dunestone in an explorer
+  and learn more about the protocol. Including the domain is not required (can just be "dunes"), but it is recommended.
+
 - The original dunes protocol specifies the following:
 
 ```
@@ -95,10 +98,7 @@ type Terms = {
   offset: [null | number, null | number]; //max: u32, required if terms are included or cenotaph
 };
 
-type Mint = {
-  block: number; //max: u32, required if mint is included or cenotaph
-  tx: number; //max: u32, required if mint is included or cenotaph
-};
+type Mint = string; //must be a string in the format of u32(block):u32(tx)
 
 type PriceTerms = {
   amount: DuneAmount; //required if priceterms are included or cenotaph

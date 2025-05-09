@@ -41,8 +41,27 @@ const TermsSchema = z.object({
   offset: z.tuple([u32().nullable(), u32().nullable()]),
 });
 
-const MintSchema = z.object({ block: u32(), tx: u32() });
+const MintSchema = z
+  .string()
+  .regex(/^\d+:\d+$/, "mint must look like 'block:tx'")
+  .transform((val) => {
+    const [blockStr, txStr] = val.split(":");
+    const block = Number(blockStr);
+    const tx = Number(txStr);
 
+    if (
+      !Number.isInteger(block) ||
+      block < 0 ||
+      block > MAX_U32 ||
+      !Number.isInteger(tx) ||
+      tx < 0 ||
+      tx > MAX_U32
+    ) {
+      throw new Error("block and tx must be valid u32 integers");
+    }
+
+    return { block, tx };
+  });
 const EtchingSchema = z.object({
   divisibility: u8(),
   premine: duneAmount,
@@ -63,6 +82,7 @@ const EtchingSchema = z.object({
 
 const DunestoneSchema = z
   .object({
+    p: z.union([z.literal("dunes"), z.literal("https://dunes.sh")]),
     edicts: z.array(EdictSchema).optional(),
     etching: EtchingSchema.optional(),
     mint: MintSchema.optional(),
