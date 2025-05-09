@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const { Op } = require("sequelize");
 const { getSomeUtxoBalance } = require("../lib/queries.js");
-const validators = require("../lib/validators.js");
 
 router.get("/:address", async (req, res) => {
   try {
@@ -63,11 +62,6 @@ router.get("/balances/:address", async function (req, res) {
     const { address } = req.params;
     const { db } = req;
     const { Utxo_balance } = db;
-    const { validAddress } = validators;
-
-    if (!validAddress(address)) {
-      return res.status(400).send({ error: "Invalid address" });
-    }
 
     const query = getSomeUtxoBalance(db, {
       utxo: { address: { address } },
