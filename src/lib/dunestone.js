@@ -60,7 +60,7 @@ const MintSchema = z
       throw new Error("block and tx must be valid u32 integers");
     }
 
-    return { block, tx };
+    return `${block}:${tx}`;
   });
 const EtchingSchema = z.object({
   divisibility: u8(),
