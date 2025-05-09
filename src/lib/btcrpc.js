@@ -8,7 +8,7 @@ const createRpcClient = (rpcConfig) => {
   let rpcResults = {};
 
   // ====== Create RPC client constructor ======
-  const rpcClient = axios.create({
+  const rpcClient = axios.default.create({
     baseURL: rpcConfig.url, // Replace with your node's URL and port
     auth: {
       username: rpcConfig.username,
@@ -93,8 +93,8 @@ const createRpcClient = (rpcConfig) => {
 
       //We want to throttle large batch sizes to avoid crashing the Bitcoin RPC
       const chunks = chunkify(
-        chunkify(batch, parseInt(process.env.RPC_MAX_BATCH_SIZE ?? 1000)),
-        parseInt(process.env.MAX_CHUNKS_RPC ?? 3)
+        chunkify(batch, parseInt(process.env.RPC_MAX_BATCH_SIZE ?? "1000")),
+        parseInt(process.env.MAX_CHUNKS_RPC ?? "3")
       );
 
       let batchResult = [];
@@ -138,7 +138,7 @@ const createRpcClient = (rpcConfig) => {
       log(error + " on batch", "panic");
       throw error;
     }
-  }, parseInt(process.env.RPC_BATCH_INTERVAL ?? 100));
+  }, parseInt(process.env.RPC_BATCH_INTERVAL ?? "100"));
 
   return {
     callRpc,

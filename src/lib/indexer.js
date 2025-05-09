@@ -82,7 +82,7 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
       */
       utxo_index: `${voutAddress.id}:${utxo.n}`,
       address_id: voutAddress.id,
-      value_sats: parseInt(utxo.value * 10 ** 8).toString(),
+      value_sats: BigInt(utxo.value * 1e8).toString(),
       transaction_id: Transaction.virtual_id,
       vout_index: utxo.n,
       block: parseInt(Transaction.block),

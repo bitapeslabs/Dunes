@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { Op, Sequelize } = require("sequelize");
+const { Op } = require("sequelize");
+
 const {
   process_many_utxo_balances,
 } = require("../lib/native/pkg/dune_parsers.js");
@@ -9,255 +10,232 @@ const {
   parseBalancesIntoUtxo,
   parseBalancesIntoAddress,
 } = require("../lib/parsers.js");
-
 const {
   getSomeUtxoBalance,
   getSomeAddressBalance,
 } = require("../lib/queries.js");
 
+// — Get UTXO balances (all dunes) —
 router.get("/utxo/:utxo_index", async function (req, res) {
   try {
     const { db } = req;
-
-    const { Utxo_balance } = db;
-
     const { validTransactionHash, validInt } = validators;
-
     const [hash, vout] = req.params.utxo_index?.split(":");
 
     if (!validTransactionHash(hash) || !validInt(vout)) {
-      return res.status(400).send({ error: "Invalid utxo index provided" });
+      res.status(400).send({ error: "Invalid utxo index provided" });
+      return;
     }
 
-    let query = getSomeUtxoBalance(db, {
+    const query = getSomeUtxoBalance(db, {
       utxo: { transaction: { hash }, vout_index: vout },
     });
 
-    const utxoBalances = (await Utxo_balance.findAll(query))?.map((balance) =>
-      balance.toJSON()
-    );
+    const results = await db.Utxo_balance.findAll(query);
+    if (!results?.length) {
+      res.send({ error: "No UTXO found" });
+      return;
+    }
 
-    if (!utxoBalances?.length) return res.send({ error: "No UTXO found" });
-
-    let parsed = parseBalancesIntoUtxo(utxoBalances);
-
-    return res.send(parsed);
+    const parsed = parseBalancesIntoUtxo(results.map((b) => b.toJSON()));
+    res.send(parsed);
+    return;
   } catch (e) {
     console.log(e);
-    return res.status(500).send({ error: "Internal server error" });
+    res.status(500).send({ error: "Internal server error" });
+    return;
   }
 });
 
+// — Get UTXO balance (specific dune) —
 router.get("/utxo/:utxo_index/:dune_protocol_id", async function (req, res) {
   try {
     const { db } = req;
-
-    const { Utxo_balance } = db;
-
-    const { validTransactionHash, validInt, validProtocolId } = validators;
-
     const { dune_protocol_id, utxo_index } = req.params;
+    const { validTransactionHash, validInt, validProtocolId } = validators;
 
     const [hash, vout] = utxo_index?.split(":");
 
     if (!validTransactionHash(hash) || !validInt(vout)) {
-      return res.status(400).send({ error: "Invalid utxo index provided" });
+      res.status(400).send({ error: "Invalid utxo index provided" });
+      return;
     }
 
-    if (!validProtocolId(req.params.dune_protocol_id)) return res;
+    if (!validProtocolId(dune_protocol_id)) {
+      res.status(400).send({ error: "Invalid dune protocol id" });
+      return;
+    }
 
-    let query = getSomeUtxoBalance(db, {
-      utxo: {
-        transaction: { hash },
-        vout_index: vout,
-      },
+    const query = getSomeUtxoBalance(db, {
+      utxo: { transaction: { hash }, vout_index: vout },
       dune: { dune_protocol_id },
     });
 
-    const utxoBalances = (await Utxo_balance.findAll(query))?.map((balance) =>
-      balance.toJSON()
-    );
+    const results = await db.Utxo_balance.findAll(query);
+    if (!results?.length) {
+      res.send({ error: "No UTXO found" });
+      return;
+    }
 
-    if (!utxoBalances?.length) return res.send({ error: "No UTXO found" });
-
-    let parsed = parseBalancesIntoUtxo(utxoBalances);
-
-    return res.send(parsed);
+    const parsed = parseBalancesIntoUtxo(results.map((b) => b.toJSON()));
+    res.send(parsed);
+    return;
   } catch (e) {
     console.log(e);
-    return res.status(500).send({ error: "Internal server error" });
+    res.status(500).send({ error: "Internal server error" });
+    return;
   }
 });
 
+// — Get address balances (all dunes) —
 router.get("/address/:address", async function (req, res) {
   try {
-    let { db } = req;
+    const { db } = req;
+    const { address } = req.params;
 
-    let { Balance } = db;
+    const query = getSomeAddressBalance(db, { address: { address } });
+    const results = await db.Balance.findAll(query);
 
-    let { address } = req.params;
+    if (!results?.length) {
+      res.send({});
+      return;
+    }
 
-    //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
-    //if block is "0" or undefined, then we want to get the latest balance for the address
-
-    let query = getSomeAddressBalance(db, { address: { address } });
-
-    let balances = (await Balance.findAll(query))?.map((balance) =>
-      balance.toJSON()
-    );
-
-    if (!balances?.length) return res.send({});
-
-    res.send(parseBalancesIntoAddress(balances));
+    const parsed = parseBalancesIntoAddress(results.map((b) => b.toJSON()));
+    res.send(parsed);
+    return;
   } catch (e) {
     console.log(e);
-    return res.status(500).send({ error: "Internal server error" });
+    res.status(500).send({ error: "Internal server error" });
+    return;
   }
 });
 
+// — Get address balance (specific dune) —
 router.get("/address/:address/:dune_protocol_id", async function (req, res) {
   try {
-    let { db } = req;
-
-    let { Balance } = db;
-
-    let { address, dune_protocol_id } = req.params;
-
+    const { db } = req;
+    const { address, dune_protocol_id } = req.params;
     const { validProtocolId } = validators;
 
-    //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
-    //if block is "0" or undefined, then we want to get the latest balance for the address
+    if (!validProtocolId(dune_protocol_id)) {
+      res.status(400).send({ error: "Invalid dune protocol id provided" });
+      return;
+    }
 
-    if (!validProtocolId(dune_protocol_id))
-      return res
-        .status(400)
-        .send({ error: "Invalid dune protocol id provided" });
-
-    let query = getSomeAddressBalance(db, {
+    const query = getSomeAddressBalance(db, {
       address: { address },
       dune: { dune_protocol_id },
     });
 
-    let balances = (await Balance.findAll(query))?.map((balance) =>
-      balance.toJSON()
-    );
+    const results = await db.Balance.findAll(query);
+    if (!results?.length) {
+      res.send({});
+      return;
+    }
 
-    if (!balances?.length) return res.send({});
-
-    res.send(parseBalancesIntoAddress(balances));
+    const parsed = parseBalancesIntoAddress(results.map((b) => b.toJSON()));
+    res.send(parsed);
+    return;
   } catch (e) {
     console.log(e);
-    return res.status(500).send({ error: "Internal server error" });
+    res.status(500).send({ error: "Internal server error" });
+    return;
   }
 });
 
-//Snapshot api below (get what balance was for an address or utxo at a specific block)
-
+// — Snapshot balances over a range (all dunes) —
 router.get(
   "/snapshot/:start_block/:end_block/address/:address",
   async function (req, res) {
     try {
-      let { db } = req;
-
-      let { Utxo_balance } = db;
-
-      let { address, start_block, end_block } = req.params;
-
+      const { db } = req;
+      const { address, start_block, end_block } = req.params;
       const { validInt } = validators;
 
-      //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
-      //if block is "0" or undefined, then we want to get the latest balance for the address
+      if (!validInt(start_block) || !validInt(end_block)) {
+        res.status(400).send({ error: "Invalid block range provided" });
+        return;
+      }
 
-      if (!validInt(start_block))
-        return res.status(400).send({ error: "Invalid block provided" });
-      if (!validInt(end_block))
-        return res.status(400).send({ error: "Invalid block provided" });
-
-      let query = getSomeUtxoBalance(db, {
+      const query = getSomeUtxoBalance(db, {
         utxo: {
           address: { address },
-          block: {
-            [Op.lte]: parseInt(end_block),
-          },
+          block: { [Op.lte]: parseInt(end_block) },
         },
       });
 
-      let balances = (await Utxo_balance.findAll(query))?.map((balance) =>
-        balance.toJSON()
-      );
+      const results = await db.Utxo_balance.findAll(query);
+      if (!results?.length) {
+        res.send({});
+        return;
+      }
 
-      if (!balances?.length) return res.send({});
-
-      res.send(
-        JSON.parse(
-          process_many_utxo_balances(
-            JSON.stringify(balances),
-            parseInt(start_block),
-            parseInt(end_block)
-          )
+      const parsed = JSON.parse(
+        process_many_utxo_balances(
+          JSON.stringify(results.map((b) => b.toJSON())),
+          parseInt(start_block),
+          parseInt(end_block)
         )
       );
+
+      res.send(parsed);
+      return;
     } catch (e) {
       console.log(e);
-      return res.status(500).send({ error: "Internal server error" });
+      res.status(500).send({ error: "Internal server error" });
+      return;
     }
   }
 );
 
+// — Snapshot balances over a range (specific dune) —
 router.get(
   "/snapshot/:start_block/:end_block/address/:address/:dune_protocol_id",
   async function (req, res) {
     try {
-      let { db } = req;
-
-      let { Utxo_balance } = db;
-
-      let { address, start_block, end_block, dune_protocol_id } = req.params;
-
+      const { db } = req;
+      const { address, start_block, end_block, dune_protocol_id } = req.params;
       const { validInt, validProtocolId } = validators;
 
-      //if dune_protocol_id is "0" or undefined, then we want to get all balances for the address
-      //if block is "0" or undefined, then we want to get the latest balance for the address
+      if (!validInt(start_block) || !validInt(end_block)) {
+        res.status(400).send({ error: "Invalid block range provided" });
+        return;
+      }
 
-      if (!validInt(start_block))
-        return res.status(400).send({ error: "Invalid block provided" });
-      if (!validInt(end_block))
-        return res.status(400).send({ error: "Invalid block provided" });
-      if (!validProtocolId(dune_protocol_id))
-        return res
-          .status(400)
-          .send({ error: "Invalid dune protocol id provided" });
+      if (!validProtocolId(dune_protocol_id)) {
+        res.status(400).send({ error: "Invalid dune protocol id" });
+        return;
+      }
 
-      let query = getSomeUtxoBalance(db, {
+      const query = getSomeUtxoBalance(db, {
         utxo: {
           address: { address },
-          block: {
-            [Op.lte]: parseInt(end_block),
-          },
+          block: { [Op.lte]: parseInt(end_block) },
         },
-        dune: {
-          dune_protocol_id,
-        },
+        dune: { dune_protocol_id },
       });
 
-      let balances = (await Utxo_balance.findAll(query))?.map((balance) =>
-        balance.toJSON()
-      );
+      const results = await db.Utxo_balance.findAll(query);
+      if (!results?.length) {
+        res.send({});
+        return;
+      }
 
-      if (!balances?.length) return res.send({});
-
-      res.send(
-        JSON.parse(
-          process_many_utxo_balances(
-            JSON.stringify(balances),
-            parseInt(start_block),
-            parseInt(end_block)
-          )
+      const parsed = JSON.parse(
+        process_many_utxo_balances(
+          JSON.stringify(results.map((b) => b.toJSON())),
+          parseInt(start_block),
+          parseInt(end_block)
         )
       );
+
+      res.send(parsed);
+      return;
     } catch (e) {
       console.log(e);
-      return res.status(500).send({ error: "Internal server error" });
+      res.status(500).send({ error: "Internal server error" });
+      return;
     }
   }
 );

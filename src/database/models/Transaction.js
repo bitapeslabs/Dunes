@@ -1,16 +1,16 @@
-const { Sequelize } = require("sequelize");
+const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
   return sequelize.define(
     "Transaction",
     {
       id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
       hash: {
-        type: Sequelize.TEXT,
+        type: DataTypes.TEXT,
         allowNull: false,
       },
     },

@@ -1,82 +1,82 @@
 const { type } = require("os");
-const { Sequelize } = require("sequelize");
+const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
   return sequelize.define(
     "Dune",
     {
       id: {
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
       },
       dune_protocol_id: {
-        type: Sequelize.TEXT,
+        type: DataTypes.TEXT,
         allowNull: false,
       },
       name: {
-        type: Sequelize.TEXT,
+        type: DataTypes.TEXT,
         allowNull: false,
       },
 
       symbol: {
-        type: Sequelize.STRING(8),
+        type: DataTypes.STRING(8),
         allowNull: false,
       },
       total_supply: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: false,
       },
       decimals: {
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false,
       },
       premine: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: false,
       },
       mints: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: false,
       },
       price_amount: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
       price_pay_to: {
-        type: Sequelize.TEXT,
+        type: DataTypes.TEXT,
         allowNull: true,
       },
       mint_cap: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
       mint_start: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
       mint_end: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
       mint_offset_start: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
       mint_offset_end: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
       mint_amount: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
       burnt_amount: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
       etch_transaction_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         references: {
           model: "transactions",
           key: "id",
@@ -84,7 +84,7 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
       deployer_address_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         references: {
           model: "addresses",
           key: "id",
@@ -93,7 +93,7 @@ module.exports = (sequelize) => {
       },
 
       unmintable: {
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false,
       },
     },

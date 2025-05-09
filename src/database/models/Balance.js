@@ -1,25 +1,25 @@
-const { Sequelize } = require("sequelize");
+const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
   return sequelize.define(
     "Balance",
     {
       id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
 
       dune_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       address_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       balance: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: false,
       },
     },

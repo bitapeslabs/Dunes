@@ -61,7 +61,7 @@ const prefetchTransactions = async (block, storage, callRpc) => {
   findOrCreate("Address", "UNKNOWN", { address: "UNKNOWN" }, true);
   const chunks = chunkify(
     block,
-    parseInt(process.env.GET_BLOCK_CHUNK_SIZE ?? 3)
+    parseInt(process.env.GET_BLOCK_CHUNK_SIZE ?? "3")
   );
   for (let chunk of chunks) {
     log("Prefetching blocks: " + Object.values(chunk).join(", "), "info");
@@ -84,7 +84,7 @@ const prefetchTransactions = async (block, storage, callRpc) => {
             let address = utxo.scriptPubKey.address;
             if (!address) return; //OP_RETURN
             create("Utxo", {
-              value_sats: parseInt(utxo.value * 10 ** 8).toString(),
+              value_sats: BigInt(utxo.value * 1e8).toString(),
               block: blockNumber,
               transaction_id: Transaction.id,
               address_id: findOrCreate("Address", address, { address }).id,
@@ -261,10 +261,8 @@ const populateResultsWithPrevoutData = async (results, callRpc, storage) => {
 };
 
 const blockManager = async (callRpc, latestBlock, readBlockStorage) => {
-  let { MAX_BLOCK_CACHE_SIZE, GET_BLOCK_CHUNK_SIZE } = process.env;
-
-  MAX_BLOCK_CACHE_SIZE = parseInt(MAX_BLOCK_CACHE_SIZE ?? 20);
-  GET_BLOCK_CHUNK_SIZE = parseInt(GET_BLOCK_CHUNK_SIZE ?? 10);
+  let MAX_BLOCK_CACHE_SIZE = parseInt(process.env.MAX_BLOCK_CACHE_SIZE ?? "20");
+  let GET_BLOCK_CHUNK_SIZE = parseInt(process.env.GET_BLOCK_CHUNK_SIZE ?? "10");
 
   let cachedBlocks = {};
 
@@ -272,7 +270,7 @@ const blockManager = async (callRpc, latestBlock, readBlockStorage) => {
   const __fillCache = async (requestedBlock) => {
     cacheFillProcessing = true;
 
-    let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1));
+    let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1)[0]);
     let currentBlock = lastBlockInCache ? lastBlockInCache + 1 : requestedBlock;
     while (
       currentBlock <= latestBlock &&
@@ -417,7 +415,7 @@ const isMintOpen = (block, txIndex, Dune, mint_offset = false) => {
   */
 
   //This should always be perfectly divisible, since mint_amount is the only amount always added to the total supply
-  total_mints = BigInt(mints) + (mint_offset ? 1n : 0n);
+  let total_mints = BigInt(mints) + (mint_offset ? 1n : 0n);
 
   //If the mint offset (amount being minted) causes the total supply to exceed the mint cap, this mint is not allowed
 

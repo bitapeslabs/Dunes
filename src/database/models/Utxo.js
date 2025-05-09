@@ -1,4 +1,4 @@
-const { Sequelize } = require("sequelize");
+const { DataTypes } = require("sequelize");
 
 //total: 64 bytes
 module.exports = (sequelize) => {
@@ -7,26 +7,26 @@ module.exports = (sequelize) => {
     {
       //8 bytes
       id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
 
       //8 bytes
       value_sats: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
 
       //4 bytes
       block: {
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false,
       },
 
       //8 bytes
       transaction_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         references: {
           model: "transactions",
           key: "id",
@@ -36,7 +36,7 @@ module.exports = (sequelize) => {
 
       //4 bytes
       address_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         references: {
           model: "addresses",
           key: "id",
@@ -46,7 +46,7 @@ module.exports = (sequelize) => {
 
       //4 bytes
       vout_index: {
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false,
       },
 
@@ -57,14 +57,14 @@ module.exports = (sequelize) => {
                 This is also useful because we can see if the transaction came from a previous address, or if it was from COINBASE (an edict or a mint)
                  => If the input utxo didnt have any dunes, we can assume that the output was an etch or a mint.
             */
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: true,
       },
 
       //8 bytes
       transaction_spent_id: {
         //For transversing the chain and a dune transfer history
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         references: {
           model: "transactions",
           key: "id",

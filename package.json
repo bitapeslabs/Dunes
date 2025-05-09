@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "@sequelize/postgres": "^7.0.0-alpha.41",
+    "@types/express": "^5.0.1",
     "axios": "^1.7.1",
     "bitcoin-core": "^4.2.0",
     "bitcoinjs-lib": "^6.1.6",

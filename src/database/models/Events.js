@@ -1,11 +1,11 @@
-const { Sequelize } = require("sequelize");
+const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
   return sequelize.define(
     "Event",
     {
       id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
@@ -15,19 +15,19 @@ module.exports = (sequelize) => {
         //2 -> Transfer
         //3 -> Burn
         //We store as ints to save space on the database
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false,
       },
 
       block: {
         //address:dune_protocol_id -> address:block:vout
 
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false,
       },
 
       transaction_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         references: {
           model: "transactions",
           key: "id",
@@ -36,7 +36,7 @@ module.exports = (sequelize) => {
       },
 
       dune_id: {
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         references: {
           model: "dunes",
           key: "id",
@@ -44,12 +44,12 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
       amount: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: false,
       },
 
       from_address_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         references: {
           model: "addresses",
           key: "id",
@@ -57,7 +57,7 @@ module.exports = (sequelize) => {
         allowNull: true,
       },
       to_address_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         references: {
           model: "addresses",
           key: "id",

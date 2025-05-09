@@ -1,4 +1,4 @@
-const { Sequelize } = require("sequelize");
+const { DataTypes } = require("sequelize");
 
 //total: 64 bytes
 module.exports = (sequelize) => {
@@ -7,24 +7,24 @@ module.exports = (sequelize) => {
     {
       //8 bytes
       id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },
 
       utxo_id: {
-        type: Sequelize.BIGINT,
+        type: DataTypes.BIGINT,
         allowNull: false,
       },
       //4 bytes
       dune_id: {
-        type: Sequelize.INTEGER,
+        type: DataTypes.INTEGER,
         allowNull: false,
       },
 
       //16 bytes stored across two BIGINTS and concat. by the lib
       balance: {
-        type: Sequelize.DECIMAL,
+        type: DataTypes.DECIMAL,
         allowNull: true,
       },
     },

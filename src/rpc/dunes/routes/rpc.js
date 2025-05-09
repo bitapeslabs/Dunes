@@ -1,22 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const validators = require("../lib/validators");
-const { Op } = require("sequelize");
 
 /*
-    Gets all Dune events from a specific block
-    
-    Documentation: https://dunes.sh/docs/dunes-rpc/events#get-dunes-block-height
+  Returns global Dune RPC settings
+
+  Documentation: https://dunes.sh/docs/dunes-rpc/events#get-dunes-info
 */
-/*
-    Gets all Dune events from a specific transaction
-    
-    Documentation: https://dunes.sh/docs/dunes-rpc/events#get-dunes-block-height
-*/
-router.get("/info", async function (req, res) {
+router.get("/info", async (req, res) => {
   try {
     const { db } = req;
-
     const { Setting } = db;
 
     const settings = await Setting.findAll({
@@ -24,10 +16,10 @@ router.get("/info", async function (req, res) {
       attributes: { exclude: ["id"] },
     });
 
-    return res.send(settings);
+    res.send(settings);
   } catch (e) {
     console.log(e);
-    return res.status(500).send({ error: "Internal server error" });
+    res.status(500).send({ error: "Internal server error" });
   }
 });
 

@@ -1,8 +1,12 @@
 const fromBigInt = (number, decimals) => {
-  const quotient = BigInt(number) / BigInt("1" + "0".repeat(decimals));
-  const remainder = sum % divisor;
+  const divisor = BigInt("1" + "0".repeat(decimals));
+  const value = BigInt(number);
+  const quotient = value / divisor;
+  const remainder = value % divisor;
 
-  const decimalResult = `${quotient}.${remainder.toString().padStart(18, "0")}`;
+  const decimalResult = `${quotient}.${remainder
+    .toString()
+    .padStart(decimals, "0")}`;
   return decimalResult;
 };
 const toBigInt = (numberStr, decimals) => {

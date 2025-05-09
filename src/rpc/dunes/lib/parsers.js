@@ -1,11 +1,4 @@
-const {
-  simplify,
-  mergeSortArrayOfObj,
-  binarySearchLastOccurrence,
-  binarySearchFirstOccurrence,
-  binarySearchClosestUpper,
-  mergeSort,
-} = require("../../../lib/utils");
+const { simplify } = require("../../../lib/utils");
 let __debug_totalElapsedTime = {};
 let __timer;
 

@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const GENESIS_BLOCK = parseInt(process.env.GENESIS_BLOCK ?? 0);
+const GENESIS_BLOCK = parseInt(process.env.GENESIS_BLOCK ?? "0");
 const TAPROOT_ANNEX_PREFIX = 0x50;
 const UNLOCK_INTERVAL = 17500; //https://docs.ordinals.com/dunes/specification.html -> Etching the dunestone
 const COMMIT_CONFIRMATIONS = 6;

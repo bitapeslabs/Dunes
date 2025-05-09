@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "checkJs": true, // ✨ Enable type checking in .js files
+    "module": "commonjs", // or "esnext" depending on your style
+    "target": "es2020"
+  },
+  "include": ["./**/*.js", "types.d.ts"] // ✨ Include all .js files and type definitions
+}

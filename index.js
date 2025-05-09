@@ -58,7 +58,7 @@ const emitToDiscord = async (events) => {
         embeds: [embed],
       };
 
-      await axios.post(process.env.DISCORD_WEBHOOK, payload);
+      await axios.default.post(process.env.DISCORD_WEBHOOK, payload);
       await sleep(200);
     } catch (e) {
       //silently fail
@@ -148,6 +148,7 @@ const startServer = async () => {
   const useTest = process.argv.includes("--test");
   let storage = await newStorage(useSetup);
 
+  /** @type {any} */
   const { Setting } = storage.db;
 
   /*
@@ -184,7 +185,7 @@ const startServer = async () => {
       readBlockStorage
     );
     let currentBlock = startBlock;
-    let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? 10);
+    let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? "10");
     while (currentBlock <= endBlock) {
       const offset = currentBlock + chunkSize - endBlock - 1;
 
@@ -264,7 +265,7 @@ const startServer = async () => {
     : GENESIS_BLOCK;
 
   if (!prefetchDone) {
-    let amountPrefetch = parseInt(process.env.PREFETCH_BLOCKS ?? 100);
+    let amountPrefetch = parseInt(process.env.PREFETCH_BLOCKS ?? "100");
     log(
       "Prefetching previous " +
         amountPrefetch +

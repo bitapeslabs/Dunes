@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { Op } = require("sequelize");
 const { getSomeUtxoBalance } = require("../lib/queries.js");
+const { parseBalancesIntoUtxo } = require("../lib/parsers.js");
 
 router.get("/:address", async (req, res) => {
   try {
@@ -14,7 +15,8 @@ router.get("/:address", async (req, res) => {
     });
 
     if (!address) {
-      return res.status(404).json({ error: "Address not found" });
+      res.status(404).json({ error: "Address not found" });
+      return;
     }
 
     const utxos = await Utxo.findAll({
@@ -50,10 +52,12 @@ router.get("/:address", async (req, res) => {
       };
     });
 
-    return res.json(serialized);
+    res.json(serialized);
+    return;
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Internal server error" });
+    return;
   }
 });
 
@@ -71,7 +75,10 @@ router.get("/balances/:address", async function (req, res) {
       b.toJSON()
     );
 
-    if (!balances?.length) return res.send([]);
+    if (!balances?.length) {
+      res.send([]);
+      return;
+    }
 
     const grouped = parseBalancesIntoUtxo(balances);
 
@@ -82,10 +89,12 @@ router.get("/balances/:address", async function (req, res) {
       balances: data.balances,
     }));
 
-    return res.send(response);
+    res.send(response);
+    return;
   } catch (err) {
     console.error(err);
-    return res.status(500).send({ error: "Internal server error" });
+    res.status(500).send({ error: "Internal server error" });
+    return;
   }
 });
 
