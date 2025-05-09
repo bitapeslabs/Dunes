@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { Op } = require("sequelize");
 const { getSomeUtxoBalance } = require("../lib/queries.js");
+const validators = require("../lib/validators.js");
 
 router.get("/:address", async (req, res) => {
   try {
