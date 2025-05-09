@@ -56,4 +56,41 @@ router.get("/:address", async (req, res) => {
   }
 });
 
+router.get("/balances/:address", async function (req, res) {
+  try {
+    const { address } = req.params;
+    const { db } = req;
+    const { Utxo_balance } = db;
+    const { validAddress } = validators;
+
+    if (!validAddress(address)) {
+      return res.status(400).send({ error: "Invalid address" });
+    }
+
+    const query = getSomeUtxoBalance(db, {
+      utxo: { address: { address } },
+    });
+
+    const balances = (await Utxo_balance.findAll(query))?.map((b) =>
+      b.toJSON()
+    );
+
+    if (!balances?.length) return res.send([]);
+
+    const grouped = parseBalancesIntoUtxo(balances);
+
+    // transform to [{ utxo: "txid:vout", value, balances: { ... } }]
+    const response = Object.entries(grouped).map(([utxoIndex, data]) => ({
+      utxo: utxoIndex,
+      value: data.value,
+      balances: data.balances,
+    }));
+
+    return res.send(response);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).send({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;
