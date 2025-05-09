@@ -79,17 +79,7 @@ router.get("/balances/:address", async function (req, res) {
       res.send([]);
       return;
     }
-
-    const grouped = parseBalancesIntoUtxo(balances);
-
-    // transform to [{ utxo: "txid:vout", value, balances: { ... } }]
-    const response = Object.entries(grouped).map(([utxoIndex, data]) => ({
-      utxo: utxoIndex,
-      value: data.value,
-      balances: data.balances,
-    }));
-
-    res.send(response);
+    res.send(balances);
     return;
   } catch (err) {
     console.error(err);
