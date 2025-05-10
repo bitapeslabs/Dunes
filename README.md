@@ -136,6 +136,41 @@ If no price field is provided in a dune's etching, all functionality above is ig
 
 **Rationale:** This allows decentralized IDOs (initital dune offerings) to take place, without the need of a custodian.
 
+## What are flexible mints?
+If price terms are defined, and the amount per mint is set to 0, the Dune automatically enables "flex mint" mode.
+Essentially, when flex mint mode is enabled - the amount minted will be Math.floor(amount set to pay_to address / price). This was specifically added to enable decentralized wrapping of bitcoin into a dune (unwrapping would need to be custodian)
+
+In the following etch:
+```json
+{
+  "p": "https://dunes.sh",
+  "etching": {
+    "divisibility": 8,
+    "premine": "0",
+    "dune": "WBTC",
+    "symbol": "₿",
+    "terms": {
+      "price": {
+        "amount": "1",
+        "pay_to": "bcrt1pxya87gu5jnde0x72hp2l84tur62jl7yhkwnf7yc2hwgk2rnx9t2q6natl2"
+      },
+      "amount": "0",
+      "height": [
+        0,
+        null
+      ],
+      "offset": [
+        null,
+        null
+      ]
+    },
+    "turbo": true
+  }
+}
+```
+The price per "wbtc" is set to 1, with the same divisibility as bitcoin (precision of 8). That means for every satoshi the user sends to the pay_to address, they will mint 0.00000001 WBTC 
+
+
 ## Credits
 
 Original runes protocol: https://docs.ordinals.com/runes.html
