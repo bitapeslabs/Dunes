@@ -388,9 +388,24 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
       to_address_id: 2,
     });
 
-    //FLEX mode - if price terms are set, and "mint_amount" is set to 0, Math.floor(sentToPayto / price) will be minted
+    let isFlex = dunestone?.mint?.terms?.amount == 0;
+    let mintAmount = BigInt(dunestone.mint.amount);
 
-    let mintAmount = duneToMint.mint_amount;
+    if (isFlex) {
+      const payTo = dunestone.mint.terms?.price?.pay_to;
+      const priceAmount = dunestone.mint.terms?.price?.amount;
+
+      if (!payTo) throw new Error("Missing pay_to address in price terms");
+      if (!priceAmount || BigInt(priceAmount) === 0n)
+        throw new Error("Invalid price amount");
+
+      const totalRecv = Transaction.vout
+        .filter((v) => v.scriptPubKey?.address === payTo)
+        .map((v) => BigInt(v.value))
+        .reduce((a, b) => a + b, 0n);
+
+      mintAmount = totalRecv / BigInt(priceAmount);
+    }
 
     return updateUnallocated(UnallocatedDunes, {
       dune_id: duneToMint.dune_protocol_id,
