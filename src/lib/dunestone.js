@@ -5,14 +5,18 @@ const MAX_U128 = (1n << 128n) - 1n;
 const MAX_U32 = 0xffff_ffff;
 const MAX_U8 = 0xff;
 
+const isValidU128 = (s) => {
+  try {
+    const n = BigInt(s);
+    return 0n <= n && n <= MAX_U128;
+  } catch {
+    return false;
+  }
+};
+
 const duneAmount = z.string().refine(
   (s) => {
-    try {
-      const n = BigInt(s);
-      return 0n <= n && n <= MAX_U128;
-    } catch {
-      return false;
-    }
+    return isValidU128(s) && s !== "";
   },
   { message: "amount must be a decimal string within u128 range" }
 );
@@ -35,8 +39,8 @@ const EdictSchema = z.object({
 
 const TermsSchema = z.object({
   price: PriceTermsSchema.optional(), // ← new optional field
-  amount: z.union([duneAmount, z.literal("0")]),
-  cap: duneAmount,
+  amount: duneAmount,
+  cap: duneAmount.optional().nullable(),
   height: z.tuple([u32().nullable(), u32().nullable()]),
   offset: z.tuple([u32().nullable(), u32().nullable()]),
 });
@@ -94,7 +98,7 @@ const DunestoneSchema = z
 const AMOUNT_KEYS = new Set(["amount", "cap", "premine"]);
 
 /* ── 5. main function (one regex tweak for PUSHDATA2/4) ─── */
-function decipher(tx) {
+const decipher = (tx) => {
   const op = tx.vout.find(
     (v) =>
       v.scriptPubKey?.type === "nulldata" ||
@@ -151,6 +155,6 @@ function decipher(tx) {
   };
 
   return { ...toBig(dune), cenotaph: false };
-}
+};
 
 module.exports = { decipher };

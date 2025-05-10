@@ -357,19 +357,38 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
     return UnallocatedDunes;
   }
 
+  console.log("Minting dune", duneToMint.dune_protocol_id);
   if (!isPriceTermsMet(duneToMint, Transaction)) {
     return UnallocatedDunes;
   }
 
+  console.log("price terms met");
+
   if (isMintOpen(block, txIndex, duneToMint, true)) {
     //Update new mints to count towards cap
-
-    let newMints = (BigInt(duneToMint.mints) + BigInt(1)).toString();
-    updateAttribute("Dune", duneToMint.dune_protocol_id, "mints", newMints);
-
+    console.log("Mint open");
     if (dunestone.cenotaph) {
       //If the mint is a cenotaph, the minted amount is burnt
       return UnallocatedDunes;
+    }
+
+    let mintAmount = BigInt(duneToMint.mint_amount);
+    let isFlex = duneToMint.price_amount != "0";
+
+    if (isFlex) {
+      const payTo = duneToMint.price_pay_to;
+      const priceAmount = duneToMint.price_amount;
+
+      if (!payTo) throw new Error("Missing pay_to address in price terms");
+      if (!priceAmount || BigInt(priceAmount) === 0n)
+        throw new Error("Invalid price amount");
+
+      const totalRecv = Transaction.vout
+        .filter((v) => v.scriptPubKey?.address === payTo)
+        .map((v) => BigInt(Math.floor(v.value * 1e8)))
+        .reduce((a, b) => a + b, 0n);
+
+      mintAmount = totalRecv / BigInt(priceAmount);
     }
 
     //Emit MINT event on block
@@ -388,24 +407,12 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
       to_address_id: 2,
     });
 
-    let isFlex = dunestone?.mint?.terms?.amount == 0;
-    let mintAmount = BigInt(dunestone.mint.amount);
+    let newMints = (BigInt(duneToMint.mints) + BigInt(1)).toString();
+    updateAttribute("Dune", duneToMint.dune_protocol_id, "mints", newMints);
 
-    if (isFlex) {
-      const payTo = dunestone.mint.terms?.price?.pay_to;
-      const priceAmount = dunestone.mint.terms?.price?.amount;
+    console.log("Mint amount", mintAmount, "isFlex", isFlex);
 
-      if (!payTo) throw new Error("Missing pay_to address in price terms");
-      if (!priceAmount || BigInt(priceAmount) === 0n)
-        throw new Error("Invalid price amount");
-
-      const totalRecv = Transaction.vout
-        .filter((v) => v.scriptPubKey?.address === payTo)
-        .map((v) => BigInt(v.value))
-        .reduce((a, b) => a + b, 0n);
-
-      mintAmount = totalRecv / BigInt(priceAmount);
-    }
+    console.log(isFlex, mintAmount);
 
     return updateUnallocated(UnallocatedDunes, {
       dune_id: duneToMint.dune_protocol_id,
@@ -459,9 +466,9 @@ const processEtching = (
     return UnallocatedDunes;
   }
 
-  let isFlex = !!etching?.terms?.amount;
+  let isFlex = etching?.terms?.amount == 0n && etching?.terms?.price;
 
-  if (isFlex && !etching?.terms?.price) {
+  if (!isFlex && etching?.terms?.amount == 0n) {
     //An etch attempting to use "flex mode" for mint that doesnt provide amount is invalid
     return UnallocatedDunes;
   }
@@ -524,7 +531,8 @@ const processEtching = (
     turbo: etching.turbo,
     burnt_amount: "0",
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the dune spec (see above)
-    unmintable: dunestone.cenotaph || !etching.terms?.amount ? 1 : 0,
+    unmintable:
+      dunestone.cenotaph || (!etching.terms?.amount && !isFlex) ? 1 : 0,
     etch_transaction_id: Transaction.virtual_id,
     deployer_address_id: etcherId,
   });
