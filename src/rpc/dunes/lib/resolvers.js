@@ -6,8 +6,8 @@ async function resolveDune(Dune, needle) {
   return await Dune.findOne({
     where: looksLikeId
       ? { dune_protocol_id: needle }
-      : where(fn("LOWER", col("dune")), needle.toLowerCase()),
-    order: [["dune", "ASC"]], // deterministic when multiple case variants exist
+      : where(fn("LOWER", col("name")), needle.toLowerCase()),
+    order: [["name", "ASC"]], // deterministic when multiple case variants exist
     attributes: ["id", "dune_protocol_id", "dune"],
   });
 }
