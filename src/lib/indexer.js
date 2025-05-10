@@ -357,16 +357,12 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
     return UnallocatedDunes;
   }
 
-  console.log("Minting dune", duneToMint.dune_protocol_id);
   if (!isPriceTermsMet(duneToMint, Transaction)) {
     return UnallocatedDunes;
   }
 
-  console.log("price terms met");
-
   if (isMintOpen(block, txIndex, duneToMint, true)) {
     //Update new mints to count towards cap
-    console.log("Mint open");
     if (dunestone.cenotaph) {
       //If the mint is a cenotaph, the minted amount is burnt
       return UnallocatedDunes;
@@ -410,13 +406,9 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
     let newMints = (BigInt(duneToMint.mints) + BigInt(1)).toString();
     updateAttribute("Dune", duneToMint.dune_protocol_id, "mints", newMints);
 
-    console.log("Mint amount", mintAmount, "isFlex", isFlex);
-
-    console.log(isFlex, mintAmount);
-
     return updateUnallocated(UnallocatedDunes, {
       dune_id: duneToMint.dune_protocol_id,
-      amount: BigInt(duneToMint.mint_amount),
+      amount: BigInt(mintAmount),
     });
   } else {
     //Minting is closed
