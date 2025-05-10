@@ -387,6 +387,10 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
       mintAmount = totalRecv / BigInt(priceAmount);
     }
 
+    if (mintAmount <= 0n) {
+      return UnallocatedDunes;
+    }
+
     //Emit MINT event on block
     create("Event", {
       type: 1,
