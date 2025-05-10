@@ -35,7 +35,7 @@ const EdictSchema = z.object({
 
 const TermsSchema = z.object({
   price: PriceTermsSchema.optional(), // ← new optional field
-  amount: duneAmount,
+  amount: z.union([duneAmount, z.literal("0")]),
   cap: duneAmount,
   height: z.tuple([u32().nullable(), u32().nullable()]),
   offset: z.tuple([u32().nullable(), u32().nullable()]),

@@ -388,6 +388,10 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
       to_address_id: 2,
     });
 
+    //FLEX mode - if price terms are set, and "mint_amount" is set to 0, Math.floor(sentToPayto / price) will be minted
+
+    let mintAmount = duneToMint.mint_amount;
+
     return updateUnallocated(UnallocatedDunes, {
       dune_id: duneToMint.dune_protocol_id,
       amount: BigInt(duneToMint.mint_amount),
@@ -437,6 +441,13 @@ const processEtching = (
   );
 
   if (isDuneNameTaken) {
+    return UnallocatedDunes;
+  }
+
+  let isFlex = !!etching?.terms?.amount;
+
+  if (isFlex && !etching?.terms?.price) {
+    //An etch attempting to use "flex mode" for mint that doesnt provide amount is invalid
     return UnallocatedDunes;
   }
 

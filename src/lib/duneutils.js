@@ -467,20 +467,19 @@ const isMintOpen = (block, txIndex, Dune, mint_offset = false) => {
 };
 
 function isPriceTermsMet(dune, transaction) {
-  const price = dune?.etching?.terms?.price;
+  const price = dune?.price_amount;
+  const payTo = dune?.price_pay_to;
   if (!price) return true; // no price terms → auto OK
-
-  const { amount: required, pay_to } = price; // amount is already BigInt
 
   // all outputs paying exactly to `pay_to`
   const payOutputs = transaction.vout.filter(
-    (v) => v.scriptPubKey?.address === pay_to
+    (v) => v.scriptPubKey?.address === payTo
   );
   if (payOutputs.length === 0) return false; // no payment at all
 
   const paid = payOutputs.reduce((acc, v) => acc + btcToSats(v.value), 0n);
 
-  return paid >= required; // must match *exactly*
+  return paid >= price; // must match *exactly*
 }
 module.exports = {
   updateUnallocated,
