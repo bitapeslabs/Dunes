@@ -463,9 +463,16 @@ const processEtching = (
   }
 
   let isFlex = etching?.terms?.amount == 0n && etching?.terms?.price;
+  let hasMintcap =
+    !!etching?.terms?.mint_cap && etching?.terms?.mint_cap !== 0n;
 
   if (!isFlex && etching?.terms?.amount == 0n) {
     //An etch attempting to use "flex mode" for mint that doesnt provide amount is invalid
+    return UnallocatedDunes;
+  }
+
+  if (isFlex && hasMintcap) {
+    //An etch attempting to use "flex mode" for mint that provides a mint cap is invalid
     return UnallocatedDunes;
   }
 
