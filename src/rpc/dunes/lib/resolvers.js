@@ -8,7 +8,7 @@ async function resolveDune(Dune, needle) {
       ? { dune_protocol_id: needle }
       : where(fn("LOWER", col("name")), needle.toLowerCase()),
     order: [["name", "ASC"]], // deterministic when multiple case variants exist
-    attributes: ["id", "dune_protocol_id", "dune"],
+    attributes: ["id", "dune_protocol_id", "name"],
   });
 }
 
