@@ -3,30 +3,24 @@ const router = express.Router();
 const { Op } = require("sequelize");
 
 const { simplify } = require("../../../lib/utils");
+const { resolveDune } = require("../lib/resolvers");
 
-router.get("/info/:duneid", async (req, res) => {
-  const { duneid } = req.params;
-
-  // Validate "block:tx" (both u32)
-  const idParts = duneid.split(":");
-  if (
-    idParts.length !== 2 ||
-    !/^\d+$/.test(idParts[0]) ||
-    !/^\d+$/.test(idParts[1]) ||
-    Number(idParts[0]) > 0xffffffff ||
-    Number(idParts[1]) > 0xffffffff
-  ) {
-    res.status(400).json({ error: "Invalid duneid format (block:tx)" });
-    return;
-  }
-
+// ───────────────────────────────────────────────
+// GET /info/:identifier
+// ───────────────────────────────────────────────
+router.get("/info/:identifier", async (req, res) => {
   try {
-    const { db } = req;
-    const { Dune, Transaction, Address } = db;
+    const { identifier } = req.params;
+    const { Dune, Transaction, Address } = req.db;
 
-    // pull dune + etch tx + deployer address
+    const duneRow = await resolveDune(Dune, identifier);
+    if (!duneRow) {
+      res.status(404).json({ error: "Dune not found" });
+      return;
+    }
+
     const dune = await Dune.findOne({
-      where: { dune_protocol_id: duneid },
+      where: { id: duneRow.id },
       attributes: {
         exclude: ["etch_transaction_id", "deployer_address_id", "id"],
       },
@@ -46,15 +40,8 @@ router.get("/info/:duneid", async (req, res) => {
       ],
     });
 
-    if (!dune) {
-      res.status(404).json({ error: "Dune not found" });
-      return;
-    }
-
-    const d = dune.toJSON();
-
-    // Ensure output matches the TypeScript interface keys
-    res.json(simplify(d));
+    res.status(200).json(simplify(dune.toJSON()));
+    return;
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -62,14 +49,15 @@ router.get("/info/:duneid", async (req, res) => {
   }
 });
 
-// …require lines & existing /info route above …
-
-// GET /holders/:duneid  – paginated list of addresses + balances
-router.get("/holders/:duneid", async (req, res) => {
-  const { duneid } = req.params;
+// ───────────────────────────────────────────────
+// GET /holders/:identifier
+// ───────────────────────────────────────────────
+router.get("/holders/:identifier", async (req, res) => {
+  const { identifier } = req.params;
 
   /** @type {any} */
   let queryPage = req.query.page;
+
   /** @type {any} */
   let queryLimit = req.query.limit;
 
@@ -77,40 +65,19 @@ router.get("/holders/:duneid", async (req, res) => {
   const limit = Math.min(Math.max(parseInt(queryLimit) || 100, 1), 500);
   const offset = (page - 1) * limit;
 
-  // basic duneid validation (block:tx u32:u32)
-  const [blk, tx] = duneid.split(":");
-  if (
-    !blk ||
-    !tx ||
-    !/^\d+$/.test(blk) ||
-    !/^\d+$/.test(tx) ||
-    Number(blk) > 0xffffffff ||
-    Number(tx) > 0xffffffff
-  ) {
-    res.status(400).json({ error: "Invalid duneid format (block:tx)" });
-    return;
-  }
-
   try {
-    const { db } = req;
-    const { Dune, Balance, Address } = db;
+    const { Dune, Balance, Address } = req.db;
 
-    // resolve dune row to get internal id
-    const duneRow = await Dune.findOne({
-      where: { dune_protocol_id: duneid },
-      attributes: ["id"],
-    });
+    const duneRow = await resolveDune(Dune, identifier);
     if (!duneRow) {
       res.status(404).json({ error: "Dune not found" });
       return;
     }
 
-    // total holders (balance > 0)
     const total_holders = await Balance.count({
       where: { dune_id: duneRow.id, balance: { [Op.gt]: 0 } },
     });
 
-    // page results
     const rows = await Balance.findAll({
       where: { dune_id: duneRow.id, balance: { [Op.gt]: 0 } },
       include: [
@@ -132,10 +99,12 @@ router.get("/holders/:duneid", async (req, res) => {
       balance: b.balance,
     }));
 
-    res.json({ total_holders, page, limit, holders });
+    res.status(200).json({ total_holders, page, limit, holders });
+    return;
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
+    return;
   }
 });
 

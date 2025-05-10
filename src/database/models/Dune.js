@@ -1,8 +1,7 @@
-const { type } = require("os");
 const { DataTypes } = require("sequelize");
 
-module.exports = (sequelize) => {
-  return sequelize.define(
+module.exports = (sequelize) =>
+  sequelize.define(
     "Dune",
     {
       id: {
@@ -10,10 +9,13 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
+
       dune_protocol_id: {
         type: DataTypes.TEXT,
         allowNull: false,
       },
+
+      // ------------- case‑insensitive “name” -------------
       name: {
         type: DataTypes.TEXT,
         allowNull: false,
@@ -75,6 +77,7 @@ module.exports = (sequelize) => {
         type: DataTypes.DECIMAL,
         allowNull: true,
       },
+
       etch_transaction_id: {
         type: DataTypes.BIGINT,
         references: {
@@ -98,18 +101,20 @@ module.exports = (sequelize) => {
       },
     },
     {
-      indexes: [
-        {
-          fields: ["dune_protocol_id"],
-          using: "BTREE", // Attempt to specify hash index
-        },
-        {
-          fields: ["deployer_address_id"],
-          using: "BTREE", // Attempt to specify hash index
-        },
-      ],
       tableName: "dunes",
       timestamps: false,
+
+      indexes: [
+        // already‑existing BTREEs
+        { fields: ["dune_protocol_id"], using: "BTREE" },
+        { fields: ["deployer_address_id"], using: "BTREE" },
+
+        // NEW: functional index for case‑insensitive look‑ups on name
+        {
+          name: "dunes_lower_idx",
+          using: "BTREE",
+          fields: [sequelize.fn("lower", sequelize.col("name"))],
+        },
+      ],
     }
   );
-};
