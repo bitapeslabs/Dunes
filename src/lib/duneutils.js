@@ -84,7 +84,7 @@ const prefetchTransactions = async (block, storage, callRpc) => {
             let address = utxo.scriptPubKey.address;
             if (!address) return; //OP_RETURN
             create("Utxo", {
-              value_sats: BigInt(utxo.value * 1e8).toString(),
+              value_sats: BigInt(Math.round(utxo.value * 1e8)).toString(),
               block: blockNumber,
               transaction_id: Transaction.id,
               address_id: findOrCreate("Address", address, { address }).id,
