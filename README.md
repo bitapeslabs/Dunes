@@ -9,7 +9,7 @@ To install:
 ```bash
 npm i -g dunes-cli
 
-dunes-cli --help
+dunes --help
 ```
 
 **More information on the commands you can use can be found here:** https://github.com/bitapeslabs/dunes-cli
