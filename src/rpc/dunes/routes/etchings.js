@@ -108,4 +108,56 @@ router.get("/holders/:identifier", async (req, res) => {
   }
 });
 
+router.get("/all", async (req, res) => {
+  /** @type {any} */
+  let queryPage = req.query.page;
+  /** @type {any} */
+  let queryLimit = req.query.limit;
+
+  const page = Math.max(parseInt(queryPage) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(queryLimit) || 100, 1), 500);
+  const offset = (page - 1) * limit;
+
+  try {
+    const { Dune, Transaction, Address } = req.db;
+
+    const total_etchings = await Dune.count();
+
+    const etchings = await Dune.findAll({
+      include: [
+        {
+          model: Transaction,
+          as: "etch_transaction",
+          attributes: ["hash"],
+          required: false,
+        },
+        {
+          model: Address,
+          as: "deployer_address",
+          attributes: ["address"],
+          required: false,
+        },
+      ],
+      order: [["id", "DESC"]],
+      limit,
+      offset,
+      attributes: {
+        exclude: ["etch_transaction_id", "deployer_address_id"],
+      },
+    });
+
+    res.status(200).json({
+      total_etchings,
+      page,
+      limit,
+      etchings: etchings.map((e) => e.toJSON()),
+    });
+    return;
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+});
+
 module.exports = router;
