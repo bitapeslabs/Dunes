@@ -152,7 +152,7 @@ router.get("/all", async (req, res) => {
       total_etchings,
       page,
       limit,
-      etchings: etchings.map((e) => e.toJSON()),
+      etchings: etchings.map((e) => simplify(e.toJSON())),
     });
     return;
   } catch (err) {
