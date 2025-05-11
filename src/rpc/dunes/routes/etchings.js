@@ -161,3 +161,5 @@ router.get("/all", async (req, res) => {
     return;
   }
 });
+
+module.exports = router;
