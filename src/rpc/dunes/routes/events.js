@@ -2,6 +2,14 @@ const express = require("express");
 const router = express.Router();
 const { Op, col, where } = require("sequelize");
 const validators = require("../lib/validators");
+const { simplify } = require("../../../lib/utils");
+
+const types = {
+  0: "ETCH",
+  1: "MINT",
+  2: "TRANSFER",
+  3: "BURN",
+};
 
 router.get("/block/:height", async (req, res) => {
   try {
@@ -59,20 +67,37 @@ router.get("/address/:address", async (req, res) => {
   const { Event, Address } = db;
   const { address } = req.params;
 
+  /** @type {any} */
+  let queryPage = req.query.page;
+
+  /** @type {any} */
+  let queryLimit = req.query.limit;
+
+  // current page (1‑based)
+  const page = Math.max(parseInt(queryPage, 10) || 1, 1);
+
+  // rows per page, default 25, min 1, max 500
+  const pageSize = Math.min(Math.max(parseInt(queryLimit, 10) || 25, 1), 500);
+
+  const offset = (page - 1) * pageSize;
+
   try {
-    const events = await Event.findAll({
+    const { rows, count } = await Event.findAndCountAll({
+      limit: pageSize,
+      offset,
+
       attributes: { exclude: ["createdAt", "updatedAt"] },
 
       include: [
         {
           model: Address,
-          as: "from_address", // ← alias exactly as in the association
+          as: "from_address",
           attributes: ["address"],
           required: false,
         },
         {
           model: Address,
-          as: "to_address", // ← alias exactly as in the association
+          as: "to_address",
           attributes: ["address"],
           required: false,
         },
@@ -89,10 +114,17 @@ router.get("/address/:address", async (req, res) => {
       nest: true,
     });
 
-    res.json(events);
+    const data = rows.map((row) => simplify({ ...row, type: types[row.type] }));
+
+    res.json({
+      page,
+      pageSize,
+      total: count,
+      totalPages: Math.ceil(count / pageSize),
+      data,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
-module.exports = router;
