@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { Op } = require("sequelize");
+import { Op, col, where } from "sequelize";
 const validators = require("../lib/validators");
 
 router.get("/block/:height", async (req, res) => {
@@ -55,24 +55,48 @@ router.get("/tx/:hash", async (req, res) => {
 });
 
 router.get("/address/:address", async (req, res) => {
-  try {
-    const { db } = req;
-    const { Event } = db;
-    const { address } = req.params;
+  const { db } = req;
+  const { Event, Address } = db;
+  const { address } = req.params;
 
+  try {
     const events = await Event.findAll({
-      raw: true,
+      // Drop the timestamps just as before
       attributes: { exclude: ["createdAt", "updatedAt"] },
+
+      // Join Address twice (as fromAddress / toAddress)
+      include: [
+        {
+          model: Address,
+          as: "fromAddress",
+          attributes: ["address"], // keep it if you want it in the payload
+          required: false,
+        },
+        {
+          model: Address,
+          as: "toAddress",
+          attributes: ["address"],
+          required: false,
+        },
+      ],
+
+      // Match either side of the event
       where: {
-        [Op.or]: [{ from_address: address }, { to_address: address }],
+        [Op.or]: [
+          where(col("fromAddress.address"), address),
+          where(col("toAddress.address"), address),
+        ],
       },
+
+      // Keep nested objects while still getting plain data
+      raw: true,
+      nest: true,
     });
 
-    res.send(events);
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ error: "Internal server error" });
+    res.json(events);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
-
 module.exports = router;
