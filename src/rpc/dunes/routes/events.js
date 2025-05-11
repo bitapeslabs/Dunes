@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-import { Op, col, where } from "sequelize";
+const { Op, col, where } = require("sequelize");
 const validators = require("../lib/validators");
 
 router.get("/block/:height", async (req, res) => {
