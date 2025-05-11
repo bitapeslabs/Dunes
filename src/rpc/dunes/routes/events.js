@@ -78,13 +78,13 @@ router.get("/address/:address", async (req, res) => {
 
   // rows per page, default 25, min 1, max 500
   const pageSize = Math.min(Math.max(parseInt(queryLimit, 10) || 25, 1), 500);
-
   const offset = (page - 1) * pageSize;
 
   try {
     const { rows, count } = await Event.findAndCountAll({
       limit: pageSize,
       offset,
+      order: [["id", "DESC"]], // ← newest first
 
       attributes: { exclude: ["createdAt", "updatedAt"] },
 
