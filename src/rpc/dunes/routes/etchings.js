@@ -107,8 +107,10 @@ router.get("/holders/:identifier", async (req, res) => {
     return;
   }
 });
-
-router.get("/all", async (req, res) => {
+// ───────────────────────────────────────────────
+// GET /etchings
+// ───────────────────────────────────────────────
+router.get("/etchings", async (req, res) => {
   /** @type {any} */
   let queryPage = req.query.page;
   /** @type {any} */
@@ -138,7 +140,7 @@ router.get("/all", async (req, res) => {
           required: false,
         },
       ],
-      order: [["id", "DESC"]],
+      order: [["id", "ASC"]],
       limit,
       offset,
       attributes: {
@@ -159,5 +161,3 @@ router.get("/all", async (req, res) => {
     return;
   }
 });
-
-module.exports = router;
