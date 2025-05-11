@@ -369,7 +369,7 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
     }
 
     let mintAmount = BigInt(duneToMint.mint_amount);
-    let isFlex = duneToMint.price_amount != "0";
+    let isFlex = duneToMint.price_amount != null && duneToMint.mint_amount == "0"
 
     if (isFlex) {
       const payTo = duneToMint.price_pay_to;
