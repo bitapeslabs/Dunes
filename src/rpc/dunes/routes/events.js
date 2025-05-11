@@ -84,7 +84,7 @@ router.get("/address/:address", async (req, res) => {
     const { rows, count } = await Event.findAndCountAll({
       limit: pageSize,
       offset,
-      order: [["id", "DESC"]], // ← newest first
+      order: [["id", "DESC"]],
 
       attributes: { exclude: ["createdAt", "updatedAt"] },
 
@@ -104,9 +104,16 @@ router.get("/address/:address", async (req, res) => {
       ],
 
       where: {
+        // match the address on either side …
         [Op.or]: [
           where(col("from_address.address"), address),
           where(col("to_address.address"), address),
+        ],
+        // … but drop rows where the two sides are equal
+        [Op.and]: [
+          where(col("from_address.address"), {
+            [Op.ne]: col("to_address.address"),
+          }),
         ],
       },
 
