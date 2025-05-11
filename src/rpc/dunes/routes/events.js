@@ -61,34 +61,30 @@ router.get("/address/:address", async (req, res) => {
 
   try {
     const events = await Event.findAll({
-      // Drop the timestamps just as before
       attributes: { exclude: ["createdAt", "updatedAt"] },
 
-      // Join Address twice (as fromAddress / toAddress)
       include: [
         {
           model: Address,
-          as: "fromAddress",
-          attributes: ["address"], // keep it if you want it in the payload
+          as: "from_address", // ← alias exactly as in the association
+          attributes: ["address"],
           required: false,
         },
         {
           model: Address,
-          as: "toAddress",
+          as: "to_address", // ← alias exactly as in the association
           attributes: ["address"],
           required: false,
         },
       ],
 
-      // Match either side of the event
       where: {
         [Op.or]: [
-          where(col("fromAddress.address"), address),
-          where(col("toAddress.address"), address),
+          where(col("from_address.address"), address),
+          where(col("to_address.address"), address),
         ],
       },
 
-      // Keep nested objects while still getting plain data
       raw: true,
       nest: true,
     });
