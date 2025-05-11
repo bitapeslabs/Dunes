@@ -110,7 +110,7 @@ router.get("/holders/:identifier", async (req, res) => {
 // ───────────────────────────────────────────────
 // GET /etchings
 // ───────────────────────────────────────────────
-router.get("/etchings", async (req, res) => {
+router.get("/all", async (req, res) => {
   /** @type {any} */
   let queryPage = req.query.page;
   /** @type {any} */
