@@ -21,11 +21,12 @@ import { IDune, ITransaction } from "@/database/models/types";
 import { GENESIS_BLOCK, UNLOCK_INTERVAL, INITIAL_AVAILABLE } from "./consts";
 import { IStorage } from "@/lib/storage";
 import { IAddress } from "@/database/models/types";
+import { IndexedTxExtended } from "./indexer";
 
 /* ── shared types ─────────────────────────────────────────────────────────── */
 type RpcCall = <T>(method: string, params?: unknown[]) => Promise<T>;
 
-interface IndexedTx {
+export interface IndexedTx {
   dunestone: IDunestoneIndexed;
   hash: string;
   txIndex: number;
@@ -33,6 +34,11 @@ interface IndexedTx {
   vout: Vout[];
   vin: Vin[];
   full_tx: Transaction;
+  txid: string;
+  size: number;
+  vsize: number;
+  version: number;
+  locktime: number;
 }
 
 /* ── helpers from original JS (comments preserved) ────────────────────────── */
@@ -73,6 +79,11 @@ const getDunestonesInBlock = async (
         vout: tx.vout,
         vin: tx.vin,
         full_tx: tx,
+        txid: tx.txid,
+        size: tx.size,
+        vsize: tx.vsize,
+        version: tx.version,
+        locktime: tx.locktime,
       })
     )
   );
@@ -138,7 +149,7 @@ const populateResultsWithPrevoutData = async (
   results: IndexedTx[][],
   callRpc: RpcCall,
   storage: IStorage
-): Promise<IndexedTx[][]> => {
+): Promise<IndexedTxExtended[][]> => {
   const { loadManyIntoMemory, findOne, local, fetchGroupLocally } = storage;
 
   /*  We can do this because the indexer can interpret the sender
@@ -318,18 +329,13 @@ const blockManager = (
     10
   );
 
-  const cachedBlocks: Record<number, IndexedTx[]> = {};
+  const cachedBlocks: Record<number, IndexedTxExtended[]> = {};
   let cacheFillProcessing = false;
 
   const __fillCache = async (requestedBlock: number) => {
     cacheFillProcessing = true;
-    let lastBlockInCache = Number.parseInt(
-      Object.keys(cachedBlocks).slice(-1)[0] ?? "-1",
-      10
-    );
-    let currentBlock = Number.isFinite(lastBlockInCache)
-      ? lastBlockInCache + 1
-      : requestedBlock;
+    let lastBlockInCache = parseInt(Object.keys(cachedBlocks).slice(-1)[0]);
+    let currentBlock = lastBlockInCache ? lastBlockInCache + 1 : requestedBlock;
 
     while (
       currentBlock <= latestBlock &&
@@ -362,7 +368,7 @@ const blockManager = (
     cacheFillProcessing = false;
   };
 
-  const getBlock = (blockNumber: number): Promise<IndexedTx[]> =>
+  const getBlock = (blockNumber: number): Promise<IndexedTxExtended[]> =>
     new Promise((resolve) => {
       let found = cachedBlocks[blockNumber];
       if (found) {

@@ -35,7 +35,7 @@ export const DB_NAME = env.DB_NAME;
 export const PREFETCH_BLOCKS = env.PREFETCH_BLOCKS;
 export const RPC_PORT = env.RPC_PORT;
 
-export const GENESIS_BLOCK = env.GENESIS_BLOCK ?? 0;
+export const GENESIS_BLOCK = env.GENESIS_BLOCK ?? 4326248;
 
 export const TAPROOT_ANNEX_PREFIX = 0x50;
 export const UNLOCK_INTERVAL = 17500; // as per dunes spec
@@ -55,7 +55,7 @@ export const GENESIS_DUNESTONE = {
       amount: 100n,
       cap: 1000000n,
 
-      height: [0, null],
+      height: [4326248, null],
       offset: [null, null],
       price: {
         amount: 21000n,

@@ -132,7 +132,6 @@ export async function storage(useSync = false) {
     key: string
   ): T | null => {
     if (local[model][key]) return local[model][key] as T;
-
     const [value, field] = key.split("@REF@");
     if (!field) return null;
 
@@ -155,6 +154,7 @@ export async function storage(useSync = false) {
     where: Record<string, unknown>
   ): Promise<ModelRow[]> => {
     const Model: ModelStatic<any> = (db as any)[model];
+    //console.log("Loading into memory", model, where);
     const rows = (await Model.findAll({ raw: true, where })) as ModelRow[];
 
     const pk = LOCAL_PRIMARY_KEYS[model as keyof typeof LOCAL_PRIMARY_KEYS];

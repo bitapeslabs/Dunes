@@ -12,6 +12,7 @@ import {
   updateUnallocated,
   minimumLengthAtHeight,
   isUsefulDuneTx,
+  IndexedTx,
 } from "./duneutils";
 import { GENESIS_BLOCK, GENESIS_DUNESTONE } from "./consts";
 import {
@@ -74,11 +75,10 @@ const coerceIntoValid = <T>(
 
 /*  Runtime transaction shape used by the indexer
     — extends the raw Bitcoin‑RPC transaction                       */
-export interface IndexerTx extends RpcTx {
+export interface IndexedTxExtended extends RpcTx {
   /* populated by block‑reader */
   block: number;
   txIndex: number;
-
   /* decoded OP_RETURN payload */
   dunestone: IDunestoneIndexed;
 
@@ -142,7 +142,7 @@ const getUnallocatedDunesFromUtxos = (
 
 const createNewUtxoBodies = (
   vout: Vout[],
-  Transaction: IndexerTx,
+  Transaction: IndexedTxExtended,
   storage: Storage
 ) => {
   const { findOrCreate } = storage;
@@ -288,7 +288,7 @@ const updateOrCreateBalancesWithUtxo = (
 const processEdicts = (
   UnallocatedDunes: IUnallocatedDunes,
   pendingUtxos: IPendingUtxos,
-  Transaction: IndexerTx,
+  Transaction: IndexedTxExtended,
   transfers: ITransfers,
   storage: Storage
 ) => {
@@ -467,7 +467,7 @@ const processEdicts = (
 
 const processMint = (
   UnallocatedDunes: IUnallocatedDunes,
-  Transaction: IndexerTx,
+  Transaction: IndexedTxExtended,
   storage: Storage
 ) => {
   const { block, txIndex, dunestone } = Transaction;
@@ -557,7 +557,7 @@ const processMint = (
 
 const processEtching = (
   UnallocatedDunes: IUnallocatedDunes,
-  Transaction: IndexerTx,
+  Transaction: IndexedTxExtended,
   rpc: RpcClient,
   storage: Storage,
   isGenesis: boolean,
@@ -574,14 +574,14 @@ const processEtching = (
     return UnallocatedDunes;
   }
 
-  let searchRune = findOne<IDune>(
+  let searchDune = findOne<IDune>(
     "Dune",
     `${block}:${txIndex}`,
     undefined,
     true
   );
 
-  if (!isValidResponse<IDune>(searchRune) || !searchRune) {
+  if (isValidResponse<IDune>(searchDune) || searchDune) {
     //If the dune is not in the unallocated dunes, it is ignored
     return UnallocatedDunes;
   }
@@ -601,7 +601,7 @@ const processEtching = (
   );
 
   if (
-    !isValidResponse<IDune>(isDuneNameTakenResponse) ||
+    isValidResponse<IDune>(isDuneNameTakenResponse) ||
     !!isDuneNameTakenResponse
   ) {
     return UnallocatedDunes;
@@ -710,7 +710,7 @@ const processEtching = (
 
 const emitTransferAndBurnEvents = (
   transfers: ITransfers,
-  Transaction: IndexerTx,
+  Transaction: IndexedTxExtended,
   storage: Storage
 ) => {
   const { create, findOrCreate, findOne } = storage;
@@ -755,7 +755,7 @@ const emitTransferAndBurnEvents = (
 const finalizeTransfers = (
   inputUtxos: IndexerUtxo[],
   pendingUtxos: IPendingUtxos,
-  Transaction: IndexerTx,
+  Transaction: IndexedTxExtended,
   transfers: ITransfers,
   storage: Storage
 ) => {
@@ -849,7 +849,7 @@ const finalizeTransfers = (
 };
 
 const handleGenesis = (
-  Transaction: IndexerTx,
+  Transaction: IndexedTxExtended,
   rpc: RpcClient,
   storage: Storage
 ) => {
@@ -861,12 +861,11 @@ const handleGenesis = (
     true,
     false
   );
-
   return;
 };
 
 const processDunestone = (
-  Transaction: IndexerTx,
+  Transaction: IndexedTxExtended,
   rpc: RpcClient,
   storage: Storage,
   useTest: boolean
@@ -887,18 +886,20 @@ const processDunestone = (
 
   startTimer();
 
-  let UtxoFilter = vin.map((vin) => {
-    let transactionFound = findOne<ITransaction>(
-      "Transaction",
-      vin.txid,
-      undefined,
-      true
-    );
-    if (!isValidResponse<ITransaction>(transactionFound)) {
-      return `-1:${vin.vout}`;
-    }
-    return `${transactionFound.id ?? "-1"}:${vin.vout}`;
-  });
+  let UtxoFilter = vin
+    .filter((vin) => !vin.coinbase)
+    .map((vin) => {
+      let transactionFound = findOne<ITransaction>(
+        "Transaction",
+        vin.txid,
+        undefined,
+        true
+      );
+      if (!isValidResponse<ITransaction>(transactionFound)) {
+        return `-1:${vin.vout}`;
+      }
+      return `${transactionFound.id ?? "-1"}:${vin.vout}`;
+    });
 
   stopTimer("body_init_filter_generator");
 
@@ -1024,7 +1025,10 @@ const processDunestone = (
   return;
 };
 
-const loadBlockIntoMemory = async (block: IndexerTx[], storage: Storage) => {
+const loadBlockIntoMemory = async (
+  block: IndexedTxExtended[],
+  storage: Storage
+) => {
   /*
   Necessary indexes for building (the rest can be built afterwards)
 
@@ -1038,7 +1042,6 @@ const loadBlockIntoMemory = async (block: IndexerTx[], storage: Storage) => {
   //Events do not need to be loaded as they are purely write and unique
 
   if (!Array.isArray(block)) {
-    console.log(block);
     throw "Non array block passed to loadBlockIntoMemory";
   }
 
@@ -1075,7 +1078,11 @@ const loadBlockIntoMemory = async (block: IndexerTx[], storage: Storage) => {
       block
         .map((transaction) =>
           transaction.vin.map((utxo) => {
-            let foundTransaction = findOne(
+            if (!utxo.txid) {
+              return null;
+            }
+
+            let foundTransaction = findOne<ITransaction>(
               "Transaction",
               utxo.txid,
               undefined,
@@ -1089,7 +1096,7 @@ const loadBlockIntoMemory = async (block: IndexerTx[], storage: Storage) => {
 
             return isValidResponse(foundTransaction)
               ? {
-                  transaction_id: foundTransaction.id,
+                  transaction_id: Number(foundTransaction.id),
                   vout_index: utxo.vout,
                 }
               : null;
@@ -1294,7 +1301,7 @@ const loadBlockIntoMemory = async (block: IndexerTx[], storage: Storage) => {
 };
 
 const processBlock = (
-  block: { blockHeight: number; blockData: IndexerTx[] },
+  block: { blockHeight: number; blockData: IndexedTxExtended[] },
   callRpc: RpcClient,
   storage: Storage,
   useTest: boolean
@@ -1333,9 +1340,13 @@ const processBlock = (
           "/" +
           blockData.length +
           "\ndunestone: " +
-          JSON.stringify(Transaction.dunestone) +
+          JSON.stringify(Transaction.dunestone, (_, v) =>
+            typeof v === "bigint" ? v.toString() : v
+          ) +
           "\ntransaction: " +
-          JSON.stringify(Transaction),
+          JSON.stringify(Transaction, (_, v) =>
+            typeof v === "bigint" ? v.toString() : v
+          ),
         "panic"
       );
       throw e;

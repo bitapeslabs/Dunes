@@ -22,7 +22,7 @@ export interface Models {
   Event: typeof Event;
   Transaction: typeof Transaction;
   Address: typeof Address;
-  UtxoBalance: typeof UtxoBalance;
+  Utxo_balance: typeof UtxoBalance;
   sequelize: Sequelize;
 }
 
@@ -46,14 +46,14 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
   models.Event = Event.initialize(sequelize);
   models.Transaction = Transaction.initialize(sequelize);
   models.Address = Address.initialize(sequelize);
-  models.UtxoBalance = UtxoBalance.initialize(sequelize);
+  models.Utxo_balance = UtxoBalance.initialize(sequelize);
 
   // Set up associations
-  models.UtxoBalance.belongsTo(models.Utxo, {
+  models.Utxo_balance.belongsTo(models.Utxo, {
     foreignKey: "utxo_id",
     as: "utxo",
   });
-  models.UtxoBalance.belongsTo(models.Dune, {
+  models.Utxo_balance.belongsTo(models.Dune, {
     foreignKey: "dune_id",
     as: "dune",
   });
@@ -100,7 +100,7 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
   });
   models.Balance.belongsTo(models.Dune, { foreignKey: "dune_id", as: "dune" });
 
-  models.Utxo.hasMany(models.UtxoBalance, {
+  models.Utxo.hasMany(models.Utxo_balance, {
     foreignKey: "utxo_id",
     as: "utxos",
   });
@@ -144,7 +144,7 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
     as: "balances",
   });
   models.Dune.hasMany(models.Balance, { foreignKey: "dune_id", as: "holders" });
-  models.Dune.hasMany(models.UtxoBalance, {
+  models.Dune.hasMany(models.Utxo_balance, {
     foreignKey: "dune_id",
     as: "utxo_holders",
   });

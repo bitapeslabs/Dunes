@@ -1,5 +1,3 @@
-import "dotenv/config";
-
 import fs from "node:fs";
 import path from "node:path";
 import express, {
@@ -48,13 +46,6 @@ const rpcClient = createRpcClient({
 });
 
 const { callRpc, callRpcBatch } = rpcClient;
-
-/* ──────────────────────────────────────────────────────────
-   test‑block for --test mode
-   ──────────────────────────────────────────────────────── */
-const testblock = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "./dumps/testblock.json"), "utf8")
-) as unknown;
 
 /* ──────────────────────────────────────────────────────────
    extra local types
@@ -141,7 +132,7 @@ const startRpc = async (): Promise<void> => {
 
   /* injector & auth */
   const injector: RequestHandler = (
-    req: RequestWithDB,
+    req: Request,
     res: Response,
     next: NextFunction
   ) => {
@@ -222,16 +213,11 @@ const startServer = async (): Promise<void> => {
     await writeInt("prefetch", 1);
     log("Prefetch complete", "info");
   }
+  let current = lastProcessed ? lastProcessed + 1 : GENESIS_BLOCK;
 
   const blockStorage = await newStorage();
   /* block‑manager */
-  const blockManager = await createBlockManager(
-    callRpcBatch,
-    lastProcessed,
-    blockStorage
-  );
 
-  let current = lastProcessed ? lastProcessed + 1 : GENESIS_BLOCK;
   log(`Indexer starting at height ${current}`, "info");
 
   /* infinite sync loop */
@@ -239,23 +225,34 @@ const startServer = async (): Promise<void> => {
   while (true) {
     const tip = Number(await callRpc("getblockcount", []));
     if (current <= tip) {
+      log("Processing blocks " + current + " - " + tip, "info");
+
       await processRange(current, tip);
       current = tip + 1;
+      log("Polling for new blocks... Last Processed: " + current, "info");
     }
     await sleep(Number(process.env.BLOCK_CHECK_INTERVAL ?? "15000"));
   }
 
   /* inner helper – inclusive range, chunked */
   async function processRange(start: number, end: number): Promise<void> {
+    const { getBlock } = await createBlockManager(
+      callRpcBatch,
+      end,
+      blockStorage
+    );
+
     const chunk = Number(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? "10");
+    for (let height = start; height <= end; height += chunk) {
+      const lastProcessed = Math.min(height + chunk - 1, end);
+      const list = Array.from(
+        { length: lastProcessed - height + 1 },
+        (_, i) => height + i
+      );
 
-    for (let h = start; h <= end; h += chunk) {
-      const hi = Math.min(h + chunk - 1, end);
-      const list = Array.from({ length: hi - h + 1 }, (_, i) => h + i);
+      log("Fetching blocks: " + list.join(", "), "info");
 
-      const blocks = useTest
-        ? [testblock as any]
-        : await Promise.all(list.map((v) => blockManager.getBlock(v)));
+      const blocks = await Promise.all(list.map((v) => getBlock(v)));
 
       await Promise.all(
         blocks.map((block) => loadBlockIntoMemory(block, storage))
@@ -271,8 +268,8 @@ const startServer = async (): Promise<void> => {
 
       await emitEvents(storage);
       await storage.commitChanges();
-      await writeInt("last_block_processed", hi);
-      log(`Processed ${h}…${hi}`, "info");
+      await writeInt("last_block_processed", lastProcessed);
+      log(`Processed ${height}…${lastProcessed}`, "info");
     }
   }
 };

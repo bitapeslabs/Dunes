@@ -78,13 +78,13 @@ router.get("/:address", async (req: RequestWithDB, res: Response) => {
 router.get("/balances/:address", async (req: RequestWithDB, res: Response) => {
   try {
     const { address } = req.params;
-    const { UtxoBalance } = req.db;
+    const { Utxo_balance } = req.db;
 
     const query = getSomeUtxoBalance(req.db, {
       utxo: { address: { address }, block_spent: null },
     });
 
-    const balances = (await UtxoBalance.findAll(query)) as unknown[];
+    const balances = (await Utxo_balance.findAll(query)) as unknown[];
 
     if (!balances.length) {
       res.json([]);

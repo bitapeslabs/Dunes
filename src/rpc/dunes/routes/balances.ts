@@ -29,7 +29,7 @@ router.get("/utxo/:utxo_index", async function (req, res) {
       utxo: { transaction: { hash }, vout_index: vout },
     });
 
-    const results = await db.UtxoBalance.findAll(query);
+    const results = await db.Utxo_balance.findAll(query);
     if (!results?.length) {
       res.send({ error: "No UTXO found" });
       return;
@@ -69,7 +69,7 @@ router.get("/utxo/:utxo_index/:dune_protocol_id", async function (req, res) {
       dune: { dune_protocol_id },
     });
 
-    const results = await db.UtxoBalance.findAll(query);
+    const results = await db.Utxo_balance.findAll(query);
     if (!results?.length) {
       res.send({ error: "No UTXO found" });
       return;
@@ -167,7 +167,7 @@ router.get(
         },
       });
 
-      const results = await db.UtxoBalance.findAll(query);
+      const results = await db.Utxo_balance.findAll(query);
       if (!results?.length) {
         res.send({});
         return;
@@ -218,7 +218,7 @@ router.get(
         dune: { dune_protocol_id },
       });
 
-      const results = await db.UtxoBalance.findAll(query);
+      const results = await db.Utxo_balance.findAll(query);
       if (!results?.length) {
         res.send({});
         return;

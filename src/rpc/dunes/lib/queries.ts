@@ -166,7 +166,7 @@ const getSomeUtxoBalance = (
   models: Models,
   where?: Partial<IUtxoBalanceWhereOptions>
 ): IncludeOptions => ({
-  model: models.UtxoBalance,
+  model: models.Utxo_balance,
   where: safeWhere(
     stripFields(where ?? {}, ["utxo", "dune"]) as MaybeWhere<IUtxoBalance>
   ),
