@@ -31,6 +31,7 @@ import { IDune, IUtxo, IUtxoBalance } from "@/database/createConnection";
 import { isPromise } from "util/types";
 import { RpcClient } from "./bitcoinrpc";
 import { Block } from "@/lib/bitcoinrpc/types";
+import { isValidResponse } from "@/lib/utils";
 /* ────────────────────────────────────────────────────────────────────────────
    SHARED TYPES
    ────────────────────────────────────────────────────────────────────────── */
@@ -59,15 +60,6 @@ type IPendingUtxos = IndexerUtxo[];
 type IDuneBalances = BigDict;
 
 type IUnallocatedDunes = BigDict;
-
-//Check if T is not null or Promise
-const isValidResponse = <T>(
-  response: T | null | Promise<unknown>
-): response is T => {
-  return (
-    response !== null && typeof response !== "undefined" && !isPromise(response)
-  );
-};
 
 const coerceIntoValid = <T>(
   call: (...args: any) => T | null | Promise<unknown>

@@ -377,5 +377,7 @@ export async function storage(useSync = false) {
   };
 }
 
+export type IStorage = Awaited<ReturnType<typeof storage>>;
+
 /* common‑JS compatibility */
 export default { storage };

@@ -1,5 +1,4 @@
-import { inspect } from "util";
-
+import { isPromise } from "util/types";
 export function fromBigInt(amount: string | bigint, decimals: number): string {
   const divisor = BigInt("1" + "0".repeat(decimals));
   const value = BigInt(amount);
@@ -7,6 +6,15 @@ export function fromBigInt(amount: string | bigint, decimals: number): string {
   const remainder = value % divisor;
   return `${quotient}.${remainder.toString().padStart(decimals, "0")}`;
 }
+
+//Check if T is not null or Promise
+export const isValidResponse = <T>(
+  response: T | null | Promise<unknown>
+): response is T => {
+  return (
+    response !== null && typeof response !== "undefined" && !isPromise(response)
+  );
+};
 
 export function toBigInt(amountStr: string, decimals: number): string {
   const [integerPart, fractionalPart = ""] = amountStr.split(".");

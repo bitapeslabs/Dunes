@@ -10,39 +10,20 @@ import {
   chunkify,
   btcToSats,
   log,
+  isValidResponse,
 } from "./utils";
 import {
   IDunestoneIndexed,
   decipher as decipherDunestoneRaw,
 } from "./dunestone";
-import { IDune } from "@/database/models/types";
+import { IDune, ITransaction } from "@/database/models/types";
 /* ── constants ────────────────────────────────────────────────────────────── */
 import { GENESIS_BLOCK, UNLOCK_INTERVAL, INITIAL_AVAILABLE } from "./consts";
+import { IStorage } from "@/lib/storage";
+import { IAddress } from "@/database/models/types";
 
 /* ── shared types ─────────────────────────────────────────────────────────── */
 type RpcCall = <T>(method: string, params?: unknown[]) => Promise<T>;
-
-interface Storage {
-  create(model: string, data: Record<string, unknown>): any;
-  findOrCreate(
-    model: string,
-    key: string,
-    data: Record<string, unknown>,
-    memoize?: boolean
-  ): any;
-  loadManyIntoMemory(
-    model: string,
-    where: Record<string, unknown>
-  ): Promise<void>;
-  findOne(
-    model: string,
-    key: string,
-    throwIfNotFound?: boolean,
-    byIndex?: boolean
-  ): any;
-  fetchGroupLocally(model: string, group: string, value: unknown): any[];
-  local: Record<string, Record<string, any>>;
-}
 
 interface IndexedTx {
   dunestone: IDunestoneIndexed;
@@ -102,7 +83,7 @@ const getDunestonesInBlock = async (
  */
 const prefetchTransactions = async (
   block: number[],
-  storage: Storage,
+  storage: IStorage,
   callRpc: RpcCall
 ) => {
   const { create, findOrCreate } = storage;
@@ -156,7 +137,7 @@ const prefetchTransactions = async (
 const populateResultsWithPrevoutData = async (
   results: IndexedTx[][],
   callRpc: RpcCall,
-  storage: Storage
+  storage: IStorage
 ): Promise<IndexedTx[][]> => {
   const { loadManyIntoMemory, findOne, local, fetchGroupLocally } = storage;
 
@@ -282,10 +263,12 @@ const populateResultsWithPrevoutData = async (
           // 3️⃣ lookup in DB
           const transaction =
             vin
-              .map((v) => findOne("Transaction", v.txid, false, true))
+              .map((v) =>
+                findOne<ITransaction>("Transaction", v.txid, undefined, true)
+              )
               .filter(Boolean)[0] ?? null;
 
-          if (transaction) {
+          if (isValidResponse(transaction)) {
             const senderId = fetchGroupLocally(
               "Utxo",
               "transaction_id",
@@ -293,8 +276,11 @@ const populateResultsWithPrevoutData = async (
             )?.[0]?.address_id;
             if (!senderId) return { ...tx, sender: null };
 
-            const sender = findOne("Address", `${senderId}@REF@id`).address;
-            return { ...tx, sender };
+            const sender = findOne<IAddress>("Address", `${senderId}@REF@id`);
+            if (isValidResponse(sender)) {
+              return { ...tx, sender: sender.address };
+            }
+            return { ...tx, sender: "null" };
           }
 
           // 4️⃣ last resort RPC for mint/etching
@@ -310,7 +296,7 @@ const populateResultsWithPrevoutData = async (
           }
 
           // non‑dune TXs don’t need sender
-          return { ...tx, sender: null };
+          return { ...tx, sender: "UNKNOWN" };
         })
       )
     )
@@ -321,7 +307,7 @@ const populateResultsWithPrevoutData = async (
 const blockManager = (
   callRpc: RpcCall,
   latestBlock: number,
-  readBlockStorage: Storage
+  readBlockStorage: IStorage
 ) => {
   const MAX_BLOCK_CACHE_SIZE = Number.parseInt(
     process.env.MAX_BLOCK_CACHE_SIZE ?? "20",
