@@ -1,4 +1,6 @@
 import { isPromise } from "util/types";
+import chalk from "chalk";
+
 export function fromBigInt(amount: string | bigint, decimals: number): string {
   const divisor = BigInt("1" + "0".repeat(decimals));
   const value = BigInt(amount);
@@ -49,7 +51,9 @@ function mergeObj<T>(left: T[], right: T[], field: keyof T): T[] {
 export function log(message: string, type: string = "stat"): void {
   if (type === "debug" && !process.argv.includes("--debug")) return;
   const timestamp = new Date().toISOString();
-  console.log(`${timestamp}: DUNES > (${type}) ${message}`);
+  console.log(
+    chalk.cyan(`${timestamp}: DUNES > (${type}) ${chalk.yellow(message)}`)
+  );
 }
 
 export function pluralize(word: string): string {
