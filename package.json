@@ -5,7 +5,7 @@
   "main": "src/ndex.js",
   "scripts": {
     "build": "node esbuild.config.mjs",
-    "start-new": "npm run build && node --expose-gc ./dist/index.js --new --server --rpc",
+    "start-new": "npm run build && node --expose-gc ./dist/index.js -- --new -- --server -- --rpc",
     "resume": "npm run build && node --expose-gc ./dist/index.js --server --rpc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

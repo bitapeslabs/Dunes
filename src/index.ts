@@ -275,6 +275,6 @@ const startServer = async (): Promise<void> => {
 };
 
 (async () => {
-  if (process.argv.includes("--server")) await startServer();
-  if (process.argv.includes("--rpc")) await startRpc();
+  if (process.argv.includes("--server")) startServer();
+  if (process.argv.includes("--rpc")) startRpc();
 })();
