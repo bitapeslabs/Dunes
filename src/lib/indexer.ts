@@ -1,33 +1,123 @@
-require("dotenv").config({ path: "../../.env" });
+/* eslint‑disable @typescript-eslint/explicit-module-boundary-types */
 
-const { toBigInt, stripObject, log, sleep } = require("./utils");
-const {
+/* ────────────────────────────────────────────────────────────────────────────
+   ENV + EXTERNAL DEPS
+   ────────────────────────────────────────────────────────────────────────── */
+import "dotenv/config";
+import { Op } from "sequelize";
+import { log, sleep, stripObject, toBigInt } from "./utils";
+import {
   isMintOpen,
   isPriceTermsMet,
   updateUnallocated,
   minimumLengthAtHeight,
   isUsefulDuneTx,
-} = require("./duneutils");
+} from "./duneutils";
+import { GENESIS_BLOCK, GENESIS_DUNESTONE } from "./consts";
+import {
+  IAddress,
+  IBalance,
+  ITransaction,
+  Models,
+} from "@/database/createConnection";
+import {
+  Transaction as RpcTx,
+  Transaction,
+  Vin,
+  Vout,
+} from "@/lib/bitcoinrpc/types";
+import { IDunestone, IDunestoneIndexed } from "@/lib/dunestone";
+import { IDune, IUtxo, IUtxoBalance } from "@/database/createConnection";
+import { isPromise } from "util/types";
+import { RpcClient } from "./bitcoinrpc";
+/* ────────────────────────────────────────────────────────────────────────────
+   SHARED TYPES
+   ────────────────────────────────────────────────────────────────────────── */
 
-const { Op } = require("sequelize");
+type Storage = Awaited<ReturnType<typeof import("./storage").storage>>;
 
-const { GENESIS_BLOCK, GENESIS_DUNESTONE } = require("./constants");
+/* dictionary keyed by dune_protocol_id holding bigint amounts */
+type BigDict = Record<string, bigint>;
 
-const NO_COMMITMENTS = process.argv.includes("--no-commitments");
+type ITransfers = Record<string, Record<string, bigint>>;
 
-let __debug_totalElapsedTime = {};
-let __timer;
-
-let startTimer = () => {
-  __timer = Date.now();
+type IndexerUtxo = {
+  utxo_index: string;
+  address_id: number;
+  value_sats: string;
+  transaction_id: number;
+  vout_index: number;
+  block: number;
+  block_spent: number | null;
+  transaction_spent_id: number | null;
+  dune_balances?: IDuneBalances;
 };
 
-let stopTimer = (field) => {
+type IPendingUtxos = IndexerUtxo[];
+
+type IDuneBalances = BigDict;
+
+type IUnallocatedDunes = BigDict;
+
+//Check if T is not null or Promise
+const isValidResponse = <T>(
+  response: T | null | Promise<unknown>
+): response is T => {
+  return (
+    response !== null && typeof response !== "undefined" && !isPromise(response)
+  );
+};
+
+const coerceIntoValid = <T>(
+  call: (...args: any) => T | null | Promise<unknown>
+) => {
+  let response = call();
+  if (isValidResponse<T>(response)) {
+    return response;
+  } else {
+    throw new Error("Invalid response from local cache");
+  }
+};
+
+/*  Runtime transaction shape used by the indexer
+    — extends the raw Bitcoin‑RPC transaction                       */
+export interface IndexerTx extends RpcTx {
+  /* populated by block‑reader */
+  block: number;
+  txIndex: number;
+
+  /* decoded OP_RETURN payload */
+  dunestone: IDunestoneIndexed;
+
+  /* set when the tx is inserted into local cache */
+  virtual_id?: number;
+
+  /* resolved sender address (string) or COINBASE/UNKNOWN */
+  sender?: string | null;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   GLOBAL FLAGS & DEBUG TIMER
+   ────────────────────────────────────────────────────────────────────────── */
+
+let __debug_totalElapsedTime: Record<string, number> = {};
+let __timer = 0;
+
+const startTimer = (): void => {
+  __timer = Date.now();
+};
+const stopTimer = (field: string): void => {
   __debug_totalElapsedTime[field] =
     (__debug_totalElapsedTime[field] ?? 0) + Date.now() - __timer;
 };
 
-const getUnallocatedDunesFromUtxos = (inputUtxos) => {
+/* ────────────────────────────────────────────────────────────────────────────
+   HELPER #1  getUnallocatedDunesFromUtxos
+   ────────────────────────────────────────────────────────────────────────── */
+
+const getUnallocatedDunesFromUtxos = (
+  inputUtxos: { dune_balances?: Record<string, string> }[]
+): IUnallocatedDunes => {
   /*
         Important: Dune Balances from this function are returned in big ints in the following format
         {
@@ -38,35 +128,37 @@ const getUnallocatedDunesFromUtxos = (inputUtxos) => {
         different from dune_id which is used by the DB for indexing.
     */
 
-  return (
-    inputUtxos
+  return inputUtxos.reduce<IUnallocatedDunes>((acc, utxo) => {
+    const duneBalances =
+      utxo.dune_balances !== undefined
+        ? (Object.entries(utxo.dune_balances) as [string, string][])
+        : [];
 
-      //Get allocated dunes and store them in an array
-      .reduce((acc, utxo) => {
-        let DuneBalances = utxo.dune_balances
-          ? Object.entries(utxo.dune_balances)
-          : [];
+    //Sum up all Dune balances for each input UTXO
+    duneBalances.forEach(([proto, amtStr]) => {
+      acc[proto] = (acc[proto] ?? 0n) + BigInt(amtStr);
+    });
 
-        //Sum up all Dune balances for each input UTXO
-        DuneBalances.forEach((dune) => {
-          const [dune_protocol_id, amount] = dune;
-          acc[dune_protocol_id] =
-            (acc[dune_protocol_id] ?? 0n) + BigInt(amount);
-        });
-
-        return acc;
-      }, {})
-  );
+    return acc;
+  }, {});
 };
 
-const createNewUtxoBodies = (vout, Transaction, storage) => {
-  const { findOrCreate, create } = storage;
+/* ────────────────────────────────────────────────────────────────────────────
+   HELPER #2  createNewUtxoBodies
+   ────────────────────────────────────────────────────────────────────────── */
 
-  return vout.map((utxo) => {
-    const voutAddress = findOrCreate(
+const createNewUtxoBodies = (
+  vout: Vout[],
+  Transaction: IndexerTx,
+  storage: Storage
+) => {
+  const { findOrCreate } = storage;
+
+  return vout.map((out) => {
+    const addressRow = findOrCreate<IAddress>(
       "Address",
-      utxo.scriptPubKey.address ?? "OP_RETURN",
-      { address: utxo.scriptPubKey.address ?? "OP_RETURN" },
+      out.scriptPubKey.address ?? "OP_RETURN",
+      { address: out.scriptPubKey.address ?? "OP_RETURN" },
       true
     );
 
@@ -80,114 +172,132 @@ const createNewUtxoBodies = (vout, Transaction, storage) => {
 
         Therefore, we mark a utxo as an OP_RETURN by setting its address to such
       */
-      utxo_index: `${voutAddress.id}:${utxo.n}`,
-      address_id: voutAddress.id,
-      value_sats: BigInt(Math.round(utxo.value * 1e8)).toString(),
-      transaction_id: Transaction.virtual_id,
-      vout_index: utxo.n,
-      block: parseInt(Transaction.block),
-      dune_balances: {},
-      block_spent: null,
-      transaction_spent_id: null,
+      utxo_index: `${addressRow.id}:${out.n}`,
+      address_id: addressRow.id,
+      value_sats: BigInt(Math.round(out.value * 1e8)).toString(),
+      transaction_id: Transaction.virtual_id!,
+      vout_index: out.n,
+      block: Number(Transaction.block),
+      dune_balances: {} as IDuneBalances,
+      block_spent: null as number | null,
+      transaction_spent_id: null as number | null,
     };
-
     //If the utxo is an OP_RETURN, we dont save it as a UTXO in the database
   });
 };
 
-const burnAllFromUtxo = (utxo, storage) => {
+/* ────────────────────────────────────────────────────────────────────────────
+   HELPER #3  burnAllFromUtxo
+   ────────────────────────────────────────────────────────────────────────── */
+
+const burnAllFromUtxo = (utxo: IndexerUtxo, storage: Storage) => {
   const { updateAttribute, findOne } = storage;
 
-  Object.entries(utxo.dune_balances).map((entry) => {
-    const [duneId, amount] = entry;
+  if (!utxo.dune_balances) {
+    return;
+  }
 
-    const dune = findOne("Dune", duneId, false, true);
+  Object.entries(utxo.dune_balances).forEach(([duneId, amt]) => {
+    const dune = findOne<IDune>("Dune", duneId, undefined, true);
 
-    return updateAttribute(
+    if (!isValidResponse<IDune>(dune)) {
+      throw new Error("Invalid response from local cache");
+    }
+
+    updateAttribute(
       "Dune",
       duneId,
       "burnt_amount",
-      (BigInt(dune.burnt_amount) + BigInt(amount)).toString()
+      (BigInt(dune.burnt_amount ?? "0") + BigInt(amt)).toString()
     );
   });
 };
 
-const updateOrCreateBalancesWithUtxo = (utxo, storage, direction) => {
+/* ────────────────────────────────────────────────────────────────────────────
+   HELPER #4  updateOrCreateBalancesWithUtxo
+   ────────────────────────────────────────────────────────────────────────── */
+
+const updateOrCreateBalancesWithUtxo = (
+  utxo: IndexerUtxo,
+  storage: Storage,
+  direction: 1 | -1
+): void => {
   const { findManyInFilter, create, updateAttribute, findOne } = storage;
+  if (!utxo.dune_balances) {
+    return;
+  }
+  const entries = Object.entries(utxo.dune_balances);
 
-  const utxoDuneBalances = Object.entries(utxo.dune_balances);
-
-  //This filter is an OR filter of ANDs passed to storage, it fetches all corresponding Balances that the utxo is calling
-  //for example: [{address, proto_id}, {address, proto_id}...]. While address is the same for all, a utxo can have multiple proto ids
-  // [[AND], [AND], [AND]] => [OR]
-
-  let dunesInUtxo = findManyInFilter(
+  //OR‑of‑ANDs filter to preload all involved dunes
+  let dunesMapResponse = findManyInFilter<IDune>(
     "Dune",
-    utxoDuneBalances.map((dune) => dune[0]),
+    entries.map(([proto]) => proto),
     true
-  ).reduce((acc, Dune) => {
-    //This is safe because dune_protocol_id and id will never overlap as dune_protocol_id is a string that contains a ":"
-    acc[Dune.dune_protocol_id] = Dune;
-    acc[Dune.id] = Dune;
-    return acc;
-  }, {});
-
-  const balanceFilter = utxoDuneBalances.map(
-    (entry) => `${utxo.address_id}:${dunesInUtxo[entry[0]].id}`
   );
 
-  //Get the existing balance entries. We can create hashmap of these with proto_id since address is the same
+  if (!isValidResponse<IDune[]>(dunesMapResponse)) {
+    throw new Error("Invalid response from local cache");
+  }
 
-  //uses optimized lookup by using balance_index
-  const existingBalanceEntries = findManyInFilter(
+  const dunesMap = dunesMapResponse.reduce<Record<string, any>>((a, d: any) => {
+    a[d.dune_protocol_id] = d;
+    a[d.id] = d;
+    return a;
+  }, {});
+
+  const balanceFilter = entries.map(
+    ([proto]) => `${utxo.address_id}:${dunesMap[proto].id}`
+  );
+
+  const existingBalancesResponse = findManyInFilter<IBalance>(
     "Balance",
     balanceFilter,
     true
-  ).reduce((acc, balance) => {
-    acc[dunesInUtxo[balance.dune_id].dune_protocol_id] = balance;
-    return acc;
-  }, {});
+  );
 
-  /*
-    The return value of 'existingBalanceEntries' looks looks like this after reduce (mapped by id):
-    {
-      1: {id: 1, dune_protocol_id: '1:0', address: 'address', balance: '0'}
-    }
-  */
+  if (!isValidResponse<IBalance[]>(existingBalancesResponse)) {
+    throw new Error("Invalid response from local cache");
+  }
 
-  for (let entry of utxoDuneBalances) {
-    const [dune_protocol_id, amount] = entry;
+  let existingBalances = existingBalancesResponse.reduce<Record<string, any>>(
+    (acc, bal: any) => {
+      acc[dunesMap[bal.dune_id].dune_protocol_id] = bal;
+      return acc;
+    },
+    {}
+  );
 
-    let balanceFound = existingBalanceEntries[dune_protocol_id];
+  for (const [proto, amt] of entries) {
+    let bal = existingBalances[proto];
 
-    if (!balanceFound) {
-      balanceFound = create("Balance", {
-        dune_id: findOne("Dune", dune_protocol_id, false, true).id,
+    if (!bal) {
+      let dune = findOne<IDune>("Dune", proto, undefined, true);
+
+      if (!isValidResponse<IDune>(dune)) {
+        throw new Error("Invalid response from local cache");
+      }
+
+      let duneId = dune.id;
+
+      bal = create("Balance", {
+        dune_id: duneId,
         address_id: utxo.address_id,
         balance: 0,
       });
     }
 
-    const newBalance =
-      BigInt(balanceFound.balance) + BigInt(amount) * BigInt(direction);
+    const newBalance = BigInt(bal.balance) + BigInt(amt) * BigInt(direction);
 
-    updateAttribute(
-      "Balance",
-      balanceFound.balance_index,
-      "balance",
-      newBalance
-    );
+    updateAttribute("Balance", bal.balance_index, "balance", newBalance);
   }
-
-  return;
 };
 
 const processEdicts = (
-  UnallocatedDunes,
-  pendingUtxos,
-  Transaction,
-  transfers,
-  storage
+  UnallocatedDunes: IUnallocatedDunes,
+  pendingUtxos: IPendingUtxos,
+  Transaction: IndexerTx,
+  transfers: ITransfers,
+  storage: Storage
 ) => {
   const { block, txIndex, dunestone, vin } = Transaction;
   const { findManyInFilter, create, findOne, findOrCreate } = storage;
@@ -201,11 +311,11 @@ const processEdicts = (
     transfers.burn = Object.keys(UnallocatedDunes).reduce((acc, duneId) => {
       acc[duneId] = UnallocatedDunes[duneId];
       return acc;
-    }, {});
+    }, {} as Record<string, bigint>);
     return {};
   }
 
-  let allocate = (utxo, duneId, amount) => {
+  let allocate = (utxo: IndexerUtxo, duneId: string, amount: bigint) => {
     /*
         See: https://docs.ordinals.com/dunes/specification.html#Trasnferring
         
@@ -220,6 +330,10 @@ const processEdicts = (
       unallocated < amount || amount === 0n ? unallocated : amount;
 
     UnallocatedDunes[duneId] = (unallocated ?? 0n) - withDefault;
+
+    if (!utxo.dune_balances) {
+      utxo.dune_balances = {};
+    }
 
     utxo.dune_balances[duneId] =
       (utxo.dune_balances[duneId] ?? 0n) + withDefault;
@@ -256,9 +370,19 @@ const processEdicts = (
     //Cache all dunes that are currently in DB in a hashmap, if a dune doesnt exist edict will be ignored
 
     //uses optimized lookup by using dune_protocol_id
-    let existingDunes = findManyInFilter("Dune", edictFilter, true).reduce(
+    let existingDunesResponse = findManyInFilter<IDune>(
+      "Dune",
+      edictFilter,
+      true
+    );
+
+    if (!isValidResponse<IDune[]>(existingDunesResponse)) {
+      throw new Error("Invalid response from local cache @ processEdicts:1");
+    }
+
+    let existingDunes = existingDunesResponse.reduce(
       (acc, dune) => ({ ...acc, [dune.dune_protocol_id]: dune }),
-      {}
+      {} as Record<string, IDune>
     );
 
     for (let edictIndex in edicts) {
@@ -276,7 +400,7 @@ const processEdicts = (
 
       if (edict.output === pendingUtxos.length) {
         //Edict amount is in string, not bigint
-        if (edict.amount === "0") {
+        if (edict.amount === 0n) {
           /*
               An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of dune id between each non OP_RETURN output.
           */
@@ -322,13 +446,21 @@ const processEdicts = (
   //Transfer remaining dunes to the first non-opreturn output
   //(edge case) If only an OP_RETURN output is present in the Transaction, transfer to the OP_RETURN
 
-  let pointerOutput = pendingUtxos[pointer] ?? nonOpReturnOutputs[0];
+  let pointerOutput = pointer
+    ? pendingUtxos[pointer] ?? nonOpReturnOutputs[0]
+    : nonOpReturnOutputs[0];
 
   //pointerOutput should never be undefined since there is always either a non-opreturn or an op-return output in a transaction
 
   if (!pointerOutput) {
     //pointer is not provided and there are no non-OP_RETURN outputs
-    pointerOutput = pendingUtxos.find((utxo) => utxo.address_id === 2);
+    let foundPendingUtxos = pendingUtxos.find((utxo) => utxo.address_id === 2);
+
+    if (foundPendingUtxos) {
+      pointerOutput = foundPendingUtxos;
+    } else {
+      throw new Error("No pointer output found. This transaction is invalid.");
+    }
   }
 
   //move Unallocated dunes to pointer output
@@ -340,7 +472,11 @@ const processEdicts = (
   return;
 };
 
-const processMint = (UnallocatedDunes, Transaction, storage) => {
+const processMint = (
+  UnallocatedDunes: IUnallocatedDunes,
+  Transaction: IndexerTx,
+  storage: Storage
+) => {
   const { block, txIndex, dunestone } = Transaction;
   const mint = dunestone?.mint;
 
@@ -350,9 +486,9 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
     return UnallocatedDunes;
   }
   //We use the same  process used to calculate the Dune Id in the etch function if "0:0" is referred to
-  const duneToMint = findOne("Dune", mint, false, true);
+  const duneToMint = findOne<IDune>("Dune", mint, undefined, true);
 
-  if (!duneToMint) {
+  if (!isValidResponse<IDune>(duneToMint)) {
     //The dune requested to be minted does not exist.
     return UnallocatedDunes;
   }
@@ -368,7 +504,7 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
       return UnallocatedDunes;
     }
 
-    let mintAmount = BigInt(duneToMint.mint_amount);
+    let mintAmount = BigInt(duneToMint.mint_amount ?? "0");
     let isFlex = duneToMint.price_amount != "0";
 
     if (isFlex) {
@@ -391,6 +527,17 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
       return UnallocatedDunes;
     }
 
+    let fromAddressResponse = findOne<IAddress>(
+      "Address",
+      Transaction.sender ?? "UNKNOWN",
+      undefined,
+      true
+    );
+
+    if (!isValidResponse<IAddress>(fromAddressResponse)) {
+      throw new Error("Invalid response from local cache @ mint:1");
+    }
+
     //Emit MINT event on block
     create("Event", {
       type: 1,
@@ -398,12 +545,7 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
       transaction_id: Transaction.virtual_id,
       dune_id: duneToMint.id,
       amount: duneToMint.mint_amount,
-      from_address_id: findOrCreate(
-        "Address",
-        Transaction.sender ?? "UNKNOWN",
-        { address: Transaction.sender },
-        true
-      ).id,
+      from_address_id: fromAddressResponse.id,
       to_address_id: 2,
     });
 
@@ -421,12 +563,12 @@ const processMint = (UnallocatedDunes, Transaction, storage) => {
 };
 
 const processEtching = (
-  UnallocatedDunes,
-  Transaction,
-  rpc,
-  storage,
-  isGenesis,
-  useTest
+  UnallocatedDunes: IUnallocatedDunes,
+  Transaction: IndexerTx,
+  rpc: RpcClient,
+  storage: Storage,
+  isGenesis: boolean,
+  useTest: boolean
 ) => {
   const { block, txIndex, dunestone } = Transaction;
 
@@ -439,8 +581,15 @@ const processEtching = (
     return UnallocatedDunes;
   }
 
-  //This transaction has already etched a dune
-  if (findOne("Dune", `${block}:${txIndex}`, false, true)) {
+  let searchRune = findOne<IDune>(
+    "Dune",
+    `${block}:${txIndex}`,
+    undefined,
+    true
+  );
+
+  if (!isValidResponse<IDune>(searchRune) || !searchRune) {
+    //If the dune is not in the unallocated dunes, it is ignored
     return UnallocatedDunes;
   }
 
@@ -451,20 +600,22 @@ const processEtching = (
 
   let duneName = etching.dune;
 
-  const isDuneNameTaken = !!findOne(
+  const isDuneNameTakenResponse = findOne<IDune>(
     "Dune",
     duneName + "@REF@name",
-    false,
+    undefined,
     true
   );
 
-  if (isDuneNameTaken) {
+  if (
+    !isValidResponse<IDune>(isDuneNameTakenResponse) ||
+    !!isDuneNameTakenResponse
+  ) {
     return UnallocatedDunes;
   }
 
   let isFlex = etching?.terms?.amount == 0n && etching?.terms?.price;
-  let hasMintcap =
-    !!etching?.terms?.mint_cap && etching?.terms?.mint_cap !== 0n;
+  let hasMintcap = !!etching?.terms?.cap && etching?.terms?.cap !== 0n;
 
   if (!isFlex && etching?.terms?.amount == 0n) {
     //An etch attempting to use "flex mode" for mint that doesnt provide amount is invalid
@@ -493,14 +644,14 @@ const processEtching = (
 
   const symbol = etching.symbol && isSafeChar ? etching.symbol : "¤";
 
-  const etcherId = findOrCreate(
+  const etcherId = findOrCreate<IAddress>(
     "Address",
     Transaction.sender ?? "UNKNOWN",
     { address: Transaction.sender },
     true
   ).id;
 
-  const EtchedDune = create("Dune", {
+  const EtchedDune = create<IDune>("Dune", {
     dune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
     name: duneName,
     symbol,
@@ -564,7 +715,11 @@ const processEtching = (
   });
 };
 
-const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
+const emitTransferAndBurnEvents = (
+  transfers: ITransfers,
+  Transaction: IndexerTx,
+  storage: Storage
+) => {
   const { create, findOrCreate, findOne } = storage;
 
   Object.keys(transfers).forEach((addressId) => {
@@ -572,11 +727,23 @@ const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
       let amount = transfers[addressId][dune_protocol_id];
       if (!amount) return; //Ignore 0 balances
 
+      let foundDuneResponse = findOne<IDune>(
+        "Dune",
+        dune_protocol_id,
+        undefined,
+        true
+      );
+      if (!isValidResponse<IDune>(foundDuneResponse)) {
+        throw new Error(
+          "Invalid response from local cache @ emitTransferAndBurnEvents:1"
+        );
+      }
+
       create("Event", {
         type: addressId === "burn" ? 3 : 2,
         block: Transaction.block,
         transaction_id: Transaction.virtual_id,
-        dune_id: findOne("Dune", dune_protocol_id, false, true).id,
+        dune_id: foundDuneResponse.id,
         amount,
         from_address_id: findOrCreate(
           "Address",
@@ -593,11 +760,11 @@ const emitTransferAndBurnEvents = (transfers, Transaction, storage) => {
 };
 
 const finalizeTransfers = (
-  inputUtxos,
-  pendingUtxos,
-  Transaction,
-  transfers,
-  storage
+  inputUtxos: IndexerUtxo[],
+  pendingUtxos: IPendingUtxos,
+  Transaction: IndexerTx,
+  transfers: ITransfers,
+  storage: Storage
 ) => {
   const { updateAttribute, create, local, findOne } = storage;
   const { block, dunestone } = Transaction;
@@ -615,13 +782,12 @@ const finalizeTransfers = (
 
   //Update all input UTXOs as spent
   inputUtxos.forEach((utxo) => {
-    updateAttribute("Utxo", utxo.utxo_index, "block_spent", block, false);
+    updateAttribute("Utxo", utxo.utxo_index, "block_spent", block);
     updateAttribute(
       "Utxo",
       utxo.utxo_index,
       "transaction_spent_id",
-      Transaction.virtual_id,
-      false
+      Transaction.virtual_id
     );
   });
   //Filter out all OP_RETURN and zero dune balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
@@ -641,14 +807,32 @@ const finalizeTransfers = (
       let resultUtxo = { ...utxo };
       delete resultUtxo.dune_balances;
 
-      const parentUtxo = create("Utxo", resultUtxo);
+      const parentUtxo = create<IUtxo>(
+        "Utxo",
+        resultUtxo as Omit<IndexerUtxo, "dune_balances">
+      );
 
-      Object.keys(utxo.dune_balances).forEach((duneProtocolId) => {
-        if (!utxo.dune_balances[duneProtocolId]) return; //Ignore 0 balances
+      let duneBalances = utxo.dune_balances;
+      if (!duneBalances) return;
+
+      Object.keys(duneBalances).forEach((duneProtocolId) => {
+        if (!duneBalances[duneProtocolId]) return; //Ignore 0 balances
+
+        let findDuneResponse = findOne<IDune>(
+          "Dune",
+          duneProtocolId,
+          undefined,
+          true
+        );
+
+        if (!isValidResponse<IDune>(findDuneResponse)) {
+          return;
+        }
+
         create("Utxo_balance", {
           utxo_id: parentUtxo.id,
-          dune_id: findOne("Dune", duneProtocolId, false, true).id,
-          balance: utxo.dune_balances[duneProtocolId],
+          dune_id: findDuneResponse.id,
+          balance: duneBalances[duneProtocolId],
         });
       });
     }
@@ -660,7 +844,7 @@ const finalizeTransfers = (
     ...inputUtxos.map((utxo) => [utxo, -1]),
     //New utxos are added to balance (empty array if cenotaph because of the filter above)
     ...pendingUtxos.map((utxo) => [utxo, 1]),
-  ];
+  ] as [IndexerUtxo, 1 | -1][];
 
   //Finally update balance store with new Utxos (we can call these at the same time because they are updated in memory, not on db)
 
@@ -671,19 +855,29 @@ const finalizeTransfers = (
   return;
 };
 
-const handleGenesis = (Transaction, rpc, storage) => {
+const handleGenesis = (
+  Transaction: IndexerTx,
+  rpc: RpcClient,
+  storage: Storage
+) => {
   processEtching(
     {},
     { ...Transaction, dunestone: GENESIS_DUNESTONE },
     rpc,
     storage,
-    true
+    true,
+    false
   );
 
   return;
 };
 
-const processDunestone = (Transaction, rpc, storage, useTest) => {
+const processDunestone = (
+  Transaction: IndexerTx,
+  rpc: RpcClient,
+  storage: Storage,
+  useTest: boolean
+) => {
   const { vout, vin, block, hash } = Transaction;
 
   const { create, fetchGroupLocally, findOne, local, findOrCreate } = storage;
@@ -700,35 +894,49 @@ const processDunestone = (Transaction, rpc, storage, useTest) => {
 
   startTimer();
 
-  let UtxoFilter = vin.map(
-    (vin) =>
-      `${findOne("Transaction", vin.txid, false, true)?.id ?? "-1"}:${vin.vout}`
-  );
+  let UtxoFilter = vin.map((vin) => {
+    let transactionFound = findOne<ITransaction>(
+      "Transaction",
+      vin.txid,
+      undefined,
+      true
+    );
+    if (!isValidResponse<ITransaction>(transactionFound)) {
+      return `-1:${vin.vout}`;
+    }
+    return `${transactionFound.id ?? "-1"}:${vin.vout}`;
+  });
 
   stopTimer("body_init_filter_generator");
 
   let inputUtxos = UtxoFilter.map((utxoIndex) => {
-    const utxo = findOne("Utxo", utxoIndex, false, true);
+    const utxo = findOne<IUtxo>("Utxo", utxoIndex, undefined, true);
 
-    if (!utxo) return null;
-
+    if (!isValidResponse<IUtxo>(utxo)) {
+      return null;
+    }
     const balances = fetchGroupLocally("Utxo_balance", "utxo_id", utxo.id);
 
     return {
       ...utxo,
+      utxo_index: utxoIndex
       dune_balances: balances.reduce((acc, utxoBalance) => {
-        acc[
-          findOne(
-            "Dune",
-            utxoBalance.dune_id + "@REF@id",
-            false,
-            true
-          ).dune_protocol_id
-        ] = utxoBalance.balance;
+        let duneResponse = findOne<IDune>(
+          "Dune",
+          utxoBalance.dune_id + "@REF@id",
+          undefined,
+          true
+        );
+
+        if (!isValidResponse<IDune>(duneResponse)) {
+          return null;
+        }
+
+        acc[duneResponse.dune_protocol_id] = utxoBalance.balance;
         return acc;
-      }, {}),
+      }, {} as Record<string, bigint>),
     };
-  }).filter(Boolean);
+  }).filter(Boolean) as IndexerUtxo[];
 
   stopTimer("body_init_utxo_fetch");
 
@@ -743,17 +951,26 @@ const processDunestone = (Transaction, rpc, storage, useTest) => {
     if (!(vin[0].coinbase && block == GENESIS_BLOCK)) return;
   }
 
-  const parentTransaction = create("Transaction", { hash }, false, true);
+  const parentTransaction = create<ITransaction>("Transaction", { hash });
 
-  Transaction.virtual_id = parentTransaction.id;
+  Transaction.virtual_id = Number(parentTransaction.id);
+
+  let addressFound = findOne<IAddress>(
+    "Address",
+    inputUtxos[0]?.address_id + "@REF@id",
+    undefined,
+    true
+  );
+
+  if (!isValidResponse<IAddress>(addressFound)) {
+    addressFound = { address: "UNKNOWN" } as IAddress;
+  }
+
   Transaction.sender =
     //check if it was populated in
     Transaction.sender ??
     //if it wasnt populated in check if its in db froma prev utxo
-    findOne("Address", inputUtxos[0]?.address_id + "@REF@id", false, true)
-      ?.address ??
-    //rip
-    "UNKNOWN";
+    addressFound.address;
 
   if (vin[0].coinbase && block === GENESIS_BLOCK)
     handleGenesis(Transaction, rpc, storage);
