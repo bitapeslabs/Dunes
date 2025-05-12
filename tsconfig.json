@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "allowJs": true,
+
     "target": "ESNext",
     "module": "CommonJS",
     "outDir": "./dist",
@@ -11,5 +13,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts", "./**/*.js"]
 }

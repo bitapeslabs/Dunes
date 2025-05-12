@@ -1,26 +1,27 @@
-const express = require("express");
-const router = express.Router();
+import { Router, Request, Response } from "express";
+import { Models, ISetting } from "@/database/createConnection";
+
+const router = Router();
 
 /*
   Returns global Dune RPC settings
 
   Documentation: https://dunes.sh/docs/dunes-rpc/events#get-dunes-info
 */
-router.get("/info", async (req, res) => {
+router.get("/info", async (req: Request, res: Response) => {
   try {
-    const { db } = req;
-    const { Setting } = db;
+    const { Setting } = req.db;
 
-    const settings = await Setting.findAll({
+    const settings = (await Setting.findAll({
       raw: true,
       attributes: { exclude: ["id"] },
-    });
+    })) as Omit<ISetting, "id">[];
 
     res.send(settings);
   } catch (e) {
-    console.log(e);
+    console.error(e);
     res.status(500).send({ error: "Internal server error" });
   }
 });
 
-module.exports = router;
+export default router;

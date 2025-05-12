@@ -1,317 +1,282 @@
-//Express setup
-const bodyParser = require("body-parser");
-const express = require("express");
-const server = express();
-const axios = require("axios");
+/* eslint-disable no-console */
 
-//Local dependencies
-const { createRpcClient } = require("./src/lib/btcrpc");
-const { log } = require("./src/lib/utils");
-const { storage: newStorage } = require("./src/lib/storage");
-const { GENESIS_BLOCK } = require("./src/lib/constants");
-const { sleep } = require("./src/lib/utils");
-const {
-  blockManager: createBlockManager,
-  prefetchTransactions,
-} = require("./src/lib/duneutils");
+/* ────────────────────────────────────────────────────────────────────────────
+   env + external deps
+   ────────────────────────────────────────────────────────────────────────── */
+import "dotenv/config";
+import express, { Request, Response, NextFunction, Application } from "express";
+import bodyParser from "body-parser";
+import axios from "axios";
+import fs from "node:fs";
+import path from "node:path";
 
-const {
-  databaseConnection: createConnection,
-} = require("./src/database/createConnection");
+/* ────────────────────────────────────────────────────────────────────────────
+   internal aliases
+   ────────────────────────────────────────────────────────────────────────── */
 
-const { processBlock, loadBlockIntoMemory } = require("./src/lib/indexer");
-const { callRpc, callRpcBatch } = createRpcClient({
-  url: process.env.BTC_RPC_URL,
-  username: process.env.BTC_RPC_USERNAME,
-  password: process.env.BTC_RPC_PASSWORD,
-});
+import { createRpcClient } from "@/lib//bitcoinrpc";
+import { storage } from "@/lib/storage";
+import { log, sleep } from "@/lib/utils";
+import { blockManager, prefetchTransactions } from "@/lib/duneutils";
+import { processBlock, loadBlockIntoMemory } from "@/lib/indexer";
+import { GENESIS_BLOCK, RPC_PORT, PREFETCH_BLOCKS } from "@/lib/consts";
 
-//For testing
-const fs = require("fs");
-const path = require("path");
+import {
+  Models,
+  IEvent,
+  IAddress,
+  IDune,
+  ITransaction,
+  ISetting,
+} from "@/database/createConnection";
+import { databaseConnection as createConnection } from "@/database/createConnection";
 
-const testblock = JSON.parse(
+/* ────────────────────────────────────────────────────────────────────────────
+   typed helpers
+   ────────────────────────────────────────────────────────────────────────── */
+
+type RpcClient = ReturnType<typeof createRpcClient>;
+
+interface EventWithJoins {
+  id: number;
+  type: number;
+  block: number;
+  amount: string | bigint;
+  transaction: ITransaction | null;
+  dune: IDune | null;
+  from: IAddress | null;
+  to: IAddress | null;
+}
+
+interface RequestWithDB extends Request {
+  db: Models;
+  callRpc: RpcClient["callRpc"];
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   constants & test‑block (reg‑test only)
+   ────────────────────────────────────────────────────────────────────────── */
+
+const TEST_BLOCK: unknown = JSON.parse(
   fs.readFileSync(path.join(__dirname, "./dumps/testblock.json"), "utf8")
 );
 
-const emitToDiscord = async (events) => {
+/* ────────────────────────────────────────────────────────────────────────────
+   Discord helper (optional)
+   ────────────────────────────────────────────────────────────────────────── */
+
+const emitToDiscord = async (events: EventWithJoins[]): Promise<void> => {
   if (!process.env.DISCORD_WEBHOOK) return;
-  let etchings = events
-    .filter((event) => event.type === 0)
-    .filter((_, i) => i <= 5);
-  for (let etch of etchings) {
+
+  const etchings = events.filter((e) => e.type === 0).slice(0, 5);
+
+  for (const ev of etchings) {
     try {
       const embed = {
         title: "New etching!",
-        description: "The dune " + etch.dune.name + " has been etched!",
-        color: 0xffa500, // Color in hexadecimal
-        fields: Object.keys(etch.dune)
-          .filter((_, i) => i <= 10)
-          .map((fieldName) => ({
-            name: fieldName,
-            value: etch.dune[fieldName],
-            inline: true,
-          })),
-        timestamp: new Date(),
-      };
-      const payload = {
-        embeds: [embed],
+        description: `The dune **${
+          ev.dune?.name ?? "unknown"
+        }** has been etched!`,
+        color: 0xffa500,
+        fields: Object.entries(ev.dune ?? {})
+          .slice(0, 10)
+          .map(([k, v]) => ({ name: k, value: String(v), inline: true })),
+        timestamp: new Date().toISOString(),
       };
 
-      await axios.default.post(process.env.DISCORD_WEBHOOK, payload);
+      await axios.post(process.env.DISCORD_WEBHOOK, { embeds: [embed] });
       await sleep(200);
-    } catch (e) {
-      //silently fail
+    } catch {
+      /* swallow network errors */
     }
   }
-  return;
 };
 
-const emitEvents = async (storage) => {
-  const { local, findOne } = storage;
-  let populatedEvents = [
-    ...Object.values(local.Event).map((event) => ({
-      id: event.id,
-      type: event.type,
-      block: event.block,
-      transaction: findOne(
-        "Transaction",
-        event.transaction_id + "@REF@id",
-        false,
-        true
-      ),
-      dune: findOne("Dune", event.dune_id + "@REF@id", false, true),
-      amount: event.amount,
-      from: findOne("Address", event.from_address_id + "@REF@id", false, true),
-      to: findOne("Address", event.to_address_id + "@REF@id", false, true),
-    })),
-  ];
+/* ────────────────────────────────────────────────────────────────────────────
+   event emitter  (called after each committed block‑chunk)
+   ────────────────────────────────────────────────────────────────────────── */
 
-  //For testing, in production this would be sent to a webhook or on an exposed WS
-  emitToDiscord(populatedEvents);
-  return;
+const emitEvents = async (
+  st: Awaited<ReturnType<typeof storage>>
+): Promise<void> => {
+  const { local, findOne } = st;
+
+  const joined: EventWithJoins[] = Object.values(local.Event).map((ev) => ({
+    id: ev.id,
+    type: ev.type,
+    block: ev.block,
+    amount: ev.amount,
+    transaction: findOne(
+      "Transaction",
+      `${ev.transaction_id}@REF@id`,
+      undefined,
+      true
+    ),
+    dune: findOne("Dune", `${ev.dune_id}@REF@id`, undefined, true),
+    from: findOne("Address", `${ev.from_address_id}@REF@id`, undefined, true),
+    to: findOne("Address", `${ev.to_address_id}@REF@id`, undefined, true),
+  }));
+
+  await emitToDiscord(joined);
 };
 
-const startRpc = async () => {
-  log("Connecting to db (rpc)...", "info");
+/* ────────────────────────────────────────────────────────────────────────────
+   RPC (express) server
+   ────────────────────────────────────────────────────────────────────────── */
 
+const startRpcServer = async (): Promise<void> => {
+  log("Connecting to DB (RPC)…", "info");
   const db = await createConnection();
-  log("Starting RPC server...", "info");
 
-  server.use("/*", bodyParser.urlencoded({ extended: false }));
-  server.use("/*", bodyParser.json());
+  const app: Application = express();
+  app.use(bodyParser.urlencoded({ extended: false }));
+  app.use(bodyParser.json());
 
-  server.use((req, res, next) => {
-    req.callRpc = callRpc;
-    req.db = db;
-
+  /* auth + injectors */
+  app.use((req: RequestWithDB, res: Response, next: NextFunction) => {
     if (
-      req.headers.authorization !== process.env.RPC_AUTH &&
-      process.env.RPC_AUTH
+      process.env.RPC_AUTH &&
+      req.headers.authorization !== process.env.RPC_AUTH
     ) {
       res.status(401).send("Unauthorized");
       return;
     }
-
+    req.db = db;
+    req.callRpc = rpc.callRpc;
     next();
   });
 
-  //rpc endpoints
-  server.use(`/dunes/events`, require("./src/rpc/dunes/routes/events"));
-  server.use(`/dunes/balances`, require("./src/rpc/dunes/routes/balances"));
-  server.use(`/dunes/rpc`, require("./src/rpc/dunes/routes/rpc"));
-  server.use(`/dunes/utxos`, require("./src/rpc/dunes/routes/utxos"));
-  server.use(`/dunes/etchings`, require("./src/rpc/dunes/routes/etchings"));
+  /* mount routes (they are already typed) */
+  app.use(
+    "/dunes/events",
+    await import("@/rpc/dunes/routes/events").then((m) => m.default)
+  );
+  app.use(
+    "/dunes/balances",
+    await import("@/rpc/dunes/routes/balances").then((m) => m.default)
+  );
+  app.use(
+    "/dunes/rpc",
+    await import("@/rpc/dunes/routes/rpc").then((m) => m.default)
+  );
+  app.use(
+    "/dunes/utxos",
+    await import("@/rpc/dunes/routes/utxos").then((m) => m.default)
+  );
+  app.use(
+    "/dunes/etchings",
+    await import("@/rpc/dunes/routes/etchings").then((m) => m.default)
+  );
 
-  server.listen(process.env.RPC_PORT, (err) => {
-    log("RPC server running on port " + process.env.RPC_PORT, "info");
-  });
+  app.listen(RPC_PORT, () =>
+    log(`RPC server listening on :${RPC_PORT}`, "info")
+  );
 };
 
-//handler defs
-const startServer = async () => {
+/* ────────────────────────────────────────────────────────────────────────────
+   indexer (main loop)
+   ────────────────────────────────────────────────────────────────────────── */
+
+const rpc = createRpcClient({
+  url: process.env.BTC_RPC_URL!,
+  username: process.env.BTC_RPC_USERNAME!,
+  password: process.env.BTC_RPC_PASSWORD!,
+});
+
+const startIndexer = async (): Promise<void> => {
   if (!global.gc) {
-    log("Please include --expose-gc flag to run indexer", "error");
+    log("Run node with --expose-gc to enable manual GC", "error");
     return;
   }
 
-  //Setup express routes
-  /*
-      Connect to BTC rpc node, commands managed with rpcapi.js
-    */
-
-  /*
-      Storage aggregator. During the processing of a block changes arent commited to DB until after every Banana has processed.
-      This makes it so that if for whatever reason a block isnt finished processing, changes are rfeverted and we can
-      start processing at the start of the block
-    */
-  const useSetup = process.argv.includes("--new");
   const useTest = process.argv.includes("--test");
-  let storage = await newStorage(useSetup);
+  const st = await storage(process.argv.includes("--new"));
+  const { db } = st;
+  const Setting = db.Setting as unknown as ISetting;
 
-  /** @type {any} */
-  const { Setting } = storage.db;
+  /* last processed height */
+  const lastRow = await Setting.findOrCreate({
+    where: { name: "last_block_processed" },
+    defaults: { value: "0" },
+  });
+  let lastBlockProcessed = parseInt(String(lastRow[0].value), 10);
 
-  /*
-      If the --new flag is included, the DB will be force reset and block processing will start at genesis block
-      if last_block_processed is 0, genesis block has not been processed
-    */
+  /* optional pre‑fetch of early blocks */
+  const prefetchRow = await Setting.findOrCreate({
+    where: { name: "prefetch" },
+    defaults: { value: "0" },
+  });
+  if (Number(prefetchRow[0].value) === 0) {
+    const howMany = PREFETCH_BLOCKS;
+    log(`Prefetching ${howMany} blocks before genesis…`, "info");
 
-  let lastBlockProcessed =
-    parseInt(
-      (
-        await Setting.findOrCreate({
-          where: { name: "last_block_processed" },
-          defaults: { value: 0 },
-        })
-      )[0].value
-    ) || null;
-
-  let prefetchDone = parseInt(
-    (
-      await Setting.findOrCreate({
-        where: { name: "prefetch" },
-        defaults: { value: 0 },
-      })
-    )[0].value
-  );
-  const readBlockStorage = await newStorage();
-
-  //Process blocks in range will process blocks start:(startBlock) to end:(endBlock)
-  //startBlock and endBlock are inclusive (they are also processed)
-  const processBlocksInRange = async (startBlock, endBlock) => {
-    const { getBlock } = await createBlockManager(
-      callRpcBatch,
-      endBlock,
-      readBlockStorage
+    const heights = Array.from(
+      { length: howMany },
+      (_, i) => GENESIS_BLOCK - howMany + i
     );
-    let currentBlock = startBlock;
-    let chunkSize = parseInt(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? "10");
-    while (currentBlock <= endBlock) {
-      const offset = currentBlock + chunkSize - endBlock - 1;
+    await prefetchTransactions(heights, st, rpc.callRpcBatch);
+    await st.commitChanges();
+    await Setting.update({ value: "1" }, { where: { name: "prefetch" } });
+    log("Prefetch done!", "info");
+  }
 
-      const blocksToFetch = new Array(chunkSize - (offset > 0 ? offset : 0))
-        .fill(0)
-        .map((_, i) => currentBlock + i);
+  /* block reader */
+  const bm = await blockManager(rpc.callRpcBatch);
 
-      const fetchBlocksFromArray = async (blocksToFetch) => {
-        log("Fetching blocks: " + blocksToFetch.join(", "), "info");
-        return await Promise.all(
-          blocksToFetch.map((height) => getBlock(height))
-        );
-      };
+  let current = lastBlockProcessed ? lastBlockProcessed + 1 : GENESIS_BLOCK;
 
-      let blocks = useTest
-        ? [testblock]
-        : await fetchBlocksFromArray(blocksToFetch);
+  log(`Starting indexer at height ${current}`, "info");
 
-      log("Blocks fetched! ", "info");
+  while (true) {
+    const tip = Number(await rpc.callRpc("getblockcount", []));
+    if (current <= tip) {
+      log(`Processing blocks ${current}…${tip}`, "info");
+      await processRange(current, tip);
+      current = tip + 1;
+    }
+    await sleep(Number(process.env.BLOCK_CHECK_INTERVAL ?? "15000"));
+  }
 
-      let blocksMapped = blocks.reduce((acc, block, i) => {
-        acc[currentBlock + i] = block;
+  /* local helper – process [start,end] inclusive in chunks */
+  async function processRange(start: number, end: number): Promise<void> {
+    const chunk = Number(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? "10");
 
-        return acc;
-      }, {});
+    for (let h = start; h <= end; h += chunk) {
+      const upto = Math.min(h + chunk - 1, end);
+      const list = Array.from({ length: upto - h + 1 }, (_, i) => h + i);
+      const blobs = useTest
+        ? [TEST_BLOCK as any]
+        : await Promise.all(list.map(bm.getBlock));
 
-      /*
-      const { blockHeight, blockData } = useTest
-        ? { blockHeight: currentBlock, blockData: testblock }
-        : //Attempt to load from cache and if not fetch from RPC
-          await getBlock(currentBlock);
-        */
+      /* stage all blocks into memory first */
+      await Promise.all(blobs.map((b) => loadBlockIntoMemory(b, st)));
 
-      log(
-        "Loading blocks into memory: " + Object.keys(blocksMapped).join(", "),
-        "info"
-      );
-      //Run the indexers processBlock function
-      await Promise.all(
-        blocks.map((block) => loadBlockIntoMemory(block, storage))
-      );
-      for (let i = 0; i < blocks.length; i++) {
+      /* sequentially process after staged (keeps order) */
+      for (let i = 0; i < blobs.length; i++) {
         processBlock(
-          {
-            blockHeight: currentBlock,
-            blockData: blocksMapped[currentBlock],
-          },
-          callRpc,
-          storage,
+          { blockHeight: list[i], blockData: blobs[i] },
+          rpc.callRpc,
+          st,
           useTest
         );
-        currentBlock += 1;
       }
 
-      log(
-        "Committing changes from blocks into db and emitting events: " +
-          Object.keys(blocksMapped).join(", "),
-        "info"
-      );
+      await emitEvents(st);
+      await st.commitChanges();
 
-      await emitEvents(storage);
-      await storage.commitChanges();
-      //Update the current block in the DB
-      log("Block chunk finished processing!", "info");
       await Setting.update(
-        { value: currentBlock - 1 },
+        { value: String(upto) },
         { where: { name: "last_block_processed" } }
       );
     }
-    lastBlockProcessed = currentBlock;
-
-    return;
-  };
-
-  let currentBlock = lastBlockProcessed
-    ? lastBlockProcessed + 1
-    : GENESIS_BLOCK;
-
-  if (!prefetchDone) {
-    let amountPrefetch = parseInt(process.env.PREFETCH_BLOCKS ?? "100");
-    log(
-      "Prefetching previous " +
-        amountPrefetch +
-        " blocks before genesis for fast indexing... (this can take a few minutes)",
-      "info"
-    );
-    const blocksToFetch = new Array(amountPrefetch)
-      .fill(0)
-      .map((_, i) => GENESIS_BLOCK - amountPrefetch);
-    await prefetchTransactions(blocksToFetch, storage, callRpcBatch);
-    await storage.commitChanges();
-    log("Prefetching complete!", "info");
-
-    await Setting.update({ value: 1 }, { where: { name: "prefetch" } });
-  }
-
-  /*
-    Main server loop, syncnronize any time a new block is found or we are off by any amount of blocks
-  */
-  log(
-    "Polling for new blocks... Last Processed: " + lastBlockProcessed,
-    "info"
-  );
-  while (true) {
-    let latestBlock = parseInt(await callRpc("getblockcount", []));
-
-    if (currentBlock < latestBlock) {
-      log("Processing blocks " + currentBlock + " - " + latestBlock, "info");
-      await processBlocksInRange(currentBlock, latestBlock);
-      currentBlock = latestBlock + 1;
-      lastBlockProcessed = currentBlock;
-
-      log(
-        "Polling for new blocks... Last Processed: " + lastBlockProcessed,
-        "info"
-      );
-    }
-
-    await sleep(parseInt(process.env.BLOCK_CHECK_INTERVAL));
   }
 };
 
-const start = async () => {
-  if (process.argv.includes("--server")) startServer();
-  if (process.argv.includes("--rpc")) startRpc();
-};
+/* ────────────────────────────────────────────────────────────────────────────
+   bootstrap
+   ────────────────────────────────────────────────────────────────────────── */
 
-start();
+(async () => {
+  if (process.argv.includes("--rpc")) await startRpcServer();
+  if (process.argv.includes("--server")) await startIndexer();
+})();

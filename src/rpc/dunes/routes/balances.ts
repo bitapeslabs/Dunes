@@ -1,19 +1,17 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
-const { Op } = require("sequelize");
+import { Op, WhereOptions } from "sequelize";
 
-const {
-  process_many_utxo_balances,
-} = require("../lib/native/pkg/dune_parsers.js");
-const validators = require("../lib/validators.js");
-const {
+import { process_many_utxo_balances } from "../lib/native/pkg/dune_parsers.js";
+import { validators } from "../lib/validators";
+import {
   parseBalancesIntoUtxo,
   parseBalancesIntoAddress,
-} = require("../lib/parsers.js");
-const {
-  getSomeUtxoBalance,
-  getSomeAddressBalance,
-} = require("../lib/queries.js");
+} from "../lib/parsers";
+import { getSomeUtxoBalance, getSomeAddressBalance } from "../lib/queries";
+import { IJoinedBalanceInstance } from "../lib/queries";
+import { IUtxoBalance, IUtxo, IAddress } from "@/database/models/types";
+type testType = WhereOptions<IUtxo>;
 
 // — Get UTXO balances (all dunes) —
 router.get("/utxo/:utxo_index", async function (req, res) {
@@ -31,7 +29,7 @@ router.get("/utxo/:utxo_index", async function (req, res) {
       utxo: { transaction: { hash }, vout_index: vout },
     });
 
-    const results = await db.Utxo_balance.findAll(query);
+    const results = await db.UtxoBalance.findAll(query);
     if (!results?.length) {
       res.send({ error: "No UTXO found" });
       return;
@@ -71,7 +69,7 @@ router.get("/utxo/:utxo_index/:dune_protocol_id", async function (req, res) {
       dune: { dune_protocol_id },
     });
 
-    const results = await db.Utxo_balance.findAll(query);
+    const results = await db.UtxoBalance.findAll(query);
     if (!results?.length) {
       res.send({ error: "No UTXO found" });
       return;
@@ -94,7 +92,9 @@ router.get("/address/:address", async function (req, res) {
     const { address } = req.params;
 
     const query = getSomeAddressBalance(db, { address: { address } });
-    const results = await db.Balance.findAll(query);
+    const results = (await db.Balance.findAll(
+      query
+    )) as unknown as IJoinedBalanceInstance[];
 
     if (!results?.length) {
       res.send({});
@@ -128,7 +128,9 @@ router.get("/address/:address/:dune_protocol_id", async function (req, res) {
       dune: { dune_protocol_id },
     });
 
-    const results = await db.Balance.findAll(query);
+    const results = (await db.Balance.findAll(
+      query
+    )) as unknown as IJoinedBalanceInstance[];
     if (!results?.length) {
       res.send({});
       return;
@@ -165,7 +167,7 @@ router.get(
         },
       });
 
-      const results = await db.Utxo_balance.findAll(query);
+      const results = await db.UtxoBalance.findAll(query);
       if (!results?.length) {
         res.send({});
         return;
@@ -216,7 +218,7 @@ router.get(
         dune: { dune_protocol_id },
       });
 
-      const results = await db.Utxo_balance.findAll(query);
+      const results = await db.UtxoBalance.findAll(query);
       if (!results?.length) {
         res.send({});
         return;
@@ -240,4 +242,4 @@ router.get(
   }
 );
 
-module.exports = router;
+export default router;

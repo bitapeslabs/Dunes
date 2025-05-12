@@ -1,22 +1,15 @@
-const bitcoin = require("bitcoinjs-lib");
-
-const ecc = require("tiny-secp256k1");
-
-bitcoin.initEccLib(ecc);
-const validators = {
-  validInt: (n) => {
-    return !(isNaN(n) || n < 0);
+export const validators = {
+  validInt: (n: unknown): boolean => {
+    return typeof n === "number" && !isNaN(n) && n >= 0;
   },
-  validTransactionHash: (hash) => {
-    const regex = /^[a-fA-F0-9]{64}$/;
 
-    // Test the txHash against the regex
+  validTransactionHash: (hash: string): boolean => {
+    const regex = /^[a-fA-F0-9]{64}$/;
     return regex.test(hash);
   },
 
-  validProtocolId: (protocolId) => {
-    return protocolId.includes(":") && !isNaN(protocolId.split(":").join(""));
+  validProtocolId: (protocolId: string): boolean => {
+    const parts = protocolId.split(":");
+    return parts.length === 2 && parts.every((p) => /^\d+$/.test(p));
   },
 };
-
-module.exports = validators;

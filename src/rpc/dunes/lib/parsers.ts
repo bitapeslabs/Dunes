@@ -1,90 +1,121 @@
-const { simplify } = require("../../../lib/utils");
-let __debug_totalElapsedTime = {};
-let __timer;
+import { simplify } from "../../../lib/utils";
+import {
+  IUtxoBalance,
+  IDune,
+  IUtxo,
+  IAddress,
+} from "@/database/createConnection";
 
-let startTimer = () => {
+import { IJoinedBalance, IJoinedUtxoBalance } from "../lib/queries";
+
+let __debug_totalElapsedTime: Record<string, number> = {};
+let __timer = 0;
+
+const startTimer = (): void => {
   __timer = Date.now();
 };
 
-let stopTimer = (field) => {
+const stopTimer = (field: string): void => {
   __debug_totalElapsedTime[field] =
     (__debug_totalElapsedTime[field] ?? 0) + Date.now() - __timer;
 };
-const parseBalances = (rawBalances, excludeDune) => {
-  return rawBalances.reduce((acc, entry) => {
-    if (!acc[entry.dune.dune_protocol_id]) {
-      acc[entry.dune.dune_protocol_id] = {
-        balance: 0n,
+
+type ParsedBalance = {
+  [dune_protocol_id: string]: {
+    balance: string;
+    dune?: IDune;
+  };
+};
+
+const parseBalances = <T extends IJoinedUtxoBalance | IJoinedBalance>(
+  rawBalances: T[],
+  excludeDune = false
+): ParsedBalance => {
+  return rawBalances.reduce<ParsedBalance>((acc, entry) => {
+    const duneId = entry.dune?.dune_protocol_id;
+    if (!duneId) return acc;
+
+    if (!acc[duneId]) {
+      acc[duneId] = {
+        balance: "0",
         dune: entry.dune,
       };
     }
-    acc[entry.dune.dune_protocol_id].balance = (
-      BigInt(acc[entry.dune.dune_protocol_id].balance) + BigInt(entry.balance)
+
+    acc[duneId].balance = (
+      BigInt(acc[duneId].balance) + BigInt(entry.balance ?? "0")
     ).toString();
 
     if (excludeDune) {
-      delete acc[entry.dune.dune_protocol_id].dune;
+      delete acc[duneId].dune;
     }
 
     return acc;
   }, {});
 };
 
-const parseBalancesIntoAddress = (rawBalances) => {
+const parseBalancesIntoAddress = (rawBalances: IJoinedBalance[]) => {
+  const address = rawBalances[0]?.address?.address;
   return simplify({
-    address: rawBalances[0].address,
+    address,
     balances: parseBalances(rawBalances),
   });
 };
 
-const parseBalancesIntoUtxo = (rawUtxoBalances) => {
+const parseBalancesIntoUtxo = (rawUtxoBalances: IJoinedUtxoBalance[]) => {
+  const utxo = rawUtxoBalances[0]?.utxo;
   return simplify({
-    ...rawUtxoBalances[0].utxo,
+    ...utxo,
     balances: parseBalances(rawUtxoBalances),
   });
 };
 
 const parsePrevUtxoBalancesIntoAddress = (
-  rawUtxoBalances,
-  startBlock,
-  endBlock
+  rawUtxoBalances: IJoinedUtxoBalance[],
+  startBlock: number,
+  endBlock: number
 ) => {
   startTimer();
-  let balances = new Array(endBlock - startBlock + 1)
-    .fill(0)
-    .reduce((acc, _, i) => {
-      acc[startBlock + i] = {};
-      return acc;
-    }, {});
 
-  for (let utxoBalance of rawUtxoBalances) {
-    let { block, block_spent } = utxoBalance.utxo;
-    block_spent = block_spent ?? endBlock;
-    let [start, end] = [
-      block >= startBlock ? block : startBlock,
-      block_spent <= endBlock ? block_spent : endBlock,
-    ];
+  const balances: Record<number, Record<string, string>> = {};
+  for (let i = startBlock; i <= endBlock; i++) {
+    balances[i] = {};
+  }
+
+  for (const utxoBalance of rawUtxoBalances) {
+    const utxo = utxoBalance.utxo;
+    const dune = utxoBalance.dune;
+    if (!utxo || !dune?.dune_protocol_id) continue;
+
+    let block = utxo.block;
+    let block_spent = utxo.block_spent ?? endBlock;
+
+    const start = Math.max(block, startBlock);
+    const end = Math.min(block_spent, endBlock);
 
     for (let current = start; current <= end; current++) {
-      if (!balances[current][utxoBalance.dune.dune_protocol_id])
-        balances[current][utxoBalance.dune.dune_protocol_id] = "0";
+      const protoId = dune.dune_protocol_id;
+      if (!balances[current][protoId]) {
+        balances[current][protoId] = "0";
+      }
 
-      balances[current][utxoBalance.dune.dune_protocol_id] = (
-        BigInt(balances[current][utxoBalance.dune.dune_protocol_id]) +
-        BigInt(utxoBalance.balance)
+      balances[current][protoId] = (
+        BigInt(balances[current][protoId]) + BigInt(utxoBalance.balance ?? "0")
       ).toString();
     }
   }
 
   stopTimer("calc");
   console.log(__debug_totalElapsedTime);
+
   return {
-    address: rawUtxoBalances[0].utxo.address,
+    address: rawUtxoBalances[0]?.utxo?.address?.address ?? "UNKNOWN",
     balances,
   };
 };
 
-module.exports = {
+export {
+  parseBalances,
   parseBalancesIntoUtxo,
   parseBalancesIntoAddress,
   parsePrevUtxoBalancesIntoAddress,

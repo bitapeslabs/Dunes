@@ -30,6 +30,7 @@ import { IDunestone, IDunestoneIndexed } from "@/lib/dunestone";
 import { IDune, IUtxo, IUtxoBalance } from "@/database/createConnection";
 import { isPromise } from "util/types";
 import { RpcClient } from "./bitcoinrpc";
+import { Block } from "@/lib/bitcoinrpc/types";
 /* ────────────────────────────────────────────────────────────────────────────
    SHARED TYPES
    ────────────────────────────────────────────────────────────────────────── */
@@ -116,7 +117,7 @@ const stopTimer = (field: string): void => {
    ────────────────────────────────────────────────────────────────────────── */
 
 const getUnallocatedDunesFromUtxos = (
-  inputUtxos: { dune_balances?: Record<string, string> }[]
+  inputUtxos: IndexerUtxo[]
 ): IUnallocatedDunes => {
   /*
         Important: Dune Balances from this function are returned in big ints in the following format
@@ -131,7 +132,7 @@ const getUnallocatedDunesFromUtxos = (
   return inputUtxos.reduce<IUnallocatedDunes>((acc, utxo) => {
     const duneBalances =
       utxo.dune_balances !== undefined
-        ? (Object.entries(utxo.dune_balances) as [string, string][])
+        ? (Object.entries(utxo.dune_balances) as [string, bigint][])
         : [];
 
     //Sum up all Dune balances for each input UTXO
@@ -919,7 +920,9 @@ const processDunestone = (
 
     return {
       ...utxo,
-      utxo_index: utxoIndex
+      utxo_index: utxoIndex,
+      address_id: Number(utxo.address_id),
+      transaction_id: Number(utxo.transaction_id),
       dune_balances: balances.reduce((acc, utxoBalance) => {
         let duneResponse = findOne<IDune>(
           "Dune",
@@ -929,7 +932,7 @@ const processDunestone = (
         );
 
         if (!isValidResponse<IDune>(duneResponse)) {
-          return null;
+          return acc;
         }
 
         acc[duneResponse.dune_protocol_id] = utxoBalance.balance;
@@ -1029,7 +1032,7 @@ const processDunestone = (
   return;
 };
 
-const loadBlockIntoMemory = async (block, storage) => {
+const loadBlockIntoMemory = async (block: IndexerTx[], storage: Storage) => {
   /*
   Necessary indexes for building (the rest can be built afterwards)
 
@@ -1052,11 +1055,15 @@ const loadBlockIntoMemory = async (block, storage) => {
   //Load all utxos in the block's vin into memory in one call
 
   startTimer();
+
+  let currBlock = block;
   const transactionHashInputsInBlock = [
     ...new Set(
       block
-        .map((transaction) => transaction.vin.map((utxo) => utxo.txid))
-        .flat(Infinity)
+        .map((transaction: Transaction) =>
+          transaction.vin.map((utxo) => utxo.txid)
+        )
+        .flat(10)
         .filter(Boolean)
     ),
   ];
@@ -1079,7 +1086,7 @@ const loadBlockIntoMemory = async (block, storage) => {
             let foundTransaction = findOne(
               "Transaction",
               utxo.txid,
-              false,
+              undefined,
               true
             );
 
@@ -1088,7 +1095,7 @@ const loadBlockIntoMemory = async (block, storage) => {
               return null;
             }
 
-            return foundTransaction
+            return isValidResponse(foundTransaction)
               ? {
                   transaction_id: foundTransaction.id,
                   vout_index: utxo.vout,
@@ -1096,8 +1103,8 @@ const loadBlockIntoMemory = async (block, storage) => {
               : null;
           })
         )
-        .flat(Infinity)
-        .filter(Boolean)
+        .flat(10)
+        .filter(Boolean) as { transaction_id: number; vout_index: number }[]
     ),
   ];
 
@@ -1191,9 +1198,9 @@ const loadBlockIntoMemory = async (block, storage) => {
           transaction.dunestone.edicts?.map((edict) => edict.id),
         ]),
       ]
-        .flat(Infinity)
+        .flat(10)
         //0:0 refers to self, not an actual dune
-        .filter((dune) => dune && dune?.dune_protocol_id !== "0:0")
+        .filter((dune) => dune !== "0:0")
     ),
   ];
 
@@ -1294,10 +1301,15 @@ const loadBlockIntoMemory = async (block, storage) => {
   return;
 };
 
-const processBlock = (block, callRpc, storage, useTest) => {
+const processBlock = (
+  block: { blockHeight: number; blockData: IndexerTx[] },
+  callRpc: RpcClient,
+  storage: Storage,
+  useTest: boolean
+) => {
   const { blockHeight, blockData } = block;
 
-  const formatMemoryUsage = (data) =>
+  const formatMemoryUsage = (data: number) =>
     `${Math.round((data / 1024 / 1024) * 100) / 100} MB`;
 
   const memoryData = process.memoryUsage();
@@ -1350,7 +1362,4 @@ const processBlock = (block, callRpc, storage, useTest) => {
   return;
 };
 
-module.exports = {
-  processBlock,
-  loadBlockIntoMemory,
-};
+export { processBlock, loadBlockIntoMemory };
