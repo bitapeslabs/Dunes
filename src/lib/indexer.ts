@@ -75,7 +75,7 @@ const coerceIntoValid = <T>(
 
 /*  Runtime transaction shape used by the indexer
     — extends the raw Bitcoin‑RPC transaction                       */
-export interface IndexedTxExtended extends RpcTx {
+export interface IndexedTxExtended extends IndexedTx {
   /* populated by block‑reader */
   block: number;
   txIndex: number;

@@ -26,7 +26,7 @@ import { IndexedTxExtended } from "./indexer";
 /* ── shared types ─────────────────────────────────────────────────────────── */
 type RpcCall = <T>(method: string, params?: unknown[]) => Promise<T>;
 
-export interface IndexedTx {
+export interface IndexedTx extends Transaction {
   dunestone: IDunestoneIndexed;
   hash: string;
   txIndex: number;
@@ -34,11 +34,6 @@ export interface IndexedTx {
   vout: Vout[];
   vin: Vin[];
   full_tx: Transaction;
-  txid: string;
-  size: number;
-  vsize: number;
-  version: number;
-  locktime: number;
 }
 
 /* ── helpers from original JS (comments preserved) ────────────────────────── */
