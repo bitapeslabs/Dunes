@@ -87,6 +87,7 @@ router.get("/balances/:address", async (req: RequestWithDB, res: Response) => {
     const balances = (await Utxo_balance.findAll({
       ...query,
       raw: true,
+      nest: true,
     })) as unknown[];
 
     if (!balances.length) {
