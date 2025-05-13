@@ -84,6 +84,7 @@ export function includeOnlyFields<T extends object>(
 }
 
 export function simplify(obj: object): object {
+  console.log(obj);
   let flattenedObject = { ...obj };
 
   const isObject = (value: unknown): boolean =>
