@@ -20,7 +20,7 @@ type MaybeWhere<T> = WhereOptions<T> | undefined;
 
 /** Convert `null` → `undefined` because Sequelize expects `undefined`. */
 const safeWhere = <T>(w: MaybeWhere<T> | null): MaybeWhere<T> =>
-  w === null ? undefined : w;
+  w === null ? {} : w;
 
 // ───── Joined Types ─────
 export type IDuneWhereOptions = WhereOptions<IDune> & {
@@ -92,27 +92,27 @@ const IncludeTransaction = (
   model: models.Transaction,
   as: as ?? "transaction",
   where: safeWhere(where),
-  attributes: { exclude: ["id"] },
+  attributes: ["hash"],
 });
 
 const IncludeAddress = (
   models: Models,
-  as: string,
+  as?: string | null,
   where?: MaybeWhere<IAddress>
 ): IncludeOptions => ({
   model: models.Address,
-  as,
+  as: as ?? "address",
   where: safeWhere(where),
-  attributes: { exclude: ["id"] },
+  attributes: ["address"],
 });
 
 const IncludeDune = (
   models: Models,
-  as: string,
+  as?: string | null,
   where?: IDuneWhereOptions
 ): IncludeOptions => ({
   model: models.Dune,
-  as,
+  as: as ?? "dune",
   where: safeWhere(
     stripFields(where ?? {}, ["etch_transaction", "deployer_address"])
   ),
@@ -136,7 +136,7 @@ const IncludeUtxo = (
   include: [
     IncludeTransaction(models, "transaction", where?.transaction),
     IncludeTransaction(models, "transaction_spent", where?.transaction_spent),
-    IncludeAddress(models, "address", where?.address),
+    IncludeAddress(models, undefined, where?.address),
   ],
   attributes: {
     exclude: ["address_id", "transaction_id", "transaction_spent_id", "id"],
@@ -155,8 +155,8 @@ const getSomeAddressBalance = (
     stripFields(where ?? {}, ["address", "dune"]) as MaybeWhere<IBalance>
   ),
   include: [
-    IncludeAddress(models, "address", where?.address),
-    IncludeDune(models, "dune", where?.dune),
+    IncludeAddress(models, undefined, where?.address),
+    IncludeDune(models, undefined, where?.dune),
   ],
   attributes: { exclude: ["address_id", "dune_id", "id"] },
 });
@@ -171,8 +171,8 @@ const getSomeUtxoBalance = (
     stripFields(where ?? {}, ["utxo", "dune"]) as MaybeWhere<IUtxoBalance>
   ),
   include: [
-    IncludeUtxo(models, "utxo", where?.utxo),
-    IncludeDune(models, "address", where?.dune),
+    IncludeUtxo(models, undefined, where?.utxo),
+    IncludeDune(models, undefined, where?.dune),
   ],
   attributes: { exclude: ["utxo_id", "dune_id", "id"] },
 });

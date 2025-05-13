@@ -5,7 +5,12 @@ import {
   IUtxo,
   ITransaction,
 } from "@/database/createConnection";
-import { getSomeUtxoBalance, IJoinedUtxo } from "../lib/queries";
+import {
+  getSomeUtxoBalance,
+  IJoinedUtxo,
+  IJoinedUtxoBalance,
+  IJoinedUtxoBalanceInstance,
+} from "../lib/queries";
 import { simplify } from "../../../lib/utils";
 
 interface RequestWithDB extends Request {
@@ -86,16 +91,14 @@ router.get("/balances/:address", async (req: RequestWithDB, res: Response) => {
 
     const balances = (await Utxo_balance.findAll({
       ...query,
-      raw: true,
-      nest: true,
-    })) as unknown[];
+    })) as unknown as IJoinedUtxoBalanceInstance[];
 
     if (!balances.length) {
       res.json([]);
       return;
     }
 
-    res.json(balances.map((b) => simplify(b as object)));
+    res.json(balances.map((b) => simplify(b.toJSON())));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
