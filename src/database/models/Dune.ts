@@ -16,13 +16,13 @@ export type IDune = {
   decimals: number;
   premine: string;
   mints: string;
-  price_amount: string | null;
+  price_amount: number | null;
   price_pay_to: string | null;
   mint_cap: string | null;
-  mint_start: string | null;
-  mint_end: string | null;
-  mint_offset_start: string | null;
-  mint_offset_end: string | null;
+  mint_start: number | null;
+  mint_end: number | null;
+  mint_offset_start: number | null;
+  mint_offset_end: number | null;
   mint_amount: string | null;
   burnt_amount: string | null;
   etch_transaction_id: string | null; // BIGINT → string
@@ -43,13 +43,13 @@ export class Dune
   declare decimals: number;
   declare premine: string;
   declare mints: string;
-  declare price_amount: string | null;
+  declare price_amount: number | null;
   declare price_pay_to: string | null;
   declare mint_cap: string | null;
-  declare mint_start: string | null;
-  declare mint_end: string | null;
-  declare mint_offset_start: string | null;
-  declare mint_offset_end: string | null;
+  declare mint_start: number | null;
+  declare mint_end: number | null;
+  declare mint_offset_start: number | null;
+  declare mint_offset_end: number | null;
   declare mint_amount: string | null;
   declare burnt_amount: string | null;
   declare etch_transaction_id: string | null;
@@ -93,7 +93,7 @@ export class Dune
           allowNull: false,
         },
         price_amount: {
-          type: DataTypes.DECIMAL,
+          type: DataTypes.INTEGER, //expressed in satoshis so safe to use INTEGER
           allowNull: true,
         },
         price_pay_to: {
@@ -101,23 +101,23 @@ export class Dune
           allowNull: true,
         },
         mint_cap: {
-          type: DataTypes.DECIMAL,
+          type: DataTypes.DECIMAL, //height will always be a > u32::MAX
           allowNull: true,
         },
         mint_start: {
-          type: DataTypes.DECIMAL,
+          type: DataTypes.INTEGER,
           allowNull: true,
         },
         mint_end: {
-          type: DataTypes.DECIMAL,
+          type: DataTypes.INTEGER,
           allowNull: true,
         },
         mint_offset_start: {
-          type: DataTypes.DECIMAL,
+          type: DataTypes.INTEGER,
           allowNull: true,
         },
         mint_offset_end: {
-          type: DataTypes.DECIMAL,
+          type: DataTypes.INTEGER,
           allowNull: true,
         },
         mint_amount: {

@@ -498,7 +498,7 @@ const processMint = (
     }
 
     let mintAmount = BigInt(duneToMint.mint_amount ?? "0");
-    let isFlex = duneToMint.price_amount != "0";
+    let isFlex = duneToMint.price_amount != null;
 
     if (isFlex) {
       const payTo = duneToMint.price_pay_to;
@@ -669,10 +669,10 @@ const processEtching = (
 
     mint_cap: etching.terms?.cap ?? null, // null for no cap, otherwise the cap
     mint_amount: etching.terms?.amount ?? null,
-    mint_start: etching.terms?.height?.[0]?.toString() ?? null,
-    mint_end: etching.terms?.height?.[1]?.toString() ?? null,
-    mint_offset_start: etching.terms?.offset?.[0]?.toString() ?? null,
-    mint_offset_end: etching.terms?.offset?.[1]?.toString() ?? null,
+    mint_start: etching.terms?.height?.[0] ?? null,
+    mint_end: etching.terms?.height?.[1] ?? null,
+    mint_offset_start: etching.terms?.offset?.[0] ?? null,
+    mint_offset_end: etching.terms?.offset?.[1] ?? null,
     price_amount: etching.terms?.price?.amount ?? null,
     price_pay_to: etching.terms?.price?.pay_to ?? null,
     turbo: etching.turbo,

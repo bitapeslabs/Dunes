@@ -170,16 +170,12 @@ const startRpc = async (): Promise<void> => {
 /* ──────────────────────────────────────────────────────────
    indexer  (block‑sync loop)
    ──────────────────────────────────────────────────────── */
-const startServer = async (): Promise<void> => {
+const startServer = async (storage: IStorage): Promise<void> => {
   if (!global.gc) {
     log("Run Node with  --expose-gc  to enable manual GC", "error");
     return;
   }
 
-  const freshDb = process.argv.includes("--new");
-  const useTest = process.argv.includes("--test");
-
-  const storage = await newStorage(freshDb);
   const db = storage.db;
   const Setting = db.Setting as unknown as ISetting;
 
@@ -262,7 +258,7 @@ const startServer = async (): Promise<void> => {
           { blockHeight: list[i], blockData: b },
           rpcClient,
           storage,
-          useTest
+          false
         )
       );
 
@@ -274,7 +270,14 @@ const startServer = async (): Promise<void> => {
   }
 };
 
-(async () => {
-  if (process.argv.includes("--server")) startServer();
+const start = async (): Promise<void> => {
+  const freshDb = process.argv.includes("--new");
+  const useTest = process.argv.includes("--test");
+
+  const storage = await newStorage(freshDb);
+
+  if (process.argv.includes("--server")) startServer(storage);
   if (process.argv.includes("--rpc")) startRpc();
-})();
+};
+
+start();

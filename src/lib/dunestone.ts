@@ -4,6 +4,7 @@ import { Transaction } from "@/lib/bitcoinrpc/types";
 const MAX_U128 = (1n << 128n) - 1n;
 const MAX_U32 = 0xffff_ffff;
 const MAX_U8 = 0xff;
+const MAX_SATOSHI_EVER_IN_CIRCULATION = 2100000000000000;
 
 const isValidU128 = (s: string) => {
   try {
@@ -13,6 +14,20 @@ const isValidU128 = (s: string) => {
     return false;
   }
 };
+
+const satoshi = z.preprocess((v) => {
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    if (
+      Number.isSafeInteger(n) &&
+      n >= 0 &&
+      n <= MAX_SATOSHI_EVER_IN_CIRCULATION
+    ) {
+      return n; // ✅ successful cast
+    }
+  }
+  return v; // ❌ leave as‑is (string)
+}, z.number().int().nonnegative().max(MAX_SATOSHI_EVER_IN_CIRCULATION));
 
 const duneAmount = z.string().refine(
   (s) => {
@@ -26,7 +41,7 @@ const u8 = () => z.number().int().nonnegative().max(MAX_U8);
 
 /* ── 2. new PriceTerms schema ───────────────────────── */
 export const PriceTermsSchema = z.object({
-  amount: duneAmount,
+  amount: satoshi, // Max amount of satoshi there will ever be (accepts string for legacy bigint)
   pay_to: z.string().max(130, "pay_to address may be up to 130 chars"),
 });
 
@@ -68,7 +83,7 @@ export const MintSchema = z
   });
 
 export const EtchingSchema = z.object({
-  divisibility: u8(),
+  divisibility: z.number().int().nonnegative().max(18), //Avoid jeet precision
   premine: duneAmount,
   dune: z
     .string()

@@ -58,8 +58,9 @@ export const GENESIS_DUNESTONE = {
       height: [4326248, null],
       offset: [null, null],
       price: {
-        amount: 21000n,
-        pay_to: "bc1qvn6ecmzd42ksa252tntu9yw358yhujcznq9zxs",
+        amount: 21000,
+        pay_to:
+          "tb1p8888zulc047mg3mf252tqeagc2feeh8a2pqn87arzd80t9qdkgcqkf8y5h",
       },
     },
   } as IDunestoneIndexed["etching"],

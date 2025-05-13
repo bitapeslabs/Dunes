@@ -425,7 +425,6 @@ const isMintOpen = (
     dune_protocol_id,
     unmintable,
   } = Dune;
-
   if (unmintable) return false;
 
   let [creationBlock, creationTxIndex] = dune_protocol_id
@@ -440,10 +439,9 @@ const isMintOpen = (
   let mint_offset_start: number =
     Number(raw_mint_offset_start ?? 0) + creationBlock;
   let mint_offset_end: number =
-    Number(raw_mint_offset_end ?? 0) + creationBlock;
+    Number(raw_mint_offset_end ?? Infinity) + creationBlock;
 
   const total_mints = BigInt(mints) + (mint_offset ? 1n : 0n);
-
   if (mint_cap && total_mints > BigInt(mint_cap)) return false;
 
   const starts = [mint_start, mint_offset_start]
@@ -457,7 +455,6 @@ const isMintOpen = (
     starts.length === 2
       ? Math.max(Number(mint_start ?? creationBlock), mint_offset_start)
       : starts[0] ?? creationBlock;
-
   const end =
     ends.length === 2
       ? Math.min(Number(mint_end ?? mint_offset_end), mint_offset_end)
@@ -470,7 +467,7 @@ const isMintOpen = (
  * Ensure a tx meets price terms (amount + pay_to).
  */
 function isPriceTermsMet(dune: IDune, transaction: Transaction): boolean {
-  if (!dune?.price_amount || !dune?.price_pay_to) return true; // auto OK
+  if (dune?.price_amount == null) return true; // auto OK
 
   const price = BigInt(dune?.price_amount);
   const payTo = dune?.price_pay_to;
@@ -478,6 +475,7 @@ function isPriceTermsMet(dune: IDune, transaction: Transaction): boolean {
   const payOutputs = transaction.vout.filter(
     (v) => v.scriptPubKey?.address === payTo
   );
+
   if (!payOutputs.length) return false;
 
   const paid = payOutputs.reduce((acc, v) => acc + btcToSats(v.value), 0n);

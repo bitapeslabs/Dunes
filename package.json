@@ -4,9 +4,10 @@
   "description": "Dunes is runes, but without the runestone decoder or commitmenets - instead leveraging the new op_return size limit.",
   "main": "src/ndex.js",
   "scripts": {
-    "build": "node esbuild.config.mjs",
-    "start-new": "npm run build && node --expose-gc ./dist/index.js -- --new -- --server -- --rpc",
-    "resume": "npm run build && node --expose-gc ./dist/index.js --server --rpc",
+    "build-native": "wasm-pack build ./src/rpc/dunes/lib/native --target nodejs --out-dir ../../../../../dist",
+    "build": "node esbuild.config.mjs && npm run build-native",
+    "start-new": "node --expose-gc ./dist/index.js --new --server --rpc",
+    "resume": "node --expose-gc ./dist/index.js --server --rpc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
