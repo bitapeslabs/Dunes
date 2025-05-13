@@ -11,6 +11,57 @@ import { IJoinedBalanceInstance, IJoinedDuneInstance } from "../lib/queries"; //
 
 const router = Router();
 
+router.get("/all", async (req: Request, res: Response): Promise<void> => {
+  const rawPage = Number(req.query.page ?? 1);
+  const rawLimit = Number(req.query.limit ?? 100);
+
+  const page = Math.max(rawPage || 1, 1);
+  const limit = Math.min(Math.max(rawLimit || 100, 1), 500);
+  const offset = (page - 1) * limit;
+
+  try {
+    const { Dune, Transaction, Address } = req.db;
+
+    /* ── 1. total count ────────────────────────────────────────────────── */
+    const total_etchings = await Dune.count();
+
+    /* ── 2. fetch one page of etchings ─────────────────────────────────── */
+    const etchings = (await Dune.findAll({
+      include: [
+        {
+          model: Transaction,
+          as: "etch_transaction",
+          attributes: ["hash"],
+          required: false,
+        },
+        {
+          model: Address,
+          as: "deployer_address",
+          attributes: ["address"],
+          required: false,
+        },
+      ],
+      order: [["id", "DESC"]],
+      limit,
+      offset,
+      attributes: {
+        exclude: ["etch_transaction_id", "deployer_address_id"],
+      },
+    })) as IJoinedDuneInstance[];
+
+    /* ── 3. response ──────────────────────────────────────────────────── */
+    res.status(200).json({
+      total_etchings,
+      page,
+      limit,
+      etchings: etchings.map((e) => simplify(e.toJSON())),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get(
   "/info/:identifier",
   async (req: Request, res: Response): Promise<void> => {
