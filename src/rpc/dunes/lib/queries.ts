@@ -97,22 +97,22 @@ const IncludeTransaction = (
 
 const IncludeAddress = (
   models: Models,
-  as?: string | null,
+  as: string,
   where?: MaybeWhere<IAddress>
 ): IncludeOptions => ({
   model: models.Address,
-  as: as ?? "address",
+  as,
   where: safeWhere(where),
   attributes: { exclude: ["id"] },
 });
 
 const IncludeDune = (
   models: Models,
-  as?: string | null,
+  as: string,
   where?: IDuneWhereOptions
 ): IncludeOptions => ({
   model: models.Dune,
-  as: as ?? "dune",
+  as,
   where: safeWhere(
     stripFields(where ?? {}, ["etch_transaction", "deployer_address"])
   ),
@@ -136,7 +136,7 @@ const IncludeUtxo = (
   include: [
     IncludeTransaction(models, "transaction", where?.transaction),
     IncludeTransaction(models, "transaction_spent", where?.transaction_spent),
-    IncludeAddress(models, undefined, where?.address),
+    IncludeAddress(models, "address", where?.address),
   ],
   attributes: {
     exclude: ["address_id", "transaction_id", "transaction_spent_id", "id"],
@@ -155,8 +155,8 @@ const getSomeAddressBalance = (
     stripFields(where ?? {}, ["address", "dune"]) as MaybeWhere<IBalance>
   ),
   include: [
-    IncludeAddress(models, undefined, where?.address),
-    IncludeDune(models, undefined, where?.dune),
+    IncludeAddress(models, "address", where?.address),
+    IncludeDune(models, "dune", where?.dune),
   ],
   attributes: { exclude: ["address_id", "dune_id", "id"] },
 });
@@ -171,8 +171,8 @@ const getSomeUtxoBalance = (
     stripFields(where ?? {}, ["utxo", "dune"]) as MaybeWhere<IUtxoBalance>
   ),
   include: [
-    IncludeUtxo(models, undefined, where?.utxo),
-    IncludeDune(models, undefined, where?.dune),
+    IncludeUtxo(models, "utxo", where?.utxo),
+    IncludeDune(models, "address", where?.dune),
   ],
   attributes: { exclude: ["utxo_id", "dune_id", "id"] },
 });
