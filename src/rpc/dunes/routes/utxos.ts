@@ -84,14 +84,17 @@ router.get("/balances/:address", async (req: RequestWithDB, res: Response) => {
       utxo: { address: { address }, block_spent: null },
     });
 
-    const balances = (await Utxo_balance.findAll(query)) as unknown[];
+    const balances = (await Utxo_balance.findAll({
+      ...query,
+      raw: true,
+    })) as unknown[];
 
     if (!balances.length) {
       res.json([]);
       return;
     }
 
-    res.json(balances.map((b) => simplify(b)));
+    res.json(balances.map((b) => simplify(b as object)));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
