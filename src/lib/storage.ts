@@ -17,6 +17,8 @@ export function isPromise<T>(obj: T | Promise<T>): obj is Promise<T> {
   return typeof (obj as Promise<T>).then === "function";
 }
 
+type SpecifiedModels = keyof typeof LOCAL_PRIMARY_KEYS;
+
 /* ── primitive helpers ────────────────────────────────────────────────────── */
 
 type IndexKey = string | number; // keys allowed for maps
@@ -100,7 +102,7 @@ export async function storage(useSync = false) {
     return (res[0]?.nextval ? parseInt(res[0].nextval, 10) : 1) - 1;
   };
 
-  const addRowToGroups = (model: string, row: ModelRow) => {
+  const addRowToGroups = (model: SpecifiedModels, row: ModelRow) => {
     const cfg = BUILD_GROUPS[model as keyof typeof BUILD_GROUPS];
     if (!cfg) return;
     cfg.forEach((field) => {
@@ -110,7 +112,7 @@ export async function storage(useSync = false) {
     });
   };
 
-  const updateReferences = (model: string, row: ModelRow) => {
+  const updateReferences = (model: SpecifiedModels, row: ModelRow) => {
     const rf = REFERENCE_FIELDS[model as keyof typeof REFERENCE_FIELDS];
     if (!rf) return;
     rf.forEach((f) => {
@@ -118,7 +120,7 @@ export async function storage(useSync = false) {
     });
   };
 
-  const buildIndexes = (row: ModelRow, model: string): ModelRow => {
+  const buildIndexes = (row: ModelRow, model: SpecifiedModels): ModelRow => {
     const cfg = BUILD_FIELDS[model as keyof typeof BUILD_FIELDS];
     if (!cfg) return row;
     Object.entries(cfg).forEach(([flag, comps]) => {
@@ -150,7 +152,7 @@ export async function storage(useSync = false) {
   };
 
   const loadManyIntoMemory = async (
-    model: string,
+    model: SpecifiedModels,
     where: Record<string, unknown>
   ): Promise<ModelRow[]> => {
     const Model: ModelStatic<any> = (db as any)[model];
@@ -170,7 +172,7 @@ export async function storage(useSync = false) {
   };
 
   const updateAttribute = (
-    model: string,
+    model: SpecifiedModels,
     key: IndexKey,
     attr: string,
     val: Scalar
@@ -185,7 +187,7 @@ export async function storage(useSync = false) {
   };
 
   const findOne = <T extends ModelRow>(
-    model: string,
+    model: SpecifiedModels,
     value: string,
     attribute?: string,
     ignoreDb = false
@@ -207,7 +209,7 @@ export async function storage(useSync = false) {
   };
 
   const fetchGroupLocally = (
-    model: string,
+    model: SpecifiedModels,
     groupKey: string,
     value: IndexKey
   ) => groups[model]?.[groupKey]?.[value] ?? [];
@@ -224,7 +226,7 @@ export async function storage(useSync = false) {
   };
 
   const findManyInFilter = <T extends ModelRow>(
-    model: string,
+    model: SpecifiedModels,
     filters: Filter[],
     ignoreDb = false
   ): T[] | Promise<T[]> => {
@@ -281,7 +283,7 @@ export async function storage(useSync = false) {
   };
 
   const create = <T extends ModelRow>(
-    model: string,
+    model: SpecifiedModels,
     data: Record<string, Scalar>
   ): T => {
     const pk = LOCAL_PRIMARY_KEYS[model as keyof typeof LOCAL_PRIMARY_KEYS];
@@ -298,7 +300,7 @@ export async function storage(useSync = false) {
   };
 
   const findOrCreate = <T extends ModelRow>(
-    model: string,
+    model: SpecifiedModels,
     key: string,
     defaults: Record<string, Scalar>,
     ignoreDb = true
