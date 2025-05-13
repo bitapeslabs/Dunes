@@ -84,28 +84,42 @@ export function includeOnlyFields<T extends object>(
 }
 
 export function simplify<T>(obj: T): T {
-  function hasOneKey(o: Record<string, unknown>): boolean {
-    return typeof o === "object" && o !== null && Object.keys(o).length === 1;
-  }
-  function recurse(value: unknown): unknown {
-    if (Array.isArray(value)) return value.map(recurse);
-    if (typeof value === "object" && value !== null) {
-      const result: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(value)) {
-        if (
-          hasOneKey(v as Record<string, unknown>) &&
-          typeof Object.values(v)[0] !== "object"
-        ) {
-          result[k] = Object.values(v)[0];
-        } else {
-          result[k] = recurse(v);
-        }
-      }
-      return result;
+  // Objects we've already visited – prevents infinite loops on cycles
+  const seen = new WeakSet<object>();
+
+  function collapse(value: unknown): unknown {
+    // primitives (string, number, bigint, boolean, symbol, undefined, null)
+    if (value === null || typeof value !== "object") return value;
+
+    // break cycles
+    if (seen.has(value)) return value;
+    seen.add(value as object);
+
+    // arrays – process each element
+    if (Array.isArray(value)) {
+      return value.map(collapse);
     }
-    return value;
+
+    // plain object
+    const keys = Object.keys(value as Record<string, unknown>);
+
+    if (
+      keys.length === 1 &&
+      typeof (value as Record<string, unknown>)[keys[0]] !== "object"
+    ) {
+      // collapse { k: primitive } => primitive
+      return (value as Record<string, unknown>)[keys[0]];
+    }
+
+    // recurse normally
+    const out: Record<string, unknown> = {};
+    for (const k of keys) {
+      out[k] = collapse((value as Record<string, unknown>)[k]);
+    }
+    return out;
   }
-  return recurse(obj) as T;
+
+  return collapse(obj) as T;
 }
 
 export function stripValue(obj: unknown): unknown {
