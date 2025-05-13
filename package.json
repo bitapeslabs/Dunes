@@ -1,33 +1,32 @@
 {
-  "name": "runeapes.runedexer",
+  "name": "dunes",
   "version": "1.0.0",
-  "description": "![alt text](https://i.ibb.co/hdfS3k8/rundexer-Banner-1.png)",
-  "main": "index.js",
+  "description": "Dunes is runes, but without the runestone decoder or commitmenets - instead leveraging the new op_return size limit.",
+  "main": "src/ndex.js",
   "scripts": {
+    "build-native": "wasm-pack build ./src/rpc/dunes/lib/native --target nodejs --out-dir ../../../../../dist",
+    "build": "node esbuild.config.mjs && npm run build-native",
+    "start-new": "node --expose-gc ./dist/index.js --new --server --rpc",
+    "resume": "node --expose-gc ./dist/index.js --server --rpc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@cmdcode/tapscript": "^1.4.6",
-    "@ordjs/runestone": "^1.6.0",
-    "@runeapes/apeutils": "^1.0.1",
+    "@dotenv-run/esbuild": "^1.5.0",
     "@sequelize/postgres": "^7.0.0-alpha.41",
+    "@types/express": "^5.0.1",
     "axios": "^1.7.1",
     "bitcoin-core": "^4.2.0",
     "bitcoinjs-lib": "^6.1.6",
-    "dotenv": "^16.4.5",
-    "execa": "^9.1.0",
+    "chalk": "^5.4.1",
+    "esbuild": "^0.25.4",
     "express": "^4.19.2",
     "pg": "^8.12.0",
     "pg-hstore": "^2.3.4",
-    "runelib": "^1.0.6",
-    "sequelize": "^6.37.3",
-    "tiny-secp256k1": "^2.2.3",
-    "xxhashjs": "^0.2.2"
-  },
-  "bin": {
-    "nana": "./bin/run.js"
+    "sequelize": "^6.37.7",
+    "xxhashjs": "^0.2.2",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@types/node": "^18.19.39",

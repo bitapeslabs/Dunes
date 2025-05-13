@@ -1,6 +1,6 @@
 require("dotenv").config({ path: "../.env" });
 
-const { checkCommitment } = require("../src/lib/runeutils");
+const { checkCommitment } = require("../src/lib/duneutils");
 const { createRpcClient } = require("../src/lib/btcrpc");
 
 const start = async () => {
@@ -15,12 +15,7 @@ const start = async () => {
     true,
   ]);
 
-  let commitCheck = await checkCommitment(
-    "RUNEAPESSHARES",
-    Tx,
-    841675,
-    callRpc
-  );
+  let commitCheck = await checkCommitment("DUNES", Tx, 841675, callRpc);
 
   console.log(commitCheck);
 };
