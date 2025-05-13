@@ -498,7 +498,7 @@ const processMint = (
     }
 
     let mintAmount = BigInt(duneToMint.mint_amount ?? "0");
-    let isFlex = duneToMint.price_amount != null;
+    let isFlex = duneToMint.price_amount != null && mintAmount == 0n;
 
     if (isFlex) {
       const payTo = duneToMint.price_pay_to;
