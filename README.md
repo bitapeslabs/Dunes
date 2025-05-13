@@ -8,7 +8,6 @@ To install:
 
 ```bash
 npm i -g dunes-cli
-
 dunes-cli --help
 ```
 
