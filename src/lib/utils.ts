@@ -83,45 +83,32 @@ export function includeOnlyFields<T extends object>(
   return Object.keys(filtered).length ? filtered : null;
 }
 
-export function simplify<T>(obj: T): T {
-  // Objects we've already visited – prevents infinite loops on cycles
-  const seen = new WeakSet<object>();
+export function simplify(obj: object): object {
+  let flattenedObject = { ...obj };
 
-  function collapse(value: unknown): unknown {
-    // primitives (string, number, bigint, boolean, symbol, undefined, null)
-    if (value === null || typeof value !== "object") return value;
+  const isObject = (value: unknown): boolean =>
+    typeof value === "object" && !Array.isArray(value) && value !== null;
+  const checkForFlatten = () =>
+    Object.values(flattenedObject).filter((value) =>
+      isObject(value) ? Object.values(value ?? {})?.length > 0 : false
+    ).length !== 0;
 
-    // break cycles
-    if (seen.has(value)) return value;
-    seen.add(value as object);
-
-    // arrays – process each element
-    if (Array.isArray(value)) {
-      return value.map(collapse);
+  while (checkForFlatten()) {
+    let flattenedGroup = {} as Record<string, unknown>;
+    for (let [key, value] of Object.entries(flattenedObject)) {
+      if (isObject(value) && Object.keys(value as object).length === 1) {
+        flattenedGroup[key] = Object.values(value as object)[0];
+      } else if (isObject(value)) {
+        flattenedGroup = { ...flattenedGroup, ...(value as object) };
+      } else {
+        flattenedGroup[key] = value;
+      }
     }
-
-    // plain object
-    const keys = Object.keys(value as Record<string, unknown>);
-
-    if (
-      keys.length === 1 &&
-      typeof (value as Record<string, unknown>)[keys[0]] !== "object"
-    ) {
-      // collapse { k: primitive } => primitive
-      return (value as Record<string, unknown>)[keys[0]];
-    }
-
-    // recurse normally
-    const out: Record<string, unknown> = {};
-    for (const k of keys) {
-      out[k] = collapse((value as Record<string, unknown>)[k]);
-    }
-    return out;
+    flattenedObject = { ...flattenedGroup };
   }
 
-  return collapse(obj) as T;
+  return flattenedObject;
 }
-
 export function stripValue(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null) return obj;
   if ("_value" in obj)
