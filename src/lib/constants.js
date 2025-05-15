@@ -15,7 +15,7 @@ const GENESIS_DUNESTONE = {
     turbo: true,
     terms: {
       amount: 100n,
-      cap: 1000000n,
+      cap: 10000n,
       height: [4326248, null],
       offset: [null, null],
       price: {
