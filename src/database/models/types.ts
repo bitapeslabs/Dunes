@@ -1,4 +1,4 @@
-import * as Dune from "./Dune";
+import * as Mezcal from "./Mezcal";
 import * as Address from "./Address";
 import * as Balance from "./Balance";
 import * as Events from "./Events";
@@ -9,14 +9,14 @@ import * as UtxoBalance from "./Utxo_balance";
 
 export * from "./Address";
 export * from "./Balance";
-export * from "./Dune";
+export * from "./Mezcal";
 export * from "./Events";
 export * from "./Settings";
 export * from "./Transaction";
 export * from "./Utxo";
 export * from "./Utxo_balance";
 
-export type IDuneModel = typeof Dune.Dune;
+export type IMezcalModel = typeof Mezcal.Mezcal;
 export type IBalanceModel = typeof Balance.Balance;
 export type IAddressModel = typeof Address.Address;
 export type ITransactionModel = typeof Transaction.Transaction;

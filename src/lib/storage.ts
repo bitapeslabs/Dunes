@@ -37,7 +37,7 @@ type GroupCache = Record<string, Record<string, Record<IndexKey, ModelRow[]>>>;
 
 const BUILD_FIELDS = {
   Utxo: { utxo_index: ["transaction_id", "vout_index"] },
-  Balance: { balance_index: ["address_id", "dune_id"] },
+  Balance: { balance_index: ["address_id", "mezcal_id"] },
 } as const;
 
 const BUILD_GROUPS = {
@@ -48,7 +48,7 @@ const BUILD_GROUPS = {
 const LOCAL_PRIMARY_KEYS = {
   Address: "address",
   Transaction: "hash",
-  Dune: "dune_protocol_id",
+  Mezcal: "mezcal_protocol_id",
   Balance: "balance_index",
   Utxo: "utxo_index",
   Utxo_balance: "id",
@@ -56,7 +56,7 @@ const LOCAL_PRIMARY_KEYS = {
 } as const;
 
 const REFERENCE_FIELDS = {
-  Dune: ["name", "id"],
+  Mezcal: ["name", "id"],
   Address: ["id"],
   Transaction: ["id"],
 } as const;

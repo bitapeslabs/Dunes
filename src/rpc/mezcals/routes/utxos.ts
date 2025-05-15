@@ -78,7 +78,7 @@ router.get("/:address", async (req: RequestWithDB, res: Response) => {
 });
 
 /* ──────────────────────────────────────────────────────────────
-   GET  /balances/:address  → current dune balances for address
+   GET  /balances/:address  → current mezcal balances for address
    ──────────────────────────────────────────────────────────── */
 router.get("/balances/:address", async (req: RequestWithDB, res: Response) => {
   try {

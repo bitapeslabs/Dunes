@@ -11,7 +11,7 @@ pub fn process_many_utxo_balances(
     block_start: u32,
     block_end: u32,
 ) -> Result<JsValue, JsValue> {
-    let mut dunes: HashMap<String, u32> = HashMap::new();
+    let mut mezcals: HashMap<String, u32> = HashMap::new();
 
     // Parse the input JSON string
     let parsed =
@@ -21,31 +21,31 @@ pub fn process_many_utxo_balances(
         .as_array()
         .ok_or_else(|| JsValue::from_str("Invalid utxo array passed"))?;
 
-    // Create dunes map
-    let mut total_dunes = 0;
+    // Create mezcals map
+    let mut total_mezcals = 0;
     for (index, utxo) in utxos.iter().enumerate() {
-        let dune_protocol_id = utxo
-            .get("dune")
-            .and_then(|dune| dune.get("dune_protocol_id"))
+        let mezcal_protocol_id = utxo
+            .get("mezcal")
+            .and_then(|mezcal| mezcal.get("mezcal_protocol_id"))
             .and_then(|a| a.as_str())
             .ok_or_else(|| {
-                JsValue::from_str(&format!("Invalid dune_protocol_id at utxo #{}", index))
+                JsValue::from_str(&format!("Invalid mezcal_protocol_id at utxo #{}", index))
             })?;
 
-        if dunes.contains_key(&dune_protocol_id.to_string()) {
+        if mezcals.contains_key(&mezcal_protocol_id.to_string()) {
             continue;
         }
-        dunes.insert(dune_protocol_id.to_string(), total_dunes);
-        total_dunes += 1;
+        mezcals.insert(mezcal_protocol_id.to_string(), total_mezcals);
+        total_mezcals += 1;
     }
 
     let block_range: u32 = block_end - block_start;
 
-    if block_range * total_dunes > MAX_COMPLEXITY {
+    if block_range * total_mezcals > MAX_COMPLEXITY {
         return Err(JsValue::from_str("The range and balance size is too large"));
     }
 
-    let mut balances: Vec<Vec<u128>> = vec![vec![0; total_dunes as usize]; block_range as usize];
+    let mut balances: Vec<Vec<u128>> = vec![vec![0; total_mezcals as usize]; block_range as usize];
 
     for (index, utxo) in utxos.iter().enumerate() {
         let balance = utxo
@@ -57,18 +57,18 @@ pub fn process_many_utxo_balances(
                 JsValue::from_str(&format!("Invalid balance format at utxo #{}", index))
             })?;
 
-        let dune_protocol_id = utxo
-            .get("dune")
-            .and_then(|dune| dune.get("dune_protocol_id"))
+        let mezcal_protocol_id = utxo
+            .get("mezcal")
+            .and_then(|mezcal| mezcal.get("mezcal_protocol_id"))
             .and_then(|a| a.as_str())
             .ok_or_else(|| {
-                JsValue::from_str(&format!("Invalid dune_protocol_id at utxo #{}", index))
+                JsValue::from_str(&format!("Invalid mezcal_protocol_id at utxo #{}", index))
             })?;
 
-        let balance_id = dunes
-            .get(&dune_protocol_id.to_string())
+        let balance_id = mezcals
+            .get(&mezcal_protocol_id.to_string())
             .ok_or_else(|| {
-                JsValue::from_str(&format!("Invalid dune_protocol_id at utxo #{}", index))
+                JsValue::from_str(&format!("Invalid mezcal_protocol_id at utxo #{}", index))
             })?
             .clone() as usize;
 
@@ -142,14 +142,14 @@ pub fn process_many_utxo_balances(
     });
 
     if let Value::Object(ref mut balances_map) = result["balances"] {
-        for (current_block_index, dunes_in_block) in balances.iter().enumerate() {
+        for (current_block_index, mezcals_in_block) in balances.iter().enumerate() {
             let block_num = (current_block_index as u32) + block_start;
 
             let mut block_balances: HashMap<String, String> = HashMap::new();
-            for (dune_protocol_id, dune_map_index) in dunes.iter() {
+            for (mezcal_protocol_id, mezcal_map_index) in mezcals.iter() {
                 block_balances.insert(
-                    dune_protocol_id.clone(),
-                    dunes_in_block[*dune_map_index as usize].to_string(),
+                    mezcal_protocol_id.clone(),
+                    mezcals_in_block[*mezcal_map_index as usize].to_string(),
                 );
             }
 

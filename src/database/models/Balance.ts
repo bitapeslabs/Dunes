@@ -8,7 +8,7 @@ import {
 
 export type IBalance = {
   id: string; // bigint coerced to string
-  dune_id: string; // bigint coerced to string
+  mezcal_id: string; // bigint coerced to string
   address_id: string; // bigint coerced to string
   balance: string; // decimal stored as string
 };
@@ -18,7 +18,7 @@ export class Balance
   implements IBalance
 {
   declare id: CreationOptional<string>;
-  declare dune_id: string;
+  declare mezcal_id: string;
   declare address_id: string;
   declare balance: string;
 
@@ -31,7 +31,7 @@ export class Balance
           autoIncrement: true,
           allowNull: false,
         },
-        dune_id: {
+        mezcal_id: {
           type: DataTypes.BIGINT,
           allowNull: false,
         },
@@ -50,8 +50,8 @@ export class Balance
         timestamps: false,
         indexes: [
           { fields: ["address_id"], using: "BTREE" },
-          { fields: ["address_id", "dune_id"], using: "BTREE" },
-          { fields: ["dune_id"], using: "BTREE" },
+          { fields: ["address_id", "mezcal_id"], using: "BTREE" },
+          { fields: ["mezcal_id"], using: "BTREE" },
         ],
       }
     );

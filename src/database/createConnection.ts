@@ -1,7 +1,7 @@
 import { Sequelize } from "sequelize";
 import { log } from "@/lib/utils";
 import {
-  Dune,
+  Mezcal,
   Balance,
   Utxo,
   Setting,
@@ -15,7 +15,7 @@ import { DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME } from "@/lib/consts";
 export const models = {} as Models;
 
 export interface Models {
-  Dune: typeof Dune;
+  Mezcal: typeof Mezcal;
   Balance: typeof Balance;
   Utxo: typeof Utxo;
   Setting: typeof Setting;
@@ -39,7 +39,7 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
   );
 
   // Initialize models
-  models.Dune = Dune.initialize(sequelize);
+  models.Mezcal = Mezcal.initialize(sequelize);
   models.Balance = Balance.initialize(sequelize);
   models.Utxo = Utxo.initialize(sequelize);
   models.Setting = Setting.initialize(sequelize);
@@ -53,9 +53,9 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
     foreignKey: "utxo_id",
     as: "utxo",
   });
-  models.Utxo_balance.belongsTo(models.Dune, {
-    foreignKey: "dune_id",
-    as: "dune",
+  models.Utxo_balance.belongsTo(models.Mezcal, {
+    foreignKey: "mezcal_id",
+    as: "mezcal",
   });
 
   models.Utxo.belongsTo(models.Address, {
@@ -71,11 +71,11 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
     as: "transaction_spent",
   });
 
-  models.Dune.belongsTo(models.Transaction, {
+  models.Mezcal.belongsTo(models.Transaction, {
     foreignKey: "etch_transaction_id",
     as: "etch_transaction",
   });
-  models.Dune.belongsTo(models.Address, {
+  models.Mezcal.belongsTo(models.Address, {
     foreignKey: "deployer_address_id",
     as: "deployer_address",
   });
@@ -84,7 +84,10 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
     foreignKey: "transaction_id",
     as: "transaction",
   });
-  models.Event.belongsTo(models.Dune, { foreignKey: "dune_id", as: "dune" });
+  models.Event.belongsTo(models.Mezcal, {
+    foreignKey: "mezcal_id",
+    as: "mezcal",
+  });
   models.Event.belongsTo(models.Address, {
     foreignKey: "from_address_id",
     as: "from_address",
@@ -98,7 +101,10 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
     foreignKey: "address_id",
     as: "address",
   });
-  models.Balance.belongsTo(models.Dune, { foreignKey: "dune_id", as: "dune" });
+  models.Balance.belongsTo(models.Mezcal, {
+    foreignKey: "mezcal_id",
+    as: "mezcal",
+  });
 
   models.Utxo.hasMany(models.Utxo_balance, {
     foreignKey: "utxo_id",
@@ -108,9 +114,9 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
     foreignKey: "address_id",
     as: "utxos",
   });
-  models.Address.hasMany(models.Dune, {
+  models.Address.hasMany(models.Mezcal, {
     foreignKey: "deployer_address_id",
-    as: "dunes_etched",
+    as: "mezcals_etched",
   });
 
   models.Transaction.hasMany(models.Utxo, {
@@ -121,16 +127,19 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
     foreignKey: "transaction_spent_id",
     as: "utxos_spent",
   });
-  models.Transaction.hasMany(models.Dune, {
+  models.Transaction.hasMany(models.Mezcal, {
     foreignKey: "etch_transaction_id",
-    as: "dunes_etched",
+    as: "mezcals_etched",
   });
   models.Transaction.hasMany(models.Event, {
     foreignKey: "transaction_id",
     as: "all_events",
   });
 
-  models.Dune.hasMany(models.Event, { foreignKey: "dune_id", as: "events" });
+  models.Mezcal.hasMany(models.Event, {
+    foreignKey: "mezcal_id",
+    as: "events",
+  });
   models.Address.hasMany(models.Event, {
     foreignKey: "from_address_id",
     as: "to_events",
@@ -143,9 +152,12 @@ export async function databaseConnection(forceSync = false): Promise<Models> {
     foreignKey: "address_id",
     as: "balances",
   });
-  models.Dune.hasMany(models.Balance, { foreignKey: "dune_id", as: "holders" });
-  models.Dune.hasMany(models.Utxo_balance, {
-    foreignKey: "dune_id",
+  models.Mezcal.hasMany(models.Balance, {
+    foreignKey: "mezcal_id",
+    as: "holders",
+  });
+  models.Mezcal.hasMany(models.Utxo_balance, {
+    foreignKey: "mezcal_id",
     as: "utxo_holders",
   });
 

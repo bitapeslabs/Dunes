@@ -1,10 +1,10 @@
 [
   {
-    "dunestone": {
+    "mezcalstone": {
       "etching": {
         "divisibility": 18,
         "premine": "150000000000000000000000000",
-        "dune": "RUNEAPESSHARES",
+        "mezcal": "RUNEAPESSHARES",
         "spacers": 128,
         "symbol": "🍌",
         "terms": {

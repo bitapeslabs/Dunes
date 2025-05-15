@@ -2,18 +2,18 @@ import express from "express";
 const router = express.Router();
 import { Op, WhereOptions } from "sequelize";
 
-import { process_many_utxo_balances } from "../lib/native/pkg/dune_parsers.js";
-import { validators } from "../lib/validators";
+import { process_many_utxo_balances } from "../lib/native/pkg/mezcal_parsers.js";
+import { validators } from "../lib/validators.js";
 import {
   parseBalancesIntoUtxo,
   parseBalancesIntoAddress,
-} from "../lib/parsers";
-import { getSomeUtxoBalance, getSomeAddressBalance } from "../lib/queries";
-import { IJoinedBalanceInstance } from "../lib/queries";
+} from "../lib/parsers.js";
+import { getSomeUtxoBalance, getSomeAddressBalance } from "../lib/queries.js";
+import { IJoinedBalanceInstance } from "../lib/queries.js";
 import { IUtxoBalance, IUtxo, IAddress } from "@/database/models/types";
 type testType = WhereOptions<IUtxo>;
 
-// — Get UTXO balances (all dunes) —
+// — Get UTXO balances (all mezcals) —
 router.get("/utxo/:utxo_index", async function (req, res) {
   try {
     const { db } = req;
@@ -45,11 +45,11 @@ router.get("/utxo/:utxo_index", async function (req, res) {
   }
 });
 
-// — Get UTXO balance (specific dune) —
-router.get("/utxo/:utxo_index/:dune_protocol_id", async function (req, res) {
+// — Get UTXO balance (specific mezcal) —
+router.get("/utxo/:utxo_index/:mezcal_protocol_id", async function (req, res) {
   try {
     const { db } = req;
-    const { dune_protocol_id, utxo_index } = req.params;
+    const { mezcal_protocol_id, utxo_index } = req.params;
     const { validTransactionHash, validInt, validProtocolId } = validators;
 
     const [hash, vout] = utxo_index?.split(":");
@@ -59,14 +59,14 @@ router.get("/utxo/:utxo_index/:dune_protocol_id", async function (req, res) {
       return;
     }
 
-    if (!validProtocolId(dune_protocol_id)) {
-      res.status(400).send({ error: "Invalid dune protocol id" });
+    if (!validProtocolId(mezcal_protocol_id)) {
+      res.status(400).send({ error: "Invalid mezcal protocol id" });
       return;
     }
 
     const query = getSomeUtxoBalance(db, {
       utxo: { transaction: { hash }, vout_index: vout },
-      dune: { dune_protocol_id },
+      mezcal: { mezcal_protocol_id },
     });
 
     const results = await db.Utxo_balance.findAll(query);
@@ -85,7 +85,7 @@ router.get("/utxo/:utxo_index/:dune_protocol_id", async function (req, res) {
   }
 });
 
-// — Get address balances (all dunes) —
+// — Get address balances (all mezcals) —
 router.get("/address/:address", async function (req, res) {
   try {
     const { db } = req;
@@ -111,21 +111,21 @@ router.get("/address/:address", async function (req, res) {
   }
 });
 
-// — Get address balance (specific dune) —
-router.get("/address/:address/:dune_protocol_id", async function (req, res) {
+// — Get address balance (specific mezcal) —
+router.get("/address/:address/:mezcal_protocol_id", async function (req, res) {
   try {
     const { db } = req;
-    const { address, dune_protocol_id } = req.params;
+    const { address, mezcal_protocol_id } = req.params;
     const { validProtocolId } = validators;
 
-    if (!validProtocolId(dune_protocol_id)) {
-      res.status(400).send({ error: "Invalid dune protocol id provided" });
+    if (!validProtocolId(mezcal_protocol_id)) {
+      res.status(400).send({ error: "Invalid mezcal protocol id provided" });
       return;
     }
 
     const query = getSomeAddressBalance(db, {
       address: { address },
-      dune: { dune_protocol_id },
+      mezcal: { mezcal_protocol_id },
     });
 
     const results = (await db.Balance.findAll(
@@ -146,7 +146,7 @@ router.get("/address/:address/:dune_protocol_id", async function (req, res) {
   }
 });
 
-// — Snapshot balances over a range (all dunes) —
+// — Snapshot balances over a range (all mezcals) —
 router.get(
   "/snapshot/:start_block/:end_block/address/:address",
   async function (req, res) {
@@ -191,13 +191,14 @@ router.get(
   }
 );
 
-// — Snapshot balances over a range (specific dune) —
+// — Snapshot balances over a range (specific mezcal) —
 router.get(
-  "/snapshot/:start_block/:end_block/address/:address/:dune_protocol_id",
+  "/snapshot/:start_block/:end_block/address/:address/:mezcal_protocol_id",
   async function (req, res) {
     try {
       const { db } = req;
-      const { address, start_block, end_block, dune_protocol_id } = req.params;
+      const { address, start_block, end_block, mezcal_protocol_id } =
+        req.params;
       const { validInt, validProtocolId } = validators;
 
       if (!validInt(start_block) || !validInt(end_block)) {
@@ -205,8 +206,8 @@ router.get(
         return;
       }
 
-      if (!validProtocolId(dune_protocol_id)) {
-        res.status(400).send({ error: "Invalid dune protocol id" });
+      if (!validProtocolId(mezcal_protocol_id)) {
+        res.status(400).send({ error: "Invalid mezcal protocol id" });
         return;
       }
 
@@ -215,7 +216,7 @@ router.get(
           address: { address },
           block: { [Op.lte]: parseInt(end_block) },
         },
-        dune: { dune_protocol_id },
+        mezcal: { mezcal_protocol_id },
       });
 
       const results = await db.Utxo_balance.findAll(query);

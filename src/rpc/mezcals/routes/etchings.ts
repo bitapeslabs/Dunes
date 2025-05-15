@@ -4,10 +4,15 @@ import { Router, Request, Response } from "express";
 import { Op } from "sequelize";
 
 import { simplify } from "../../../lib/utils";
-import { resolveDune } from "../lib/resolvers";
-import { Models, IDune, IBalance, IAddress } from "@/database/createConnection";
+import { resolveMezcal } from "../lib/resolvers";
+import {
+  Models,
+  IMezcal,
+  IBalance,
+  IAddress,
+} from "@/database/createConnection";
 
-import { IJoinedBalanceInstance, IJoinedDuneInstance } from "../lib/queries"; // <- the joined types file you showed
+import { IJoinedBalanceInstance, IJoinedMezcalInstance } from "../lib/queries"; // <- the joined types file you showed
 
 const router = Router();
 
@@ -20,13 +25,13 @@ router.get("/all", async (req: Request, res: Response): Promise<void> => {
   const offset = (page - 1) * limit;
 
   try {
-    const { Dune, Transaction, Address } = req.db;
+    const { Mezcal, Transaction, Address } = req.db;
 
     /* ── 1. total count ────────────────────────────────────────────────── */
-    const total_etchings = await Dune.count();
+    const total_etchings = await Mezcal.count();
 
     /* ── 2. fetch one page of etchings ─────────────────────────────────── */
-    const etchings = (await Dune.findAll({
+    const etchings = (await Mezcal.findAll({
       include: [
         {
           model: Transaction,
@@ -47,7 +52,7 @@ router.get("/all", async (req: Request, res: Response): Promise<void> => {
       attributes: {
         exclude: ["etch_transaction_id", "deployer_address_id"],
       },
-    })) as IJoinedDuneInstance[];
+    })) as IJoinedMezcalInstance[];
 
     /* ── 3. response ──────────────────────────────────────────────────── */
     res.status(200).json({
@@ -69,18 +74,18 @@ router.get(
       const { identifier } = req.params;
 
       const db = req.db;
-      const { Dune, Transaction, Address } = db;
+      const { Mezcal, Transaction, Address } = db;
 
-      /* ── 1. resolve identifier → dune row (id + proto_id + name) ───────── */
-      const duneRow = await resolveDune(Dune, identifier); // returns IDune | null
-      if (!duneRow) {
-        res.status(404).json({ error: "Dune not found" });
+      /* ── 1. resolve identifier → mezcal row (id + proto_id + name) ───────── */
+      const mezcalRow = await resolveMezcal(Mezcal, identifier); // returns IMezcal | null
+      if (!mezcalRow) {
+        res.status(404).json({ error: "Mezcal not found" });
         return;
       }
 
-      /* ── 2. load full dune with joins (etch tx + deployer address) ─────── */
-      const dune = (await Dune.findOne({
-        where: { id: duneRow.id },
+      /* ── 2. load full mezcal with joins (etch tx + deployer address) ─────── */
+      const mezcal = (await Mezcal.findOne({
+        where: { id: mezcalRow.id },
         attributes: {
           exclude: ["etch_transaction_id", "deployer_address_id", "id"],
         },
@@ -98,14 +103,14 @@ router.get(
             required: false,
           },
         ],
-      })) as IJoinedDuneInstance | null;
+      })) as IJoinedMezcalInstance | null;
 
-      if (!dune) {
-        res.status(404).json({ error: "Dune not found" });
+      if (!mezcal) {
+        res.status(404).json({ error: "Mezcal not found" });
         return;
       }
 
-      res.status(200).json(simplify(dune.toJSON()));
+      res.status(200).json(simplify(mezcal.toJSON()));
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Internal server error" });
@@ -131,23 +136,23 @@ router.get(
 
     try {
       const db = req.db;
-      const { Dune, Balance, Address } = db;
+      const { Mezcal, Balance, Address } = db;
 
-      /* ── 1. resolve dune id ────────────────────────────────────────────── */
-      const duneRow = await resolveDune(Dune, identifier);
-      if (!duneRow) {
-        res.status(404).json({ error: "Dune not found" });
+      /* ── 1. resolve mezcal id ────────────────────────────────────────────── */
+      const mezcalRow = await resolveMezcal(Mezcal, identifier);
+      if (!mezcalRow) {
+        res.status(404).json({ error: "Mezcal not found" });
         return;
       }
 
       /* ── 2. count holders (>0 balance) ─────────────────────────────────── */
       const total_holders = await Balance.count({
-        where: { dune_id: duneRow.id, balance: { [Op.gt]: 0 } },
+        where: { mezcal_id: mezcalRow.id, balance: { [Op.gt]: 0 } },
       });
 
       /* ── 3. fetch one page of holders ──────────────────────────────────── */
       const rows = (await Balance.findAll({
-        where: { dune_id: duneRow.id, balance: { [Op.gt]: 0 } },
+        where: { mezcal_id: mezcalRow.id, balance: { [Op.gt]: 0 } },
         include: [
           {
             model: Address,

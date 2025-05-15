@@ -15,8 +15,8 @@
           "bc1pphwjuufrx6aalsvmv5uujnprsw0wpz4rtjra4f0quys2cylugxws5gz7wc",
       },
     },
-    dune: {
-      dune_protocol_id: "841675:159",
+    mezcal: {
+      mezcal_protocol_id: "841675:159",
       name: "RUNEAPES•SHARES",
       raw_name: "RUNEAPESSHARES",
       symbol: "🍌",

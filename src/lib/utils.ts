@@ -52,7 +52,7 @@ export function log(message: string, type: string = "stat"): void {
   if (type === "debug" && !process.argv.includes("--debug")) return;
   const timestamp = new Date().toISOString();
   console.log(
-    chalk.cyan(`${timestamp}: DUNES > (${type}) ${chalk.yellow(message)}`)
+    chalk.cyan(`${timestamp}: MEZCAL > (${type}) ${chalk.yellow(message)}`)
   );
 }
 

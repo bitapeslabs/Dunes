@@ -11,10 +11,10 @@ import {
   isPriceTermsMet,
   updateUnallocated,
   minimumLengthAtHeight,
-  isUsefulDuneTx,
+  isUsefulMezcalTx,
   IndexedTx,
-} from "./duneutils";
-import { GENESIS_BLOCK, GENESIS_DUNESTONE } from "./consts";
+} from "./mezcalutils";
+import { GENESIS_BLOCK, GENESIS_MEZCALTONE } from "./consts";
 import {
   IAddress,
   IBalance,
@@ -27,8 +27,8 @@ import {
   Vin,
   Vout,
 } from "@/lib/bitcoinrpc/types";
-import { IDunestone, IDunestoneIndexed } from "@/lib/dunestone";
-import { IDune, IUtxo, IUtxoBalance } from "@/database/createConnection";
+import { IMezcalstone, IMezcalstoneIndexed } from "@/lib/mezcalstone";
+import { IMezcal, IUtxo, IUtxoBalance } from "@/database/createConnection";
 import { isPromise } from "util/types";
 import { RpcClient } from "./bitcoinrpc";
 import { Block } from "@/lib/bitcoinrpc/types";
@@ -39,7 +39,7 @@ import { isValidResponse } from "@/lib/utils";
 
 type Storage = Awaited<ReturnType<typeof import("./storage").storage>>;
 
-/* dictionary keyed by dune_protocol_id holding bigint amounts */
+/* dictionary keyed by mezcal_protocol_id holding bigint amounts */
 type BigDict = Record<string, bigint>;
 
 type ITransfers = Record<string, Record<string, bigint>>;
@@ -53,14 +53,14 @@ type IndexerUtxo = {
   block: number;
   block_spent: number | null;
   transaction_spent_id: number | null;
-  dune_balances?: IDuneBalances;
+  mezcal_balances?: IMezcalBalances;
 };
 
 type IPendingUtxos = IndexerUtxo[];
 
-type IDuneBalances = BigDict;
+type IMezcalBalances = BigDict;
 
-type IUnallocatedDunes = BigDict;
+type IUnallocatedMezcals = BigDict;
 
 const coerceIntoValid = <T>(
   call: (...args: any) => T | null | Promise<unknown>
@@ -80,7 +80,7 @@ export interface IndexedTxExtended extends IndexedTx {
   block: number;
   txIndex: number;
   /* decoded OP_RETURN payload */
-  dunestone: IDunestoneIndexed;
+  mezcalstone: IMezcalstoneIndexed;
 
   /* set when the tx is inserted into local cache */
   virtual_id?: number;
@@ -105,30 +105,30 @@ const stopTimer = (field: string): void => {
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
-   HELPER #1  getUnallocatedDunesFromUtxos
+   HELPER #1  getUnallocatedMezcalsFromUtxos
    ────────────────────────────────────────────────────────────────────────── */
 
-const getUnallocatedDunesFromUtxos = (
+const getUnallocatedMezcalsFromUtxos = (
   inputUtxos: IndexerUtxo[]
-): IUnallocatedDunes => {
+): IUnallocatedMezcals => {
   /*
-        Important: Dune Balances from this function are returned in big ints in the following format
+        Important: Mezcal Balances from this function are returned in big ints in the following format
         {
-            [dune_protocol_id]: BigInt(amount)
+            [mezcal_protocol_id]: BigInt(amount)
         }
 
-        dune_protocol_id => is the dune_id used by the Dunes Protocol and is recognized, 
-        different from dune_id which is used by the DB for indexing.
+        mezcal_protocol_id => is the mezcal_id used by the Mezcals Protocol and is recognized, 
+        different from mezcal_id which is used by the DB for indexing.
     */
 
-  return inputUtxos.reduce<IUnallocatedDunes>((acc, utxo) => {
-    const duneBalances =
-      utxo.dune_balances !== undefined
-        ? (Object.entries(utxo.dune_balances) as [string, bigint][])
+  return inputUtxos.reduce<IUnallocatedMezcals>((acc, utxo) => {
+    const mezcalBalances =
+      utxo.mezcal_balances !== undefined
+        ? (Object.entries(utxo.mezcal_balances) as [string, bigint][])
         : [];
 
-    //Sum up all Dune balances for each input UTXO
-    duneBalances.forEach(([proto, amtStr]) => {
+    //Sum up all Mezcal balances for each input UTXO
+    mezcalBalances.forEach(([proto, amtStr]) => {
       acc[proto] = (acc[proto] ?? 0n) + BigInt(amtStr);
     });
 
@@ -157,10 +157,10 @@ const createNewUtxoBodies = (
 
     return {
       /*
-        SEE: https://docs.ordinals.com/dunes.html#Burning
-        "Dunes may be burned by transferring them to an OP_RETURN output with an edict or pointer."
+        SEE: https://docs.ordinals.com/mezcals.html#Burning
+        "Mezcals may be burned by transferring them to an OP_RETURN output with an edict or pointer."
 
-        This means that an OP_RETURN vout must be saved for processing edicts and unallocated dunes,
+        This means that an OP_RETURN vout must be saved for processing edicts and unallocated mezcals,
         however mustnt be saved as a UTXO in the database as they are burnt.
 
         Therefore, we mark a utxo as an OP_RETURN by setting its address to such
@@ -171,7 +171,7 @@ const createNewUtxoBodies = (
       transaction_id: Transaction.virtual_id!,
       vout_index: out.n,
       block: Number(Transaction.block),
-      dune_balances: {} as IDuneBalances,
+      mezcal_balances: {} as IMezcalBalances,
       block_spent: null as number | null,
       transaction_spent_id: null as number | null,
     };
@@ -186,22 +186,22 @@ const createNewUtxoBodies = (
 const burnAllFromUtxo = (utxo: IndexerUtxo, storage: Storage) => {
   const { updateAttribute, findOne } = storage;
 
-  if (!utxo.dune_balances) {
+  if (!utxo.mezcal_balances) {
     return;
   }
 
-  Object.entries(utxo.dune_balances).forEach(([duneId, amt]) => {
-    const dune = findOne<IDune>("Dune", duneId, undefined, true);
+  Object.entries(utxo.mezcal_balances).forEach(([mezcalId, amt]) => {
+    const mezcal = findOne<IMezcal>("Mezcal", mezcalId, undefined, true);
 
-    if (!isValidResponse<IDune>(dune)) {
+    if (!isValidResponse<IMezcal>(mezcal)) {
       throw new Error("Invalid response from local cache");
     }
 
     updateAttribute(
-      "Dune",
-      duneId,
+      "Mezcal",
+      mezcalId,
       "burnt_amount",
-      (BigInt(dune.burnt_amount ?? "0") + BigInt(amt)).toString()
+      (BigInt(mezcal.burnt_amount ?? "0") + BigInt(amt)).toString()
     );
   });
 };
@@ -216,30 +216,33 @@ const updateOrCreateBalancesWithUtxo = (
   direction: 1 | -1
 ): void => {
   const { findManyInFilter, create, updateAttribute, findOne } = storage;
-  if (!utxo.dune_balances) {
+  if (!utxo.mezcal_balances) {
     return;
   }
-  const entries = Object.entries(utxo.dune_balances);
+  const entries = Object.entries(utxo.mezcal_balances);
 
-  //OR‑of‑ANDs filter to preload all involved dunes
-  let dunesMapResponse = findManyInFilter<IDune>(
-    "Dune",
+  //OR‑of‑ANDs filter to preload all involved mezcals
+  let mezcalsMapResponse = findManyInFilter<IMezcal>(
+    "Mezcal",
     entries.map(([proto]) => proto),
     true
   );
 
-  if (!isValidResponse<IDune[]>(dunesMapResponse)) {
+  if (!isValidResponse<IMezcal[]>(mezcalsMapResponse)) {
     throw new Error("Invalid response from local cache");
   }
 
-  const dunesMap = dunesMapResponse.reduce<Record<string, any>>((a, d: any) => {
-    a[d.dune_protocol_id] = d;
-    a[d.id] = d;
-    return a;
-  }, {});
+  const mezcalsMap = mezcalsMapResponse.reduce<Record<string, any>>(
+    (a, d: any) => {
+      a[d.mezcal_protocol_id] = d;
+      a[d.id] = d;
+      return a;
+    },
+    {}
+  );
 
   const balanceFilter = entries.map(
-    ([proto]) => `${utxo.address_id}:${dunesMap[proto].id}`
+    ([proto]) => `${utxo.address_id}:${mezcalsMap[proto].id}`
   );
 
   const existingBalancesResponse = findManyInFilter<IBalance>(
@@ -254,7 +257,7 @@ const updateOrCreateBalancesWithUtxo = (
 
   let existingBalances = existingBalancesResponse.reduce<Record<string, any>>(
     (acc, bal: any) => {
-      acc[dunesMap[bal.dune_id].dune_protocol_id] = bal;
+      acc[mezcalsMap[bal.mezcal_id].mezcal_protocol_id] = bal;
       return acc;
     },
     {}
@@ -264,16 +267,16 @@ const updateOrCreateBalancesWithUtxo = (
     let bal = existingBalances[proto];
 
     if (!bal) {
-      let dune = findOne<IDune>("Dune", proto, undefined, true);
+      let mezcal = findOne<IMezcal>("Mezcal", proto, undefined, true);
 
-      if (!isValidResponse<IDune>(dune)) {
+      if (!isValidResponse<IMezcal>(mezcal)) {
         throw new Error("Invalid response from local cache");
       }
 
-      let duneId = dune.id;
+      let mezcalId = mezcal.id;
 
       bal = create("Balance", {
-        dune_id: duneId,
+        mezcal_id: mezcalId,
         address_id: utxo.address_id,
         balance: 0,
       });
@@ -286,50 +289,50 @@ const updateOrCreateBalancesWithUtxo = (
 };
 
 const processEdicts = (
-  UnallocatedDunes: IUnallocatedDunes,
+  UnallocatedMezcals: IUnallocatedMezcals,
   pendingUtxos: IPendingUtxos,
   Transaction: IndexedTxExtended,
   transfers: ITransfers,
   storage: Storage
 ) => {
-  const { block, txIndex, dunestone, vin } = Transaction;
+  const { block, txIndex, mezcalstone, vin } = Transaction;
   const { findManyInFilter, create, findOne, findOrCreate } = storage;
 
-  let { edicts, pointer } = dunestone;
+  let { edicts, pointer } = mezcalstone;
 
-  if (dunestone.cenotaph) {
-    //Transaction is a cenotaph, input dunes are burnt.
-    //https://docs.ordinals.com/dunes/specification.html#Transferring
+  if (mezcalstone.cenotaph) {
+    //Transaction is a cenotaph, input mezcals are burnt.
+    //https://docs.ordinals.com/mezcals/specification.html#Transferring
 
-    transfers.burn = Object.keys(UnallocatedDunes).reduce((acc, duneId) => {
-      acc[duneId] = UnallocatedDunes[duneId];
+    transfers.burn = Object.keys(UnallocatedMezcals).reduce((acc, mezcalId) => {
+      acc[mezcalId] = UnallocatedMezcals[mezcalId];
       return acc;
     }, {} as Record<string, bigint>);
     return {};
   }
 
-  let allocate = (utxo: IndexerUtxo, duneId: string, amount: bigint) => {
+  let allocate = (utxo: IndexerUtxo, mezcalId: string, amount: bigint) => {
     /*
-        See: https://docs.ordinals.com/dunes/specification.html#Trasnferring
+        See: https://docs.ordinals.com/mezcals/specification.html#Trasnferring
         
-        An edict with amount zero allocates all remaining units of dune id.
+        An edict with amount zero allocates all remaining units of mezcal id.
       
-        If an edict would allocate more dunes than are currently unallocated, the amount is reduced to the number of currently unallocated dunes. In other words, the edict allocates all remaining unallocated units of dune id.
+        If an edict would allocate more mezcals than are currently unallocated, the amount is reduced to the number of currently unallocated mezcals. In other words, the edict allocates all remaining unallocated units of mezcal id.
 
 
     */
-    let unallocated = UnallocatedDunes[duneId];
+    let unallocated = UnallocatedMezcals[mezcalId];
     let withDefault =
       unallocated < amount || amount === 0n ? unallocated : amount;
 
-    UnallocatedDunes[duneId] = (unallocated ?? 0n) - withDefault;
+    UnallocatedMezcals[mezcalId] = (unallocated ?? 0n) - withDefault;
 
-    if (!utxo.dune_balances) {
-      utxo.dune_balances = {};
+    if (!utxo.mezcal_balances) {
+      utxo.mezcal_balances = {};
     }
 
-    utxo.dune_balances[duneId] =
-      (utxo.dune_balances[duneId] ?? 0n) + withDefault;
+    utxo.mezcal_balances[mezcalId] =
+      (utxo.mezcal_balances[mezcalId] ?? 0n) + withDefault;
 
     //Dont save transfer events of amount "0"
     if (withDefault === 0n) return;
@@ -339,55 +342,56 @@ const processEdicts = (
     if (!transfers[toAddress]) {
       transfers[toAddress] = {};
     }
-    if (!transfers[toAddress][duneId]) {
-      transfers[toAddress][duneId] = 0n;
+    if (!transfers[toAddress][mezcalId]) {
+      transfers[toAddress][mezcalId] = 0n;
     }
 
-    transfers[toAddress][duneId] += withDefault;
+    transfers[toAddress][mezcalId] += withDefault;
   };
 
   //References are kept because filter does not clone the array
   let nonOpReturnOutputs = pendingUtxos.filter((utxo) => utxo.address_id !== 2);
 
   if (edicts) {
-    const transactionDuneId = `${block}:${txIndex}`;
+    const transactionMezcalId = `${block}:${txIndex}`;
 
-    //Replace all references of 0:0 with the actual dune id which we have stored on db (Transferring#5)
+    //Replace all references of 0:0 with the actual mezcal id which we have stored on db (Transferring#5)
     edicts.forEach(
-      (edict) => (edict.id = edict.id === "0:0" ? transactionDuneId : edict.id)
+      (edict) =>
+        (edict.id = edict.id === "0:0" ? transactionMezcalId : edict.id)
     );
 
-    //Get dune ids from edicts for filter below (the dune id is the PrimaryKey)
+    //Get mezcal ids from edicts for filter below (the mezcal id is the PrimaryKey)
     let edictFilter = edicts.map((edict) => edict.id);
 
-    //Cache all dunes that are currently in DB in a hashmap, if a dune doesnt exist edict will be ignored
+    //Cache all mezcals that are currently in DB in a hashmap, if a mezcal doesnt exist edict will be ignored
 
-    //uses optimized lookup by using dune_protocol_id
-    let existingDunesResponse = findManyInFilter<IDune>(
-      "Dune",
+    //uses optimized lookup by using mezcal_protocol_id
+    let existingMezcalsResponse = findManyInFilter<IMezcal>(
+      "Mezcal",
       edictFilter,
       true
     );
 
-    if (!isValidResponse<IDune[]>(existingDunesResponse)) {
+    if (!isValidResponse<IMezcal[]>(existingMezcalsResponse)) {
       throw new Error("Invalid response from local cache @ processEdicts:1");
     }
 
-    let existingDunes = existingDunesResponse.reduce(
-      (acc, dune) => ({ ...acc, [dune.dune_protocol_id]: dune }),
-      {} as Record<string, IDune>
+    let existingMezcals = existingMezcalsResponse.reduce(
+      (acc, mezcal) => ({ ...acc, [mezcal.mezcal_protocol_id]: mezcal }),
+      {} as Record<string, IMezcal>
     );
 
     for (let edictIndex in edicts) {
       let edict = edicts[edictIndex];
-      //A dunestone may contain any number of edicts, which are processed in sequence.
-      if (!existingDunes[edict.id]) {
-        //If the dune does not exist, the edict is ignored
+      //A mezcalstone may contain any number of edicts, which are processed in sequence.
+      if (!existingMezcals[edict.id]) {
+        //If the mezcal does not exist, the edict is ignored
         continue;
       }
 
-      if (!UnallocatedDunes[edict.id]) {
-        //If the dune is not in the unallocated dunes, it is ignored
+      if (!UnallocatedMezcals[edict.id]) {
+        //If the mezcal is not in the unallocated mezcals, it is ignored
         continue;
       }
 
@@ -395,11 +399,11 @@ const processEdicts = (
         //Edict amount is in string, not bigint
         if (edict.amount === 0n) {
           /*
-              An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of dune id between each non OP_RETURN output.
+              An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of mezcal id between each non OP_RETURN output.
           */
 
           const amountOutputs = BigInt(nonOpReturnOutputs.length);
-          //By default all txs have exactly one OP_RETURN, because they are needed for dunestones. More than 1 OP_RETURN is considered non-standard and ignored by btc nodes.
+          //By default all txs have exactly one OP_RETURN, because they are needed for mezcalstones. More than 1 OP_RETURN is considered non-standard and ignored by btc nodes.
 
           /*
             https://github.com/ordinals/ord/pull/3547/commits/30c0b39d398f5f2934c87762f53e0e0591b0aadf?diff=unified&w=0
@@ -407,9 +411,9 @@ const processEdicts = (
             https://twitter.com/raphjaph/status/1782581416716357998/photo/2
           */
           if (amountOutputs > 0) {
-            const amount = BigInt(UnallocatedDunes[edict.id]) / amountOutputs;
+            const amount = BigInt(UnallocatedMezcals[edict.id]) / amountOutputs;
             const remainder =
-              BigInt(UnallocatedDunes[edict.id]) % amountOutputs;
+              BigInt(UnallocatedMezcals[edict.id]) % amountOutputs;
 
             const withRemainder = amount + BigInt(1);
 
@@ -422,7 +426,7 @@ const processEdicts = (
             );
           }
         } else {
-          //If an edict would allocate more dunes than are currently unallocated, the amount is reduced to the number of currently unallocated dunes. In other words, the edict allocates all remaining unallocated units of dune id.
+          //If an edict would allocate more mezcals than are currently unallocated, the amount is reduced to the number of currently unallocated mezcals. In other words, the edict allocates all remaining unallocated units of mezcal id.
 
           nonOpReturnOutputs.forEach((utxo) =>
             allocate(utxo, edict.id, BigInt(edict.amount))
@@ -436,7 +440,7 @@ const processEdicts = (
     }
   }
 
-  //Transfer remaining dunes to the first non-opreturn output
+  //Transfer remaining mezcals to the first non-opreturn output
   //(edge case) If only an OP_RETURN output is present in the Transaction, transfer to the OP_RETURN
 
   let pointerOutput = pointer
@@ -456,53 +460,53 @@ const processEdicts = (
     }
   }
 
-  //move Unallocated dunes to pointer output
-  Object.entries(UnallocatedDunes).forEach((allocationData) =>
+  //move Unallocated mezcals to pointer output
+  Object.entries(UnallocatedMezcals).forEach((allocationData) =>
     allocate(pointerOutput, allocationData[0], allocationData[1])
   );
 
-  //Function returns the burnt dunes
+  //Function returns the burnt mezcals
   return;
 };
 
 const processMint = (
-  UnallocatedDunes: IUnallocatedDunes,
+  UnallocatedMezcals: IUnallocatedMezcals,
   Transaction: IndexedTxExtended,
   storage: Storage
 ) => {
-  const { block, txIndex, dunestone } = Transaction;
-  const mint = dunestone?.mint;
+  const { block, txIndex, mezcalstone } = Transaction;
+  const mint = mezcalstone?.mint;
 
   const { findOne, updateAttribute, create, findOrCreate } = storage;
 
   if (!mint) {
-    return UnallocatedDunes;
+    return UnallocatedMezcals;
   }
-  //We use the same  process used to calculate the Dune Id in the etch function if "0:0" is referred to
-  const duneToMint = findOne<IDune>("Dune", mint, undefined, true);
+  //We use the same  process used to calculate the Mezcal Id in the etch function if "0:0" is referred to
+  const mezcalToMint = findOne<IMezcal>("Mezcal", mint, undefined, true);
 
-  if (!isValidResponse<IDune>(duneToMint)) {
-    //The dune requested to be minted does not exist.
-    return UnallocatedDunes;
-  }
-
-  if (!isPriceTermsMet(duneToMint, Transaction)) {
-    return UnallocatedDunes;
+  if (!isValidResponse<IMezcal>(mezcalToMint)) {
+    //The mezcal requested to be minted does not exist.
+    return UnallocatedMezcals;
   }
 
-  if (isMintOpen(block, txIndex, duneToMint, true)) {
+  if (!isPriceTermsMet(mezcalToMint, Transaction)) {
+    return UnallocatedMezcals;
+  }
+
+  if (isMintOpen(block, txIndex, mezcalToMint, true)) {
     //Update new mints to count towards cap
-    if (dunestone.cenotaph) {
+    if (mezcalstone.cenotaph) {
       //If the mint is a cenotaph, the minted amount is burnt
-      return UnallocatedDunes;
+      return UnallocatedMezcals;
     }
 
-    let mintAmount = BigInt(duneToMint.mint_amount ?? "0");
-    let isFlex = duneToMint.price_amount != null && mintAmount == 0n;
+    let mintAmount = BigInt(mezcalToMint.mint_amount ?? "0");
+    let isFlex = mezcalToMint.price_amount != null && mintAmount == 0n;
 
     if (isFlex) {
-      const payTo = duneToMint.price_pay_to;
-      const priceAmount = duneToMint.price_amount;
+      const payTo = mezcalToMint.price_pay_to;
+      const priceAmount = mezcalToMint.price_amount;
 
       if (!payTo) throw new Error("Missing pay_to address in price terms");
       if (!priceAmount || BigInt(priceAmount) === 0n)
@@ -517,7 +521,7 @@ const processMint = (
     }
 
     if (mintAmount <= 0n) {
-      return UnallocatedDunes;
+      return UnallocatedMezcals;
     }
 
     let fromAddressResponse = findOne<IAddress>(
@@ -536,75 +540,80 @@ const processMint = (
       type: 1,
       block,
       transaction_id: Transaction.virtual_id,
-      dune_id: duneToMint.id,
-      amount: duneToMint.mint_amount,
+      mezcal_id: mezcalToMint.id,
+      amount: mezcalToMint.mint_amount,
       from_address_id: fromAddressResponse.id,
       to_address_id: 2,
     });
 
-    let newMints = (BigInt(duneToMint.mints) + BigInt(1)).toString();
-    updateAttribute("Dune", duneToMint.dune_protocol_id, "mints", newMints);
+    let newMints = (BigInt(mezcalToMint.mints) + BigInt(1)).toString();
+    updateAttribute(
+      "Mezcal",
+      mezcalToMint.mezcal_protocol_id,
+      "mints",
+      newMints
+    );
 
-    return updateUnallocated(UnallocatedDunes, {
-      dune_id: duneToMint.dune_protocol_id,
+    return updateUnallocated(UnallocatedMezcals, {
+      mezcal_id: mezcalToMint.mezcal_protocol_id,
       amount: BigInt(mintAmount),
     });
   } else {
     //Minting is closed
-    return UnallocatedDunes;
+    return UnallocatedMezcals;
   }
 };
 
 const processEtching = (
-  UnallocatedDunes: IUnallocatedDunes,
+  UnallocatedMezcals: IUnallocatedMezcals,
   Transaction: IndexedTxExtended,
   rpc: RpcClient,
   storage: Storage,
   isGenesis: boolean,
   useTest: boolean
 ) => {
-  const { block, txIndex, dunestone } = Transaction;
+  const { block, txIndex, mezcalstone } = Transaction;
 
-  const etching = dunestone?.etching;
+  const etching = mezcalstone?.etching;
 
   const { findOne, create, local, findOrCreate } = storage;
 
   //If no etching, return the input allocations
   if (!etching) {
-    return UnallocatedDunes;
+    return UnallocatedMezcals;
   }
 
-  let searchDune = findOne<IDune>(
-    "Dune",
+  let searchMezcal = findOne<IMezcal>(
+    "Mezcal",
     `${block}:${txIndex}`,
     undefined,
     true
   );
 
-  if (isValidResponse<IDune>(searchDune) || searchDune) {
-    //If the dune is not in the unallocated dunes, it is ignored
-    return UnallocatedDunes;
+  if (isValidResponse<IMezcal>(searchMezcal) || searchMezcal) {
+    //If the mezcal is not in the unallocated mezcals, it is ignored
+    return UnallocatedMezcals;
   }
 
-  //If dune name already taken, it is non standard, return the input allocations
+  //If mezcal name already taken, it is non standard, return the input allocations
 
   //Cenotaphs dont have any other etching properties other than their name
-  //If not a cenotaph, check if a dune name was provided, and if not, generate one
+  //If not a cenotaph, check if a mezcal name was provided, and if not, generate one
 
-  let duneName = etching.dune;
+  let mezcalName = etching.mezcal;
 
-  const isDuneNameTakenResponse = findOne<IDune>(
-    "Dune",
-    duneName + "@REF@name",
+  const isMezcalNameTakenResponse = findOne<IMezcal>(
+    "Mezcal",
+    mezcalName + "@REF@name",
     undefined,
     true
   );
 
   if (
-    isValidResponse<IDune>(isDuneNameTakenResponse) ||
-    !!isDuneNameTakenResponse
+    isValidResponse<IMezcal>(isMezcalNameTakenResponse) ||
+    !!isMezcalNameTakenResponse
   ) {
-    return UnallocatedDunes;
+    return UnallocatedMezcals;
   }
 
   let isFlex = etching?.terms?.amount == 0n && etching?.terms?.price;
@@ -612,20 +621,20 @@ const processEtching = (
 
   if (!isFlex && etching?.terms?.amount == 0n) {
     //An etch attempting to use "flex mode" for mint that doesnt provide amount is invalid
-    return UnallocatedDunes;
+    return UnallocatedMezcals;
   }
 
   if (isFlex && hasMintcap) {
     //An etch attempting to use "flex mode" for mint that provides a mint cap is invalid
-    return UnallocatedDunes;
+    return UnallocatedMezcals;
   }
 
   /*
-    Dunespec: Dunes etched in a transaction with a cenotaph are set as unmintable.
+    Mezcalspec: Mezcals etched in a transaction with a cenotaph are set as unmintable.
 
-    If the dunestone decoded has the cenotaph flag set to true, the dune should be created with no allocationg created
+    If the mezcalstone decoded has the cenotaph flag set to true, the mezcal should be created with no allocationg created
 
-    see unminable flag in dune model
+    see unminable flag in mezcal model
   */
 
   //FAILS AT 842255:596 111d77cbcb1ee54e0392de588cb7ef794c4a0a382155814e322d93535abc9c66)
@@ -644,9 +653,9 @@ const processEtching = (
     true
   ).id;
 
-  const EtchedDune = create<IDune>("Dune", {
-    dune_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
-    name: duneName,
+  const EtchedMezcal = create<IMezcal>("Mezcal", {
+    mezcal_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
+    name: mezcalName,
     symbol,
 
     //ORD describes no decimals being set as default 0
@@ -677,9 +686,9 @@ const processEtching = (
     price_pay_to: etching.terms?.price?.pay_to ?? null,
     turbo: etching.turbo,
     burnt_amount: "0",
-    //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the dune spec (see above)
+    //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the mezcal spec (see above)
     unmintable:
-      dunestone.cenotaph || (!etching.terms?.amount && !isFlex) ? 1 : 0,
+      mezcalstone.cenotaph || (!etching.terms?.amount && !isFlex) ? 1 : 0,
     etch_transaction_id: Transaction.virtual_id,
     deployer_address_id: etcherId,
   });
@@ -689,22 +698,22 @@ const processEtching = (
     type: 0,
     block,
     transaction_id: Transaction.virtual_id,
-    dune_id: EtchedDune.id,
+    mezcal_id: EtchedMezcal.id,
     amount: etching.premine ?? "0",
     from_address_id: etcherId,
     to_address_id: 2,
   });
 
-  //Add premine dunes to input allocations
+  //Add premine mezcals to input allocations
 
-  if (dunestone.cenotaph) {
-    //No dunes are premined if the tx is a cenotaph.
-    return UnallocatedDunes;
+  if (mezcalstone.cenotaph) {
+    //No mezcals are premined if the tx is a cenotaph.
+    return UnallocatedMezcals;
   }
 
-  return updateUnallocated(UnallocatedDunes, {
-    dune_id: EtchedDune.dune_protocol_id,
-    amount: BigInt(EtchedDune.premine),
+  return updateUnallocated(UnallocatedMezcals, {
+    mezcal_id: EtchedMezcal.mezcal_protocol_id,
+    amount: BigInt(EtchedMezcal.premine),
   });
 };
 
@@ -716,17 +725,17 @@ const emitTransferAndBurnEvents = (
   const { create, findOrCreate, findOne } = storage;
 
   Object.keys(transfers).forEach((addressId) => {
-    Object.keys(transfers[addressId]).forEach((dune_protocol_id) => {
-      let amount = transfers[addressId][dune_protocol_id];
+    Object.keys(transfers[addressId]).forEach((mezcal_protocol_id) => {
+      let amount = transfers[addressId][mezcal_protocol_id];
       if (!amount) return; //Ignore 0 balances
 
-      let foundDuneResponse = findOne<IDune>(
-        "Dune",
-        dune_protocol_id,
+      let foundMezcalResponse = findOne<IMezcal>(
+        "Mezcal",
+        mezcal_protocol_id,
         undefined,
         true
       );
-      if (!isValidResponse<IDune>(foundDuneResponse)) {
+      if (!isValidResponse<IMezcal>(foundMezcalResponse)) {
         throw new Error(
           "Invalid response from local cache @ emitTransferAndBurnEvents:1"
         );
@@ -736,7 +745,7 @@ const emitTransferAndBurnEvents = (
         type: addressId === "burn" ? 3 : 2,
         block: Transaction.block,
         transaction_id: Transaction.virtual_id,
-        dune_id: foundDuneResponse.id,
+        mezcal_id: foundMezcalResponse.id,
         amount,
         from_address_id: findOrCreate(
           "Address",
@@ -760,14 +769,14 @@ const finalizeTransfers = (
   storage: Storage
 ) => {
   const { updateAttribute, create, local, findOne } = storage;
-  const { block, dunestone } = Transaction;
+  const { block, mezcalstone } = Transaction;
 
   emitTransferAndBurnEvents(transfers, Transaction, storage);
 
   let opReturnOutput = pendingUtxos.find((utxo) => utxo.address_id === 2);
 
-  //Burn all dunes from cenotaphs or OP_RETURN outputs (if no cenotaph is present)
-  if (dunestone.cenotaph) {
+  //Burn all mezcals from cenotaphs or OP_RETURN outputs (if no cenotaph is present)
+  if (mezcalstone.cenotaph) {
     inputUtxos.forEach((utxo) => burnAllFromUtxo(utxo, storage));
   } else if (opReturnOutput) {
     burnAllFromUtxo(opReturnOutput, storage);
@@ -783,13 +792,13 @@ const finalizeTransfers = (
       Transaction.virtual_id
     );
   });
-  //Filter out all OP_RETURN and zero dune balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
+  //Filter out all OP_RETURN and zero mezcal balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
   //We still save utxos incase we need to reference them in the future
-  //Filter out all OP_RETURN and zero dune balances
+  //Filter out all OP_RETURN and zero mezcal balances
   pendingUtxos = pendingUtxos.filter(
     (utxo) =>
       utxo.address_id !== 2 &&
-      Object.values(utxo.dune_balances ?? {}).reduce(
+      Object.values(utxo.mezcal_balances ?? {}).reduce(
         (a, b) => a + BigInt(b),
         0n
       ) > 0n
@@ -798,34 +807,34 @@ const finalizeTransfers = (
   pendingUtxos.forEach((utxo) => {
     if (utxo.address_id !== 2) {
       let resultUtxo = { ...utxo };
-      delete resultUtxo.dune_balances;
+      delete resultUtxo.mezcal_balances;
 
       const parentUtxo = create<IUtxo>(
         "Utxo",
-        resultUtxo as Omit<IndexerUtxo, "dune_balances">
+        resultUtxo as Omit<IndexerUtxo, "mezcal_balances">
       );
 
-      let duneBalances = utxo.dune_balances;
-      if (!duneBalances) return;
+      let mezcalBalances = utxo.mezcal_balances;
+      if (!mezcalBalances) return;
 
-      Object.keys(duneBalances).forEach((duneProtocolId) => {
-        if (!duneBalances[duneProtocolId]) return; //Ignore 0 balances
+      Object.keys(mezcalBalances).forEach((mezcalProtocolId) => {
+        if (!mezcalBalances[mezcalProtocolId]) return; //Ignore 0 balances
 
-        let findDuneResponse = findOne<IDune>(
-          "Dune",
-          duneProtocolId,
+        let findMezcalResponse = findOne<IMezcal>(
+          "Mezcal",
+          mezcalProtocolId,
           undefined,
           true
         );
 
-        if (!isValidResponse<IDune>(findDuneResponse)) {
+        if (!isValidResponse<IMezcal>(findMezcalResponse)) {
           return;
         }
 
         create("Utxo_balance", {
           utxo_id: parentUtxo.id,
-          dune_id: findDuneResponse.id,
-          balance: duneBalances[duneProtocolId],
+          mezcal_id: findMezcalResponse.id,
+          balance: mezcalBalances[mezcalProtocolId],
         });
       });
     }
@@ -855,7 +864,7 @@ const handleGenesis = (
 ) => {
   processEtching(
     {},
-    { ...Transaction, dunestone: GENESIS_DUNESTONE },
+    { ...Transaction, mezcalstone: GENESIS_MEZCALTONE },
     rpc,
     storage,
     true,
@@ -864,7 +873,7 @@ const handleGenesis = (
   return;
 };
 
-const processDunestone = (
+const processMezcalstone = (
   Transaction: IndexedTxExtended,
   rpc: RpcClient,
   storage: Storage,
@@ -874,11 +883,11 @@ const processDunestone = (
 
   const { create, fetchGroupLocally, findOne, local, findOrCreate } = storage;
 
-  //Ignore the coinbase transaction (unless genesis dune is being created)
+  //Ignore the coinbase transaction (unless genesis mezcal is being created)
 
   //Setup Transaction for processing
 
-  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain dunes
+  //If the utxo is not in db it was made before GENESIS (840,000) anmd therefore does not contain mezcals
 
   //We also filter for utxos already sppent (this will never happen on mainnet, but on regtest someone can attempt to spend a utxo already marked as spent in the db)
 
@@ -916,19 +925,19 @@ const processDunestone = (
       utxo_index: utxoIndex,
       address_id: Number(utxo.address_id),
       transaction_id: Number(utxo.transaction_id),
-      dune_balances: balances.reduce((acc, utxoBalance) => {
-        let duneResponse = findOne<IDune>(
-          "Dune",
-          utxoBalance.dune_id + "@REF@id",
+      mezcal_balances: balances.reduce((acc, utxoBalance) => {
+        let mezcalResponse = findOne<IMezcal>(
+          "Mezcal",
+          utxoBalance.mezcal_id + "@REF@id",
           undefined,
           true
         );
 
-        if (!isValidResponse<IDune>(duneResponse)) {
+        if (!isValidResponse<IMezcal>(mezcalResponse)) {
           return acc;
         }
 
-        acc[duneResponse.dune_protocol_id] = utxoBalance.balance;
+        acc[mezcalResponse.mezcal_protocol_id] = utxoBalance.balance;
         return acc;
       }, {} as Record<string, bigint>),
     };
@@ -938,10 +947,10 @@ const processDunestone = (
 
   //
   if (
-    //If no input utxos are provided (with dunes inside)
+    //If no input utxos are provided (with mezcals inside)
     inputUtxos.length === 0 &&
-    //AND there is no dunestone field in the transaction (aside from cenotaph)
-    Object.keys(Transaction.dunestone).length === 1
+    //AND there is no mezcalstone field in the transaction (aside from cenotaph)
+    Object.keys(Transaction.mezcalstone).length === 1
   ) {
     //We can return as this transaction will not mint or create new utxos. This saves storage for unrelated transactions
     if (!(vin[0].coinbase && block == GENESIS_BLOCK)) return;
@@ -975,13 +984,13 @@ const processDunestone = (
 
   let pendingUtxos = createNewUtxoBodies(vout, Transaction, storage);
 
-  let UnallocatedDunes = getUnallocatedDunesFromUtxos(inputUtxos);
+  let UnallocatedMezcals = getUnallocatedMezcalsFromUtxos(inputUtxos);
 
   /*
-  Create clone of Unallocated Dunes, this will be used when emitting the "Transfer" event. If the Dune was present in the original
-  dunes from vin we have the address indexed on db and can emit the transfer event with the "From" equalling the address of transaction signer.
-  However, if the Dune was not present in the original dunes from vin, we can only emit the "From" as "UNALLOCATED" since we dont have the address indexed
-  and the dunes in the final Unallocated Dunes Buffer came from the etching or minting process and were created in the transaction.
+  Create clone of Unallocated Mezcals, this will be used when emitting the "Transfer" event. If the Mezcal was present in the original
+  mezcals from vin we have the address indexed on db and can emit the transfer event with the "From" equalling the address of transaction signer.
+  However, if the Mezcal was not present in the original mezcals from vin, we can only emit the "From" as "UNALLOCATED" since we dont have the address indexed
+  and the mezcals in the final Unallocated Mezcals Buffer came from the etching or minting process and were created in the transaction.
   */
 
   //let MappedTransactions = await getParentTransactionsMapFromUtxos(UtxoFilter, db)
@@ -989,18 +998,18 @@ const processDunestone = (
   //Delete UTXOs as they are being spent
   // => This should be processed at the end of the block, with filters concatenated.. await Utxo.deleteMany({hash: {$in: UtxoFilter}})
 
-  //Reference of UnallocatedDunes and pendingUtxos is passed around in follwoing functions
+  //Reference of UnallocatedMezcals and pendingUtxos is passed around in follwoing functions
   //Process etching is potentially asyncrhnous because of commitment checks
   stopTimer("body_init_pending_utxo_creation");
 
   startTimer();
-  processEtching(UnallocatedDunes, Transaction, rpc, storage, false, useTest);
+  processEtching(UnallocatedMezcals, Transaction, rpc, storage, false, useTest);
   stopTimer("etch");
 
-  //Mints are processed next and added to the DuneAllocations, with caps being updated (and burnt in case of cenotaphs)
+  //Mints are processed next and added to the MezcalAllocations, with caps being updated (and burnt in case of cenotaphs)
 
   startTimer();
-  processMint(UnallocatedDunes, Transaction, storage);
+  processMint(UnallocatedMezcals, Transaction, storage);
   stopTimer("mint");
 
   //Allocate all transfers from unallocated payload to the pendingUtxos
@@ -1009,7 +1018,7 @@ const processDunestone = (
   let transfers = {};
 
   processEdicts(
-    UnallocatedDunes,
+    UnallocatedMezcals,
     pendingUtxos,
     Transaction,
     transfers,
@@ -1035,7 +1044,7 @@ const loadBlockIntoMemory = async (
   Transaction -> hash
   Utxo -> ( transaction_id, vout_index )
   Address -> address
-  Dune -> dune_protocol_id, raw_name
+  Mezcal -> mezcal_protocol_id, raw_name
     Balance -> address_id
   */
 
@@ -1186,60 +1195,62 @@ const loadBlockIntoMemory = async (
 
   startTimer();
 
-  //Get all dune id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
-  const dunesInBlockByProtocolId = [
+  //Get all mezcal id in all edicts, mints and utxos (we dont need to get etchings as they are created in memory in the block)
+  const mezcalsInBlockByProtocolId = [
     ...new Set(
       [
-        //Get all dune ids in edicts and mints
+        //Get all mezcal ids in edicts and mints
 
         block.map((transaction) => [
-          transaction.dunestone.mint,
-          transaction.dunestone.edicts?.map((edict) => edict.id),
+          transaction.mezcalstone.mint,
+          transaction.mezcalstone.edicts?.map((edict) => edict.id),
         ]),
       ]
         .flat(10)
-        //0:0 refers to self, not an actual dune
-        .filter((dune) => dune !== "0:0")
+        //0:0 refers to self, not an actual mezcal
+        .filter((mezcal) => mezcal !== "0:0")
     ),
   ];
 
-  const dunesInBlockByDbId = [
+  const mezcalsInBlockByDbId = [
     ...new Set(
-      //Get all dune ids in all utxos balance
-      Object.values(utxoBalancesInLocal).map((utxo) => utxo.dune_id)
+      //Get all mezcal ids in all utxos balance
+      Object.values(utxoBalancesInLocal).map((utxo) => utxo.mezcal_id)
     ),
   ];
 
-  const dunesInBlockByRawName = [
-    ...new Set(block.map((transaction) => transaction.dunestone.etching?.dune)),
+  const mezcalsInBlockByRawName = [
+    ...new Set(
+      block.map((transaction) => transaction.mezcalstone.etching?.mezcal)
+    ),
   ]
     .flat(Infinity)
-    //0:0 refers to self, not an actual dune
-    .filter((dune) => dune);
+    //0:0 refers to self, not an actual mezcal
+    .filter((mezcal) => mezcal);
 
-  //Load all dunes that might be transferred into memory. This would be every Dune in a mint, edict or etch
+  //Load all mezcals that might be transferred into memory. This would be every Mezcal in a mint, edict or etch
 
-  // Load dunes by protocol ID
-  await loadManyIntoMemory("Dune", {
-    dune_protocol_id: {
-      [Op.in]: dunesInBlockByProtocolId,
+  // Load mezcals by protocol ID
+  await loadManyIntoMemory("Mezcal", {
+    mezcal_protocol_id: {
+      [Op.in]: mezcalsInBlockByProtocolId,
     },
   });
 
-  // Load dunes by raw name
-  await loadManyIntoMemory("Dune", {
+  // Load mezcals by raw name
+  await loadManyIntoMemory("Mezcal", {
     name: {
-      [Op.in]: dunesInBlockByRawName,
+      [Op.in]: mezcalsInBlockByRawName,
     },
   });
 
-  // Load dunes by database ID
-  await loadManyIntoMemory("Dune", {
+  // Load mezcals by database ID
+  await loadManyIntoMemory("Mezcal", {
     id: {
-      [Op.in]: dunesInBlockByDbId,
+      [Op.in]: mezcalsInBlockByDbId,
     },
   });
-  stopTimer("load_dunes");
+  stopTimer("load_mezcals");
 
   startTimer();
   const balancesInBlock = [
@@ -1284,7 +1295,7 @@ const loadBlockIntoMemory = async (
     "debug"
   );
   log(
-    "loaded: " + Object.keys(local.Dune).length + "  dunes into memory",
+    "loaded: " + Object.keys(local.Mezcal).length + "  mezcals into memory",
     "debug"
   );
 
@@ -1327,7 +1338,7 @@ const processBlock = (
       //REMOVE THIS! This is for the --test flag
       if (useTest) Transaction.block = blockHeight;
 
-      processDunestone(Transaction, callRpc, storage, useTest);
+      processMezcalstone(Transaction, callRpc, storage, useTest);
     } catch (e) {
       log(
         "Indexer panic on the following transaction: " +
@@ -1339,8 +1350,8 @@ const processBlock = (
           TransactionIndex +
           "/" +
           blockData.length +
-          "\ndunestone: " +
-          JSON.stringify(Transaction.dunestone, (_, v) =>
+          "\nmezcalstone: " +
+          JSON.stringify(Transaction.mezcalstone, (_, v) =>
             typeof v === "bigint" ? v.toString() : v
           ) +
           "\ntransaction: " +

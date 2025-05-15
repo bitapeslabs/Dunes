@@ -5,10 +5,10 @@
     APEBOOK FORMAT SPEC
 
 
-    Dunestone in format:
+    Mezcalstone in format:
     {
         isCenotaph: true,
-        dunestone: json
+        mezcalstone: json
     }
 
 */
@@ -17,7 +17,7 @@
 {
   edicts: Vec<Edict>,
   etching: Option<Etching>,
-  mint: Option<DuneId>,
+  mint: Option<MezcalId>,
   pointer: Option<u32>,
 }
 
@@ -25,7 +25,7 @@
 
 /*
 
-    How rundexer would work is first a Ledger is created for every dune like so:
+    How rundexer would work is first a Ledger is created for every mezcal like so:
 
     ledgerentry1 -> utxo TRANSFER utxo ->
     -> hash((prevhash) MINT utxo) ->
@@ -44,11 +44,11 @@
     so:
     a transaction being processed =>
         First ledger entries are determined, and they are added to the db
-        SyncToLedger is called which will simulate the ledger protocol messages by creating/deleting utxos and updating balances / dune balances / holders / etc
+        SyncToLedger is called which will simulate the ledger protocol messages by creating/deleting utxos and updating balances / mezcal balances / holders / etc
 
     The idea is that the Indexer can be fully built from the ledger, without needing to reindex the entire blockchain again. If a ledger is broken at some point
     all hashes after will be invalid since they are chained together, so the ledger can be rebuilt from the last valid hash by checking w/ other 
-    dunedexers.
+    mezcaldexers.
 
     People wanting to create their own indexer can download a common ledger and build from that, or rebuild with their own bitcoin node. They can check for sync by
     checking the hases.
@@ -65,7 +65,7 @@
         txid: string,
         creator: address,
         value: string,
-        dune_id: string,
+        mezcal_id: string,
         input: COINBASE | { address, utxo_id },
         output: COINBASE | { address, utxo_id }
     }
@@ -73,7 +73,7 @@
     etch bodies (SAME AS ORD SPEC WITH BLOCK AND INDEX) + has transfer output:
     {
         decimals: number,
-        dune_id: string,
+        mezcal_id: string,
         premine: string,
         mint_limits: {
             amount,
@@ -102,10 +102,10 @@
 
     prev_hash would be JSON.stringify(block)
 
-    chain_state is a copy of all balances and dune balances at the end of the block
+    chain_state is a copy of all balances and mezcal balances at the end of the block
     {
-        dune_id: {terms, balances: { address_balances, utxo_balances, coinbase_balance },
-        dune_id: {terms, balances: { address_balances, utxo_balances, coinbase_balance }
+        mezcal_id: {terms, balances: { address_balances, utxo_balances, coinbase_balance },
+        mezcal_id: {terms, balances: { address_balances, utxo_balances, coinbase_balance }
     }
 
 
@@ -126,6 +126,6 @@
     Ledger_LIGHT_blk840000.ape (1MiB) -> does not contain chain_state, just events for a block
 
 
-    With the ledger file, anybody can rebuild the entire Dunes State from whatever block they choose
+    With the ledger file, anybody can rebuild the entire Mezcals State from whatever block they choose
 
 */

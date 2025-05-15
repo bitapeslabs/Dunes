@@ -7,9 +7,9 @@ import {
 } from "sequelize";
 
 /* ── 1. Plain TypeScript type ───────────────────── */
-export type IDune = {
+export type IMezcal = {
   id: number;
-  dune_protocol_id: string;
+  mezcal_protocol_id: string;
   name: string;
   symbol: string;
   total_supply: string;
@@ -31,12 +31,12 @@ export type IDune = {
 };
 
 /* ── 2. Sequelize model ─────────────────────────── */
-export class Dune
-  extends Model<IDune, InferCreationAttributes<Dune>>
-  implements IDune
+export class Mezcal
+  extends Model<IMezcal, InferCreationAttributes<Mezcal>>
+  implements IMezcal
 {
   declare id: CreationOptional<number>;
-  declare dune_protocol_id: string;
+  declare mezcal_protocol_id: string;
   declare name: string;
   declare symbol: string;
   declare total_supply: string;
@@ -56,15 +56,15 @@ export class Dune
   declare deployer_address_id: string | null;
   declare unmintable: number;
 
-  static initialize(sequelize: Sequelize): typeof Dune {
-    Dune.init(
+  static initialize(sequelize: Sequelize): typeof Mezcal {
+    Mezcal.init(
       {
         id: {
           type: DataTypes.INTEGER,
           primaryKey: true,
           autoIncrement: true,
         },
-        dune_protocol_id: {
+        mezcal_protocol_id: {
           type: DataTypes.TEXT,
           allowNull: false,
         },
@@ -151,13 +151,13 @@ export class Dune
       },
       {
         sequelize,
-        tableName: "dunes",
+        tableName: "mezcals",
         timestamps: false,
         indexes: [
-          { fields: ["dune_protocol_id"], using: "BTREE" },
+          { fields: ["mezcal_protocol_id"], using: "BTREE" },
           { fields: ["deployer_address_id"], using: "BTREE" },
           {
-            name: "dunes_lower_idx",
+            name: "mezcals_lower_idx",
             using: "BTREE",
             fields: [
               sequelize.fn("lower", sequelize.col("name")) as unknown as string,
@@ -167,6 +167,6 @@ export class Dune
       }
     );
 
-    return Dune;
+    return Mezcal;
   }
 }

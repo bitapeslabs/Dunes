@@ -8,7 +8,7 @@ import {
   Models,
   IAddress,
   IBalance,
-  IDune,
+  IMezcal,
   IUtxo,
   IUtxoBalance,
   ITransaction,
@@ -23,7 +23,7 @@ const safeWhere = <T>(w: MaybeWhere<T> | null): MaybeWhere<T> =>
   w === null ? {} : w;
 
 // ───── Joined Types ─────
-export type IDuneWhereOptions = WhereOptions<IDune> & {
+export type IMezcalWhereOptions = WhereOptions<IMezcal> & {
   etch_transaction?: ITransactionWhereOptions;
   deployer_address?: WhereOptions<IAddress>;
 };
@@ -36,24 +36,24 @@ export type IUtxoWhereOptions = WhereOptions<IUtxo> & {
 
 export type IUtxoBalanceWhereOptions = WhereOptions<IUtxoBalance> & {
   utxo?: IUtxoWhereOptions;
-  dune?: IDuneWhereOptions;
+  mezcal?: IMezcalWhereOptions;
 };
 
 export type IBalanceWhereOptions = WhereOptions<IBalance> & {
   address?: WhereOptions<IAddress>;
-  dune?: IDuneWhereOptions;
+  mezcal?: IMezcalWhereOptions;
 };
 
 export type ITransactionWhereOptions = WhereOptions<ITransaction> & {
   address?: WhereOptions<IAddress>;
 };
 
-export type IJoinedDune = IDune & {
+export type IJoinedMezcal = IMezcal & {
   etch_transaction: ITransaction;
   deployer_address: IAddress | null;
 };
 
-export type IJoinedDuneInstance = Model<IJoinedDune> & IJoinedDune;
+export type IJoinedMezcalInstance = Model<IJoinedMezcal> & IJoinedMezcal;
 
 export type IJoinedUtxo = IUtxo & {
   transaction: ITransaction | null;
@@ -65,7 +65,7 @@ export type IJoinedUtxoInstance = Model<IJoinedUtxo> & IJoinedUtxo;
 
 export type IJoinedUtxoBalance = IUtxoBalance & {
   utxo: IUtxo & { address: IAddress | null };
-  dune: IDune;
+  mezcal: IMezcal;
 };
 
 export type IJoinedUtxoBalanceInstance = Model<IJoinedUtxoBalance> &
@@ -73,7 +73,7 @@ export type IJoinedUtxoBalanceInstance = Model<IJoinedUtxoBalance> &
 
 export type IJoinedBalance = IBalance & {
   address: IAddress;
-  dune: IDune;
+  mezcal: IMezcal;
 };
 
 export type IJoinedBalanceInstance = Model<IJoinedBalance> & IJoinedBalance;
@@ -106,13 +106,13 @@ const IncludeAddress = (
   attributes: ["address"],
 });
 
-const IncludeDune = (
+const IncludeMezcal = (
   models: Models,
   as?: string | null,
-  where?: IDuneWhereOptions
+  where?: IMezcalWhereOptions
 ): IncludeOptions => ({
-  model: models.Dune,
-  as: as ?? "dune",
+  model: models.Mezcal,
+  as: as ?? "mezcal",
   where: safeWhere(
     stripFields(where ?? {}, ["etch_transaction", "deployer_address"])
   ),
@@ -152,13 +152,13 @@ const getSomeAddressBalance = (
 ): IncludeOptions => ({
   model: models.Balance,
   where: safeWhere(
-    stripFields(where ?? {}, ["address", "dune"]) as MaybeWhere<IBalance>
+    stripFields(where ?? {}, ["address", "mezcal"]) as MaybeWhere<IBalance>
   ),
   include: [
     IncludeAddress(models, undefined, where?.address),
-    IncludeDune(models, undefined, where?.dune),
+    IncludeMezcal(models, undefined, where?.mezcal),
   ],
-  attributes: { exclude: ["address_id", "dune_id", "id"] },
+  attributes: { exclude: ["address_id", "mezcal_id", "id"] },
 });
 
 /** UTXO‑level balances */
@@ -168,13 +168,13 @@ const getSomeUtxoBalance = (
 ): IncludeOptions => ({
   model: models.Utxo_balance,
   where: safeWhere(
-    stripFields(where ?? {}, ["utxo", "dune"]) as MaybeWhere<IUtxoBalance>
+    stripFields(where ?? {}, ["utxo", "mezcal"]) as MaybeWhere<IUtxoBalance>
   ),
   include: [
     IncludeUtxo(models, undefined, where?.utxo),
-    IncludeDune(models, undefined, where?.dune),
+    IncludeMezcal(models, undefined, where?.mezcal),
   ],
-  attributes: { exclude: ["utxo_id", "dune_id", "id"] },
+  attributes: { exclude: ["utxo_id", "mezcal_id", "id"] },
 });
 
 /* ------------------------------------------------------------------ exports */

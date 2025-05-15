@@ -1,6 +1,6 @@
 import { z } from "zod";
 import dotenv from "dotenv";
-import { IDunestoneIndexed } from "./dunestone";
+import { IMezcalstoneIndexed } from "./mezcalstone";
 dotenv.config();
 
 const envSchema = z.object({
@@ -38,15 +38,15 @@ export const RPC_PORT = env.RPC_PORT;
 export const GENESIS_BLOCK = env.GENESIS_BLOCK ?? 4326248;
 
 export const TAPROOT_ANNEX_PREFIX = 0x50;
-export const UNLOCK_INTERVAL = 17500; // as per dunes spec
+export const UNLOCK_INTERVAL = 17500; // as per mezcals spec
 export const COMMIT_CONFIRMATIONS = 6;
-export const INITIAL_AVAILABLE = 13; // as per dunes spec
+export const INITIAL_AVAILABLE = 13; // as per mezcals spec
 export const TAPROOT_SCRIPT_PUBKEY_TYPE = "witness_v1_taproot";
 export const MAX_SIGNED_128_BIT_INT = 0x7fffffffffffffffffffffffffffffffn + 1n;
 
-export const GENESIS_DUNESTONE = {
+export const GENESIS_MEZCALTONE = {
   etching: {
-    dune: "duni",
+    mezcal: "duni",
     symbol: "\uD83C\uDF35", // cactus 🌵
     premine: 0n,
     divisibility: 0,
@@ -63,6 +63,6 @@ export const GENESIS_DUNESTONE = {
           "tb1p8888zulc047mg3mf252tqeagc2feeh8a2pqn87arzd80t9qdkgcqkf8y5h",
       },
     },
-  } as IDunestoneIndexed["etching"],
+  } as IMezcalstoneIndexed["etching"],
   cenotaph: false,
 } as const;

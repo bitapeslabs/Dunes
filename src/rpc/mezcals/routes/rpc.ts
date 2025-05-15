@@ -4,9 +4,9 @@ import { Models, ISetting } from "@/database/createConnection";
 const router = Router();
 
 /*
-  Returns global Dune RPC settings
+  Returns global Mezcal RPC settings
 
-  Documentation: https://dunes.sh/docs/dunes-rpc/events#get-dunes-info
+  Documentation: https://mezcals.sh/docs/mezcals-rpc/events#get-mezcals-info
 */
 router.get("/info", async (req: Request, res: Response) => {
   try {

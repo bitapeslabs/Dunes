@@ -1,10 +1,10 @@
 {
-  "name": "dunes",
+  "name": "mezcal",
   "version": "1.0.0",
-  "description": "Dunes is runes, but without the runestone decoder or commitmenets - instead leveraging the new op_return size limit.",
+  "description": "Mezcals is runes, but without the runestone decoder or commitmenets - instead leveraging the new op_return size limit.",
   "main": "src/ndex.js",
   "scripts": {
-    "build-native": "wasm-pack build ./src/rpc/dunes/lib/native --target nodejs --out-dir ../../../../../dist",
+    "build-native": "wasm-pack build ./src/rpc/mezcals/lib/native --target nodejs --out-dir ../../../../../dist",
     "build": "node esbuild.config.mjs && npm run build-native",
     "start-new": "node --expose-gc ./dist/index.js --new --server --rpc",
     "resume": "node --expose-gc ./dist/index.js --server --rpc",

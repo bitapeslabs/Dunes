@@ -29,7 +29,7 @@ const satoshi = z.preprocess((v) => {
   return v; // ❌ leave as‑is (string)
 }, z.number().int().nonnegative().max(MAX_SATOSHI_EVER_IN_CIRCULATION));
 
-const duneAmount = z.string().refine(
+const mezcalAmount = z.string().refine(
   (s) => {
     return isValidU128(s) && s !== "";
   },
@@ -48,14 +48,14 @@ export const PriceTermsSchema = z.object({
 /* ── 3. existing schemas with additions/limits ───────── */
 export const EdictSchema = z.object({
   id: z.string().regex(/^\d+:\d+$/, "id must look like “0:0”"),
-  amount: duneAmount,
+  amount: mezcalAmount,
   output: u8(),
 });
 
 export const TermsSchema = z.object({
   price: PriceTermsSchema.optional(),
-  amount: duneAmount,
-  cap: duneAmount.optional().nullable(),
+  amount: mezcalAmount,
+  cap: mezcalAmount.optional().nullable(),
   height: z.tuple([u32().nullable(), u32().nullable()]),
   offset: z.tuple([u32().nullable(), u32().nullable()]),
 });
@@ -84,8 +84,8 @@ export const MintSchema = z
 
 export const EtchingSchema = z.object({
   divisibility: z.number().int().nonnegative().max(18), //Avoid jeet precision
-  premine: duneAmount,
-  dune: z
+  premine: mezcalAmount,
+  mezcal: z
     .string()
     .regex(/^[A-Za-z0-9_.-]{1,31}$/)
     .min(1)
@@ -102,9 +102,9 @@ export const EtchingSchema = z.object({
 
 export const AMOUNT_KEYS = new Set(["amount", "cap", "premine"]);
 
-export const DunestoneSchema = z
+export const MezcalstoneSchema = z
   .object({
-    p: z.union([z.literal("dunes"), z.literal("https://dunes.sh")]),
+    p: z.union([z.literal("mezcals"), z.literal("https://mezcals.sh")]),
     edicts: z.array(EdictSchema).optional(),
     etching: EtchingSchema.optional(),
     mint: MintSchema.optional(),
@@ -117,11 +117,11 @@ export type IEdict = z.infer<typeof EdictSchema>;
 export type ITerms = z.infer<typeof TermsSchema>;
 export type IMint = z.infer<typeof MintSchema>;
 export type IEtching = z.infer<typeof EtchingSchema>;
-export type IDunestoneFull = z.infer<typeof DunestoneSchema>;
+export type IMezcalstoneFull = z.infer<typeof MezcalstoneSchema>;
 
-export type IDunestone = Omit<IDunestoneFull, "p"> & { p?: string };
+export type IMezcalstone = Omit<IMezcalstoneFull, "p"> & { p?: string };
 
-//Same as dunestone but all "duneAmount" are coerced to BigInt
+//Same as mezcalstone but all "mezcalAmount" are coerced to BigInt
 type AmountKeys = "amount" | "cap" | "premine";
 
 /** replace the *string* part of a union with bigint, keep the rest */
@@ -138,11 +138,11 @@ type ToIndexed<T> = T extends (infer U)[] // recurse into arrays
         : ToIndexed<T[K]>; // recurse normally
     }
   : T;
-export type IDunestoneIndexed = ToIndexed<IDunestone> & {
+export type IMezcalstoneIndexed = ToIndexed<IMezcalstone> & {
   cenotaph: boolean;
 };
 
-export const decipher = (tx: Transaction): IDunestoneIndexed => {
+export const decipher = (tx: Transaction): IMezcalstoneIndexed => {
   const op = tx.vout.find(
     (v) =>
       v.scriptPubKey?.type === "nulldata" ||
@@ -167,18 +167,18 @@ export const decipher = (tx: Transaction): IDunestoneIndexed => {
     return { cenotaph: true };
   }
 
-  const parsed = DunestoneSchema.safeParse(candidate);
+  const parsed = MezcalstoneSchema.safeParse(candidate);
   if (!parsed.success) return { cenotaph: true };
-  const dune = parsed.data;
+  const mezcal = parsed.data;
 
-  if (dune.edicts) {
+  if (mezcal.edicts) {
     const voutLen = tx.vout.length;
-    const badOutput = dune.edicts.some((e) => e.output > voutLen - 1);
-    const badZeroDune = dune.edicts.some((e) => {
+    const badOutput = mezcal.edicts.some((e) => e.output > voutLen - 1);
+    const badZeroMezcal = mezcal.edicts.some((e) => {
       const [blk, idx] = e.id.split(":").map(Number);
       return blk === 0 && idx !== 0;
     });
-    if (badOutput || badZeroDune) return { cenotaph: true };
+    if (badOutput || badZeroMezcal) return { cenotaph: true };
   }
 
   const toBig = (obj: any): any => {
@@ -194,5 +194,5 @@ export const decipher = (tx: Transaction): IDunestoneIndexed => {
     return obj;
   };
 
-  return { ...toBig(dune), cenotaph: false };
+  return { ...toBig(mezcal), cenotaph: false };
 };

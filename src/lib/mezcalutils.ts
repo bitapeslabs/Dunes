@@ -13,10 +13,10 @@ import {
   isValidResponse,
 } from "./utils";
 import {
-  IDunestoneIndexed,
-  decipher as decipherDunestoneRaw,
-} from "./dunestone";
-import { IDune, ITransaction } from "@/database/models/types";
+  IMezcalstoneIndexed,
+  decipher as decipherMezcalstoneRaw,
+} from "./mezcalstone";
+import { IMezcal, ITransaction } from "@/database/models/types";
 /* ── constants ────────────────────────────────────────────────────────────── */
 import { GENESIS_BLOCK, UNLOCK_INTERVAL, INITIAL_AVAILABLE } from "./consts";
 import { IStorage } from "@/lib/storage";
@@ -27,7 +27,7 @@ import { IndexedTxExtended } from "./indexer";
 type RpcCall = <T>(method: string, params?: unknown[]) => Promise<T>;
 
 export interface IndexedTx extends Transaction {
-  dunestone: IDunestoneIndexed;
+  mezcalstone: IMezcalstoneIndexed;
   hash: string;
   txIndex: number;
   block: number;
@@ -39,25 +39,26 @@ export interface IndexedTx extends Transaction {
 /* ── helpers from original JS (comments preserved) ────────────────────────── */
 
 /**
- * Decipher OP_RETURN → dunestone payload. Wrapper keeps signature identical.
+ * Decipher OP_RETURN → mezcalstone payload. Wrapper keeps signature identical.
  */
-const decipherDunestone = (txJson: Transaction) => decipherDunestoneRaw(txJson);
+const decipherMezcalstone = (txJson: Transaction) =>
+  decipherMezcalstoneRaw(txJson);
 
 /**
  * A transaction is useful for the indexer if it contains a cenotaph, mint,
  * or etching operation.
  */
-const isUsefulDuneTx = (tx: IndexedTx): boolean => {
-  const { dunestone } = tx;
-  if (dunestone?.cenotaph) return true; // burn happens
-  if (dunestone?.mint || dunestone?.etching) return true;
+const isUsefulMezcalTx = (tx: IndexedTx): boolean => {
+  const { mezcalstone } = tx;
+  if (mezcalstone?.cenotaph) return true; // burn happens
+  if (mezcalstone?.mint || mezcalstone?.etching) return true;
   return false;
 };
 
 /**
- * Fetch a block from RPC and hydrate every tx with its dunestone (if any).
+ * Fetch a block from RPC and hydrate every tx with its mezcalstone (if any).
  */
-const getDunestonesInBlock = async (
+const getMezcalstonesInBlock = async (
   blockNumber: number,
   callRpc: RpcCall
 ): Promise<IndexedTx[]> => {
@@ -67,7 +68,7 @@ const getDunestonesInBlock = async (
   return Promise.all(
     block.tx.map(
       async (tx, txIndex): Promise<IndexedTx> => ({
-        dunestone: decipherDunestone(tx),
+        mezcalstone: decipherMezcalstone(tx),
         hash: tx.txid,
         txIndex,
         block: blockNumber,
@@ -153,7 +154,7 @@ const populateResultsWithPrevoutData = async (
     ...new Set(
       results
         .flat()
-        .map((tx) => (isUsefulDuneTx(tx) ? tx.vin.map((v) => v.txid) : []))
+        .map((tx) => (isUsefulMezcalTx(tx) ? tx.vin.map((v) => v.txid) : []))
         .flat()
         .filter(Boolean)
     ),
@@ -194,15 +195,15 @@ const populateResultsWithPrevoutData = async (
     results.map(async (block) =>
       Promise.all(
         block.map(async (tx) => {
-          const { vin, dunestone } = tx;
+          const { vin, mezcalstone } = tx;
 
           // 1️⃣ coinbase → sender "COINBASE"
           if (vin[0].coinbase) return { ...tx, sender: "COINBASE" };
 
-          /* These two fields create new dunes with no previous sender.
+          /* These two fields create new mezcals with no previous sender.
              Use owner of first vout instead. */
           if (
-            dunestone.etching?.dune &&
+            mezcalstone.etching?.mezcal &&
             !process.argv.includes("--no-commitments")
           ) {
             const newVins = await Promise.all(
@@ -290,7 +291,7 @@ const populateResultsWithPrevoutData = async (
           }
 
           // 4️⃣ last resort RPC for mint/etching
-          if (dunestone?.mint || dunestone?.etching) {
+          if (mezcalstone?.mint || mezcalstone?.etching) {
             const sender = (
               await callRpc<Transaction>("getrawtransaction", [
                 vin[0].txid,
@@ -301,7 +302,7 @@ const populateResultsWithPrevoutData = async (
             return { ...tx, sender };
           }
 
-          // non‑dune TXs don’t need sender
+          // non‑mezcal TXs don’t need sender
           return { ...tx, sender: "UNKNOWN" };
         })
       )
@@ -343,7 +344,7 @@ const blockManager = (
 
       const results = await Promise.all(
         Array.from({ length: chunkSize }, (_, i) =>
-          getDunestonesInBlock(currentBlock + i, callRpc)
+          getMezcalstonesInBlock(currentBlock + i, callRpc)
         )
       );
 
@@ -386,14 +387,14 @@ const blockManager = (
   return { getBlock };
 };
 
-/* ── dune‑specific helpers ────────────────────────────────────────────────── */
+/* ── mezcal‑specific helpers ────────────────────────────────────────────────── */
 const minimumLengthAtHeight = (block: number): number => {
   const stepsPassed = Math.floor((block - GENESIS_BLOCK) / UNLOCK_INTERVAL);
   return INITIAL_AVAILABLE - stepsPassed;
 };
 
 interface Allocation {
-  dune_id: string;
+  mezcal_id: string;
   amount: bigint;
 }
 
@@ -401,18 +402,18 @@ const updateUnallocated = (
   prev: Record<string, bigint>,
   allocation: Allocation
 ) => {
-  prev[allocation.dune_id] =
-    (prev[allocation.dune_id] ?? 0n) + allocation.amount;
+  prev[allocation.mezcal_id] =
+    (prev[allocation.mezcal_id] ?? 0n) + allocation.amount;
   return prev;
 };
 
 /**
- * Determine if minting is open for a given dune at block/txIndex.
+ * Determine if minting is open for a given mezcal at block/txIndex.
  */
 const isMintOpen = (
   block: number,
   txIndex: number,
-  Dune: IDune,
+  Mezcal: IMezcal,
   mint_offset = false
 ): boolean => {
   let {
@@ -422,18 +423,18 @@ const isMintOpen = (
     mint_end,
     mint_offset_start: raw_mint_offset_start,
     mint_offset_end: raw_mint_offset_end,
-    dune_protocol_id,
+    mezcal_protocol_id,
     unmintable,
-  } = Dune;
+  } = Mezcal;
   if (unmintable) return false;
 
-  let [creationBlock, creationTxIndex] = dune_protocol_id
+  let [creationBlock, creationTxIndex] = mezcal_protocol_id
     .split(":")
     .map(Number);
 
   // mints allowed only after etching
   if (block === creationBlock && creationTxIndex === txIndex) return false;
-  if (dune_protocol_id === "1:0") creationBlock = GENESIS_BLOCK;
+  if (mezcal_protocol_id === "1:0") creationBlock = GENESIS_BLOCK;
 
   /* ── variable defs per ord spec ────────────────────────────────────────── */
   let mint_offset_start: number =
@@ -466,11 +467,11 @@ const isMintOpen = (
 /**
  * Ensure a tx meets price terms (amount + pay_to).
  */
-function isPriceTermsMet(dune: IDune, transaction: Transaction): boolean {
-  if (dune?.price_amount == null) return true; // auto OK
+function isPriceTermsMet(mezcal: IMezcal, transaction: Transaction): boolean {
+  if (mezcal?.price_amount == null) return true; // auto OK
 
-  const price = BigInt(dune?.price_amount);
-  const payTo = dune?.price_pay_to;
+  const price = BigInt(mezcal?.price_amount);
+  const payTo = mezcal?.price_pay_to;
 
   const payOutputs = transaction.vout.filter(
     (v) => v.scriptPubKey?.address === payTo
@@ -488,10 +489,10 @@ export {
   isMintOpen,
   minimumLengthAtHeight,
   blockManager,
-  getDunestonesInBlock,
+  getMezcalstonesInBlock,
   convertPartsToAmount,
   convertAmountToParts,
   prefetchTransactions,
-  isUsefulDuneTx,
+  isUsefulMezcalTx,
   isPriceTermsMet,
 };

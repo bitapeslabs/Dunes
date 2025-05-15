@@ -1,12 +1,12 @@
 import { simplify } from "../../../lib/utils";
 import {
   IUtxoBalance,
-  IDune,
+  IMezcal,
   IUtxo,
   IAddress,
 } from "@/database/createConnection";
 
-import { IJoinedBalance, IJoinedUtxoBalance } from "../lib/queries";
+import { IJoinedBalance, IJoinedUtxoBalance } from "./queries";
 
 let __debug_totalElapsedTime: Record<string, number> = {};
 let __timer = 0;
@@ -21,33 +21,33 @@ const stopTimer = (field: string): void => {
 };
 
 type ParsedBalance = {
-  [dune_protocol_id: string]: {
+  [mezcal_protocol_id: string]: {
     balance: string;
-    dune?: IDune;
+    mezcal?: IMezcal;
   };
 };
 
 const parseBalances = <T extends IJoinedUtxoBalance | IJoinedBalance>(
   rawBalances: T[],
-  excludeDune = false
+  excludeMezcal = false
 ): ParsedBalance => {
   return rawBalances.reduce<ParsedBalance>((acc, entry) => {
-    const duneId = entry.dune?.dune_protocol_id;
-    if (!duneId) return acc;
+    const mezcalId = entry.mezcal?.mezcal_protocol_id;
+    if (!mezcalId) return acc;
 
-    if (!acc[duneId]) {
-      acc[duneId] = {
+    if (!acc[mezcalId]) {
+      acc[mezcalId] = {
         balance: "0",
-        dune: entry.dune,
+        mezcal: entry.mezcal,
       };
     }
 
-    acc[duneId].balance = (
-      BigInt(acc[duneId].balance) + BigInt(entry.balance ?? "0")
+    acc[mezcalId].balance = (
+      BigInt(acc[mezcalId].balance) + BigInt(entry.balance ?? "0")
     ).toString();
 
-    if (excludeDune) {
-      delete acc[duneId].dune;
+    if (excludeMezcal) {
+      delete acc[mezcalId].mezcal;
     }
 
     return acc;
@@ -84,8 +84,8 @@ const parsePrevUtxoBalancesIntoAddress = (
 
   for (const utxoBalance of rawUtxoBalances) {
     const utxo = utxoBalance.utxo;
-    const dune = utxoBalance.dune;
-    if (!utxo || !dune?.dune_protocol_id) continue;
+    const mezcal = utxoBalance.mezcal;
+    if (!utxo || !mezcal?.mezcal_protocol_id) continue;
 
     let block = utxo.block;
     let block_spent = utxo.block_spent ?? endBlock;
@@ -94,7 +94,7 @@ const parsePrevUtxoBalancesIntoAddress = (
     const end = Math.min(block_spent, endBlock);
 
     for (let current = start; current <= end; current++) {
-      const protoId = dune.dune_protocol_id;
+      const protoId = mezcal.mezcal_protocol_id;
       if (!balances[current][protoId]) {
         balances[current][protoId] = "0";
       }

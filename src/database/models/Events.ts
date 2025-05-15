@@ -12,7 +12,7 @@ export type IEvent = {
   type: number; // 0 = Etch, 1 = Mint, 2 = Transfer, 3 = Burn
   block: number;
   transaction_id: string | null; // BIGINT → string
-  dune_id: number | null;
+  mezcal_id: number | null;
   amount: string; // DECIMAL → string
   from_address_id: string | null; // BIGINT → string
   to_address_id: string | null; // BIGINT → string
@@ -27,7 +27,7 @@ export class Event
   declare type: number;
   declare block: number;
   declare transaction_id: string | null;
-  declare dune_id: number | null;
+  declare mezcal_id: number | null;
   declare amount: string;
   declare from_address_id: string | null;
   declare to_address_id: string | null;
@@ -56,11 +56,11 @@ export class Event
             key: "id",
           },
         },
-        dune_id: {
+        mezcal_id: {
           type: DataTypes.INTEGER,
           allowNull: true,
           references: {
-            model: "dunes",
+            model: "mezcals",
             key: "id",
           },
         },
@@ -91,7 +91,7 @@ export class Event
         timestamps: false,
         indexes: [
           { fields: ["block"], using: "BTREE" },
-          { fields: ["dune_id"], using: "BTREE" },
+          { fields: ["mezcal_id"], using: "BTREE" },
           { fields: ["transaction_id"], using: "BTREE" },
           { fields: ["from_address_id"], using: "BTREE" },
           { fields: ["to_address_id"], using: "BTREE" },

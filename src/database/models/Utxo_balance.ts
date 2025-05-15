@@ -10,7 +10,7 @@ import {
 export type IUtxoBalance = {
   id: string; // BIGINT → string
   utxo_id: string; // BIGINT → string
-  dune_id: number;
+  mezcal_id: number;
   balance: string | null; // DECIMAL → string
 };
 
@@ -21,7 +21,7 @@ export class UtxoBalance
 {
   declare id: CreationOptional<string>;
   declare utxo_id: string;
-  declare dune_id: number;
+  declare mezcal_id: number;
   declare balance: string | null;
 
   static initialize(sequelize: Sequelize): typeof UtxoBalance {
@@ -36,7 +36,7 @@ export class UtxoBalance
           type: DataTypes.BIGINT,
           allowNull: false,
         },
-        dune_id: {
+        mezcal_id: {
           type: DataTypes.INTEGER,
           allowNull: false,
         },
@@ -51,7 +51,7 @@ export class UtxoBalance
         timestamps: false,
         indexes: [
           { fields: ["utxo_id"], using: "BTREE" },
-          { fields: ["utxo_id", "dune_id"], using: "BTREE" },
+          { fields: ["utxo_id", "mezcal_id"], using: "BTREE" },
         ],
       }
     );

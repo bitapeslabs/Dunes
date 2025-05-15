@@ -17,14 +17,14 @@ import { GENESIS_BLOCK } from "@/lib/consts";
 import {
   blockManager as createBlockManager,
   prefetchTransactions,
-} from "@/lib/duneutils";
+} from "@/lib/mezcalutils";
 import {
   databaseConnection as createConnection,
   Models,
   ISetting,
   IEvent,
   IAddress,
-  IDune,
+  IMezcal,
   ITransaction,
 } from "@/database/createConnection";
 import { processBlock, loadBlockIntoMemory } from "@/lib/indexer";
@@ -61,7 +61,7 @@ interface EventWithJoins {
   block: number;
   amount: string | bigint;
   transaction: ITransaction | null;
-  dune: IDune | null;
+  mezcal: IMezcal | null;
   from: IAddress | null;
   to: IAddress | null;
 }
@@ -77,9 +77,9 @@ const emitEvents = async (storageInstance: IStorage): Promise<void> => {
       true
     );
 
-    const foundDune = findOne<IDune>(
-      "Dune",
-      `${event.dune_id}@REF@id`,
+    const foundMezcal = findOne<IMezcal>(
+      "Mezcal",
+      `${event.mezcal_id}@REF@id`,
       undefined,
       true
     );
@@ -99,7 +99,7 @@ const emitEvents = async (storageInstance: IStorage): Promise<void> => {
 
     if (
       !foundTransaction ||
-      !foundDune ||
+      !foundMezcal ||
       !foundAddressFrom ||
       !foundAddressTo
     ) {
@@ -112,7 +112,7 @@ const emitEvents = async (storageInstance: IStorage): Promise<void> => {
       block: event.block,
       amount: event.amount,
       transaction: foundTransaction,
-      dune: foundDune,
+      mezcal: foundMezcal,
       from: foundAddressFrom,
       to: foundAddressTo,
     };
@@ -150,16 +150,22 @@ const startRpc = async (): Promise<void> => {
   app.use(injector);
 
   /* mount routes — default exports */
-  app.use("/dunes/events", (await import("@/rpc/dunes/routes/events")).default);
   app.use(
-    "/dunes/balances",
-    (await import("@/rpc/dunes/routes/balances")).default
+    "/mezcals/events",
+    (await import("@/rpc/mezcals/routes/events")).default
   );
-  app.use("/dunes/rpc", (await import("@/rpc/dunes/routes/rpc")).default);
-  app.use("/dunes/utxos", (await import("@/rpc/dunes/routes/utxos")).default);
   app.use(
-    "/dunes/etchings",
-    (await import("@/rpc/dunes/routes/etchings")).default
+    "/mezcals/balances",
+    (await import("@/rpc/mezcals/routes/balances")).default
+  );
+  app.use("/mezcals/rpc", (await import("@/rpc/mezcals/routes/rpc")).default);
+  app.use(
+    "/mezcals/utxos",
+    (await import("@/rpc/mezcals/routes/utxos")).default
+  );
+  app.use(
+    "/mezcals/etchings",
+    (await import("@/rpc/mezcals/routes/etchings")).default
   );
 
   app.listen(Number(RPC_PORT ?? 3030), () =>
