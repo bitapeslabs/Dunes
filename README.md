@@ -62,7 +62,7 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
     "turbo": true,
     "terms": {
       "amount": 100,
-      "cap": 1000000,
+      "cap": 10000,
       "height": [0, null],
       "offset": [null, null],
       "price": {
