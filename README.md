@@ -127,6 +127,8 @@ type Mezcalstone = {
 
 ## What are priced mints?
 
+TLDR: Priced mints are an optional setting to make all mints of a mezcal enforce a payment of bitcoin to a specific address in order for the mint to be valid.
+
 Price is a u128 integer expressed in Satoshi. During an etch, IF the price field is present the following would be added as a requirement:
 
 ```
