@@ -2,7 +2,7 @@
 ![githubbanner](https://github.com/user-attachments/assets/4fce5c83-47ef-451d-9de8-534e93809dfb)
 # Mezcal
 
-**Want to interact with Mezcals? Use the CLI!**
+**Want to interact with Mezcal? Use the CLI!**
 
 To install:
 
@@ -13,7 +13,7 @@ mezcal-cli --help
 
 **More information on the commands you can use can be found here:** https://github.com/bitapeslabs/mezcal-cli
 
-**Mezcals explorer:** https://mezcal.sh
+**Mezcal explorer:** https://mezcal.sh
 
 ## What is Mezcals?
 
