@@ -57,7 +57,7 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 ```json
 {
   "etching": {
-    "mezcal": "cactusseed",
+    "mezcal": "cactusseeds",
     "symbol": "🌵",
     "turbo": true,
     "terms": {
@@ -74,7 +74,7 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 }
 ```
 
-Each cactusseed mint costs **21000 satoshis**, or roughly 20.29 USD (0.20 USD per cactusseed) at the time of writing.
+Each cactusseeds mint costs **21000 satoshis**, or roughly 20.29 USD (0.20 USD per cactusseed) at the time of writing.
 
 # Mezcalstone schema
 
