@@ -1,6 +1,6 @@
 
 ![githubbanner](https://github.com/user-attachments/assets/4fce5c83-47ef-451d-9de8-534e93809dfb)
-# Mezcal
+# mezcal
 
 **Want to interact with Mezcal? Use the CLI!**
 
