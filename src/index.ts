@@ -13,7 +13,12 @@ import axios from "axios";
 import { createRpcClient } from "@/lib/bitcoinrpc";
 import { log, sleep } from "@/lib/utils";
 import { storage as newStorage, IStorage } from "@/lib/storage";
-import { GENESIS_BLOCK } from "@/lib/consts";
+import {
+  GENESIS_BLOCK,
+  RPC_ENABLED,
+  INDEXER_ENABLED,
+  CACHE_REFRESH_INTERVAL,
+} from "@/lib/consts";
 import {
   blockManager as createBlockManager,
   prefetchTransactions,
@@ -28,7 +33,7 @@ import {
   ITransaction,
 } from "@/database/createConnection";
 import { processBlock, loadBlockIntoMemory } from "@/lib/indexer";
-
+import rpcCache, { clearAndPopulateRpcCache } from "@/rpc/mezcal/lib/cache";
 import {
   BTC_RPC_URL,
   BTC_RPC_USERNAME,
@@ -36,9 +41,6 @@ import {
   RPC_PORT,
 } from "@/lib/consts";
 
-/* ──────────────────────────────────────────────────────────
-   rpc client (single instance)
-   ──────────────────────────────────────────────────────── */
 const rpcClient = createRpcClient({
   url: BTC_RPC_URL,
   username: BTC_RPC_USERNAME,
@@ -122,6 +124,8 @@ const emitEvents = async (storageInstance: IStorage): Promise<void> => {
    RPC server (express)
    ──────────────────────────────────────────────────────── */
 const startRpc = async (): Promise<void> => {
+  //Consitently keep a cache and update on every block using the block manager below
+
   log("Connecting to DB  » rpc", "info");
   const db = await createConnection();
 
@@ -147,6 +151,11 @@ const startRpc = async (): Promise<void> => {
     req.callRpc = callRpc;
     next();
   };
+
+  log("Hydrating cache from postgresql..", "info");
+  await clearAndPopulateRpcCache(db);
+  log("done!", "info");
+
   app.use(injector);
 
   /* mount routes — default exports */
@@ -168,6 +177,11 @@ const startRpc = async (): Promise<void> => {
   app.listen(Number(RPC_PORT ?? 3030), () =>
     log(`RPC server running on :${RPC_PORT}`, "info")
   );
+
+  setInterval(async () => {
+    await clearAndPopulateRpcCache(db);
+    log("Cache refreshed", "info");
+  }, CACHE_REFRESH_INTERVAL);
 };
 
 /* ──────────────────────────────────────────────────────────
@@ -199,7 +213,9 @@ const startServer = async (storage: IStorage): Promise<void> => {
   let lastProcessed = await readInt("last_block_processed");
   const prefetched = await readInt("prefetch");
 
-  /* optional prefetch once */
+  // PREFECTH SETTINGS
+  // ==========================
+
   if (!prefetched) {
     const count = Number(process.env.PREFETCH_BLOCKS ?? "100");
     const heights = Array.from(
@@ -209,13 +225,17 @@ const startServer = async (storage: IStorage): Promise<void> => {
     log(`Prefetching ${count} blocks for fast indexing …`, "info");
     await prefetchTransactions(heights, storage, callRpcBatch);
     await storage.commitChanges();
+
+    // Clear the cache and repopulate it because we processed a new block that has new data rpc should know about
     await writeInt("prefetch", 1);
     log("Prefetch complete", "info");
   }
+
+  // ========================
+
   let current = lastProcessed ? lastProcessed + 1 : GENESIS_BLOCK;
 
   const blockStorage = await newStorage();
-  /* block‑manager */
 
   log(`Indexer starting at height ${current}`, "info");
 
@@ -233,7 +253,6 @@ const startServer = async (storage: IStorage): Promise<void> => {
     await sleep(Number(process.env.BLOCK_CHECK_INTERVAL ?? "15000"));
   }
 
-  /* inner helper – inclusive range, chunked */
   async function processRange(start: number, end: number): Promise<void> {
     const { getBlock } = await createBlockManager(
       callRpcBatch,
@@ -265,8 +284,15 @@ const startServer = async (storage: IStorage): Promise<void> => {
         )
       );
 
+      //Repopulate the cache with the new data because blocks may contain new Mezcalstone data rpc should know about
+      if (RPC_ENABLED) {
+        await clearAndPopulateRpcCache(storage.db);
+      }
       await emitEvents(storage);
       await storage.commitChanges();
+
+      //
+
       await writeInt("last_block_processed", lastProcessed);
       log(`Processed ${height}…${lastProcessed}`, "info");
     }
@@ -275,12 +301,11 @@ const startServer = async (storage: IStorage): Promise<void> => {
 
 const start = async (): Promise<void> => {
   const freshDb = process.argv.includes("--new");
-  const useTest = process.argv.includes("--test");
 
   const storage = await newStorage(freshDb);
 
-  if (process.argv.includes("--server")) startServer(storage);
-  if (process.argv.includes("--rpc")) startRpc();
+  if (INDEXER_ENABLED) startServer(storage);
+  if (RPC_ENABLED) startRpc();
 };
 
 start();
