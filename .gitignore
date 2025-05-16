@@ -2,5 +2,5 @@ node_modules/*
 .env
 bin/*
 dump/*
-src/rpc/mezcals/lib/native/target/
+src/rpc/mezcal/lib/native/target/
 dist

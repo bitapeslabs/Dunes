@@ -151,21 +151,18 @@ const startRpc = async (): Promise<void> => {
 
   /* mount routes — default exports */
   app.use(
-    "/mezcals/events",
-    (await import("@/rpc/mezcals/routes/events")).default
+    "/mezcal/events",
+    (await import("@/rpc/mezcal/routes/events")).default
   );
   app.use(
-    "/mezcals/balances",
-    (await import("@/rpc/mezcals/routes/balances")).default
+    "/mezcal/balances",
+    (await import("@/rpc/mezcal/routes/balances")).default
   );
-  app.use("/mezcals/rpc", (await import("@/rpc/mezcals/routes/rpc")).default);
+  app.use("/mezcal/rpc", (await import("@/rpc/mezcal/routes/rpc")).default);
+  app.use("/mezcal/utxos", (await import("@/rpc/mezcal/routes/utxos")).default);
   app.use(
-    "/mezcals/utxos",
-    (await import("@/rpc/mezcals/routes/utxos")).default
-  );
-  app.use(
-    "/mezcals/etchings",
-    (await import("@/rpc/mezcals/routes/etchings")).default
+    "/mezcal/etchings",
+    (await import("@/rpc/mezcal/routes/etchings")).default
   );
 
   app.listen(Number(RPC_PORT ?? 3030), () =>
