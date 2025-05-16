@@ -15,7 +15,7 @@ mezcal-cli --help
 
 **Mezcal explorer:** https://mezcal.sh
 
-## What is Mezcals?
+## What is Mezcal?
 
 Mezcal is runes, but without the runestone decoder - instead leveraging the new op_return size limit so runestones (named mezcalstones on mezcal), can be pushed to
 bitcoin as a JSON file directly. This makes it MUCH easier for developers to work with, as the runestone decoder is notriously the most difficult part in reaching
