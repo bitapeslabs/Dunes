@@ -50,6 +50,9 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 
 **NOTE: For simplicity, this has been removed.** This is checked before processing, and if a cenotaph is produced, the entire mezcalstone will be treated as a cenotaph. This means that the edicts, etching, and mint fields will be null.
 
+**TIP:** For a comprehensive overview of a mezcalstone's validation, please see https://github.com/bitapeslabs/mezcal/blob/main/src/lib/mezcalstone.ts .
+Even though protocol messages are in raw json, the validator is strict in size and types of values provided. This is so in future planned rewrites of mezcal, we can allow for sized protocol messages. As a developer it is recommended to familiarize yourself with these constraints before using Mezcal.
+
 # A new genesis mezcalstone
 
 "cactusseed" is the genesis etching of Mezcal. The following etching looks as follows (cap and amount are described as bigints >U128::MAX):
