@@ -104,7 +104,7 @@ export const AMOUNT_KEYS = new Set(["amount", "cap", "premine"]);
 
 export const MezcalstoneSchema = z
   .object({
-    p: z.union([z.literal("mezcals"), z.literal("https://mezcals.sh")]),
+    p: z.union([z.literal("mezcal"), z.literal("https://mezcal.sh")]),
     edicts: z.array(EdictSchema).optional(),
     etching: EtchingSchema.optional(),
     mint: MintSchema.optional(),
