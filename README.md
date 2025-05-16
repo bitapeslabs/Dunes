@@ -52,7 +52,7 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 
 # A new genesis mezcalstone
 
-"cactusseed" is the genesis etching of Mezcal. The following etching looks as follows:
+"cactusseed" is the genesis etching of Mezcal. The following etching looks as follows (cap and amount are described as bigints):
 
 ```json
 {
@@ -61,8 +61,8 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
     "symbol": "🌵",
     "turbo": true,
     "terms": {
-      "amount": 100,
-      "cap": 29746,
+      "amount": "100", 
+      "cap": "29746",
       "height": [0, null],
       "offset": [null, null],
       "price": {
