@@ -53,7 +53,7 @@ export const GENESIS_MEZCALTONE = {
     turbo: true,
     terms: {
       amount: 100n,
-      cap: 10000n,
+      cap: 29746n,
 
       height: [4326248, null],
       offset: [null, null],
