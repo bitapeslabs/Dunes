@@ -46,14 +46,14 @@ export const MAX_SIGNED_128_BIT_INT = 0x7fffffffffffffffffffffffffffffffn + 1n;
 
 export const GENESIS_MEZCALTONE = {
   etching: {
-    mezcal: "duni",
-    symbol: "\uD83C\uDF35", // cactus 🌵
+    mezcal: "cactusseeds",
+    symbol: "🌵", // cactus 🌵
     premine: 0n,
     divisibility: 0,
     turbo: true,
     terms: {
       amount: 100n,
-      cap: 1000000n,
+      cap: 10000n,
 
       height: [4326248, null],
       offset: [null, null],
