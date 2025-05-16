@@ -1,47 +1,46 @@
-![dunes](https://github.com/user-attachments/assets/151acbc4-8668-43b8-aae7-131f3a5bed09)
+![mezcals](https://github.com/user-attachments/assets/151acbc4-8668-43b8-aae7-131f3a5bed09)
 
-# Dunes
+# Mezcals
 
-**Want to interact with Dunes? Use the CLI!**
+**Want to interact with Mezcals? Use the CLI!**
 
 To install:
 
 ```bash
-npm i -g dunes-cli
-
-dunes --help
+npm i -g mezcals-cli
+mezcals-cli --help
 ```
 
-**More information on the commands you can use can be found here:** https://github.com/bitapeslabs/dunes-cli
+**More information on the commands you can use can be found here:** https://github.com/bitapeslabs/mezcals-cli
 
-**Dunes explorer:** https://dunes.sh
+**Mezcals explorer:** https://mezcals.sh
 
-## What is Dunes?
+## What is Mezcals?
 
-Dunes is runes, but without the runestone decoder - instead leveraging the new op_return size limit so dunestones (named dunestones on dunes), can be pushed to
+Mezcals is runes, but without the runestone decoder - instead leveraging the new op_return size limit so mezcalstones (named mezcalstones on mezcals), can be pushed to
 bitcoin as a JSON file directly. This makes it MUCH easier for developers to work with, as the runestone decoder is notriously the most difficult part in reaching
 the state of runes that the ORD client creates nad the highest barrier to entry for runes.
 
-**Furthermore, dunes implements the following changes**:
+**Furthermore, mezcals implements the following changes**:
 
-- Dunestones are pushed directly after the OP_RETURN. This means "OP_13" isnt pushed before the dunestone like on runes. A dunestone OP_RETURN looks like this:
-  OP_RETURN utf8-encoded-dunestone-string-hex
+- Mezcalstones are pushed directly after the OP_RETURN. This means "OP_13" isnt pushed before the mezcalstone like on runes. A mezcalstone OP_RETURN looks like this:
+  OP_RETURN utf8-encoded-mezcalstone-string-hex
 
-- Dunes does not require commitments to etch. This means dunes, unlike runes, does not require any copy of the witness layer! Dunes works with any pre-segwit
+- Mezcals does not require commitments to etch. This means mezcals, unlike runes, does not require any copy of the witness layer! Mezcals works with any pre-segwit
   wallet and chain.
 
-- Any DUNES name is valid, as long as the name contains only letters (A–Z, a–z), numbers (0–9), underscores \_, hyphens -, or periods . — and must be at least one character long, and less than 32 characters long. (names are case sensitive, so "Duni" and "duni" are NOT the same.)
+- Any MEZCAL name is valid, as long as the name contains only letters (A–Z, a–z), numbers (0–9), underscores \_, hyphens -, or periods . — and must be at least one character long, and less than 32 characters long. (names are case sensitive, so "Duni" and "duni" are NOT the same.)
 
 - Because DUNE names are described as strings, the "spacer" field from the original runes protocol is completely omitted.
 
-- DUNE names can only be used once! No two dunes can have the same name - just like runes.
+- DUNE names can only be used once! No two mezcals can have the same name - just like runes.
 
 - Implements priced mints, originally proposed here: https://github.com/ordinals/ord/issues/3794 and further iterated here to take advantage of the new OP_RETURN size limit. See "priced mints" below for more information.
 
-- Inclusion of the "p" field, which has to be the literal "dunes" or the dunes website "https://dunes.sh". This is so external users can see a dunestone in an explorer
-  and learn more about the protocol. Including the domain is not required (can just be "dunes"), but it is recommended.
+- Inclusion of the "p" field, which has to be the literal "mezcals" or the mezcals website "https://mezcals.sh". This is so external users can see a mezcalstone in an explorer
+  and learn more about the protocol. Including the domain is not required (can just be "mezcals"), but it is recommended.
 
-- The original dunes protocol specifies the following:
+- The original mezcals protocol specifies the following:
 
 ```
 If an edict output is greater than the number of outputs of the transaction, an edict rune ID is encountered with block zero and nonzero transaction index, or a field is truncated, meaning a tag is encountered without a value, the decoded runestone is a cenotaph.
@@ -49,21 +48,21 @@ If an edict output is greater than the number of outputs of the transaction, an 
 Note that if a cenotaph is produced here, the cenotaph is not empty, meaning that it contains the fields and edicts, which may include an etching and mint.
 ```
 
-**NOTE: For simplicity, this has been removed.** This is checked before processing, and if a cenotaph is produced, the entire dunestone will be treated as a cenotaph. This means that the edicts, etching, and mint fields will be null.
+**NOTE: For simplicity, this has been removed.** This is checked before processing, and if a cenotaph is produced, the entire mezcalstone will be treated as a cenotaph. This means that the edicts, etching, and mint fields will be null.
 
-# A new genesis dunestone
+# A new genesis mezcalstone
 
-"duni" is the genesis dune of Dunes. The following etching looks as follows:
+"duni" is the genesis mezcal of Mezcals. The following etching looks as follows:
 
 ```json
 {
   "etching": {
-    "dune": "duni",
+    "mezcal": "duni",
     "symbol": "🌵",
     "turbo": true,
     "terms": {
       "amount": 100,
-      "cap": 1000000,
+      "cap": 10000,
       "height": [0, null],
       "offset": [null, null],
       "price": {
@@ -77,23 +76,23 @@ Note that if a cenotaph is produced here, the cenotaph is not empty, meaning tha
 
 Each duni mint costs **21000 satoshis**, or roughly 20.29 USD (0.20 USD per duni) at the time of writing.
 
-# Dunestone schema
+# Mezcalstone schema
 
-The following type definitions describe what a DUNESTONE should look like:
+The following type definitions describe what a MEZCALTONE should look like:
 
 ```ts
-type DuneAmount = string; //must be passed as a string and be less than u128::MAX
+type MezcalAmount = string; //must be passed as a string and be less than u128::MAX
 
 type Edict = {
   id: string; // must be a string like "0:0"
-  amount: DuneAmount; // must be a string
+  amount: MezcalAmount; // must be a string
   output: number; // must be a number, max: u8
 };
 
 type Terms = {
   price?: PriceTerms; //optional
-  amount: DuneAmount; //required if terms are included or cenotaph
-  cap: DuneAmount; //required if terms are included or cenotaph
+  amount: MezcalAmount; //required if terms are included or cenotaph
+  cap: MezcalAmount; //required if terms are included or cenotaph
   height: [null | number, null | number]; //max: u32, required if terms are included or cenotaph
   offset: [null | number, null | number]; //max: u32, required if terms are included or cenotaph
 };
@@ -101,20 +100,20 @@ type Terms = {
 type Mint = string; //must be a string in the format of u32(block):u32(tx)
 
 type PriceTerms = {
-  amount: DuneAmount; //required if priceterms are included or cenotaph
+  amount: MezcalAmount; //required if priceterms are included or cenotaph
   pay_to: string; //required if priceterms are included or cenotaph. Maxmium length: 130 characters
 };
 
 type Etching = {
   divisibility: number; //max: u8, required or cenotaph
-  premine: DuneAmount; //required or cenotaph
-  dune: string; //required or cenotaph
+  premine: MezcalAmount; //required or cenotaph
+  mezcal: string; //required or cenotaph
   symbol: string; //required or cenotaph
   terms: null | Terms;
   turbo: boolean; // if not included, defaults to TRUE
 };
 
-type Dunestone = {
+type Mezcalstone = {
   edicts?: Edict[]; //optional
   etching?: Etching; //optional
   mint?: Mint; //optional
@@ -127,14 +126,14 @@ type Dunestone = {
 Price is a u128 integer expressed in Satoshi. During an etch, IF the price field is present the following would be added as a requirement:
 
 ```
-all mints must include a cumulative amount of etching.terms.price satoshi sent in the tx's vouts to the etching.terms.pay_to address specified in a dune's etching terms.
+all mints must include a cumulative amount of etching.terms.price satoshi sent in the tx's vouts to the etching.terms.pay_to address specified in a mezcal's etching terms.
 
 IF price terms are not met, the mint is invalid.
 ```
 
-If no price field is provided in a dune's etching, all functionality above is ignored.
+If no price field is provided in a mezcal's etching, all functionality above is ignored.
 
-**Rationale:** This allows decentralized IDOs (initital dune offerings) to take place, without the need of a custodian.
+**Rationale:** This allows decentralized IDOs (initital mezcal offerings) to take place, without the need of a custodian.
 
 ## What are flexible mints?
 If price terms are defined, and the amount per mint is set to 0, the Dune automatically enables "flex mint" mode.
