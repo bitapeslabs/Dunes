@@ -70,21 +70,30 @@ router.get("/tx/:hash", async (req: Request, res: Response) => {
 router.get("/address/:address", async (req: Request, res: Response) => {
   const { address } = req.params;
 
-  const page = Math.max(Number.parseInt(String(req.query.page), 10) || 1, 1);
+  const page = Math.max(parseInt(String(req.query.page), 10) || 1, 1);
   const limit = Math.min(
-    Math.max(Number.parseInt(String(req.query.limit), 10) || 25, 1),
+    Math.max(parseInt(String(req.query.limit), 10) || 25, 1),
     500
   );
   const offset = (page - 1) * limit;
 
   try {
-    const { Event, Address } = req.db;
+    const { Event, Address, Transaction, Mezcal } = req.db;
 
     const { rows, count } = await Event.findAndCountAll({
       limit,
       offset,
       order: [["id", "DESC"]],
-      attributes: { exclude: ["createdAt", "updatedAt"] },
+      attributes: {
+        exclude: [
+          "createdAt",
+          "updatedAt",
+          "from_address_id",
+          "to_address_id",
+          "transaction_id",
+          "mezcal_id", // 🆕 exclude FK
+        ],
+      },
       include: [
         {
           model: Address,
@@ -96,6 +105,18 @@ router.get("/address/:address", async (req: Request, res: Response) => {
           model: Address,
           as: "to_address",
           attributes: ["address"],
+          required: false,
+        },
+        {
+          model: Transaction,
+          as: "transaction",
+          attributes: { exclude: ["id", "createdAt", "updatedAt"] }, // 🆕 no id
+          required: false,
+        },
+        {
+          model: Mezcal,
+          as: "mezcal", // 🆕 full mezcal object
+          attributes: { exclude: ["createdAt", "updatedAt"] },
           required: false,
         },
       ],
@@ -114,7 +135,6 @@ router.get("/address/:address", async (req: Request, res: Response) => {
       nest: true,
     });
 
-    // rows is `unknown[]`; cast to `any[]` before decorating      // ← FIX #3
     const data = (rows as any[]).map((row) =>
       simplify({
         ...row,
