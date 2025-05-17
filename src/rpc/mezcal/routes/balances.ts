@@ -85,29 +85,52 @@ router.get("/utxo/:utxo_index/:mezcal_protocol_id", async function (req, res) {
   }
 });
 
-// — Get address balances (all mezcals) —
 router.get("/address/:address", async function (req, res) {
   try {
     const { db } = req;
     const { address } = req.params;
 
-    const query = getSomeAddressBalance(db, { address: { address } });
-    const results = (await db.Balance.findAll(
-      query
-    )) as unknown as IJoinedBalanceInstance[];
+    const page = Math.max(parseInt(String(req.query.page)) || 1, 1);
+    const pageSize = Math.min(
+      Math.max(parseInt(String(req.query.limit)) || 50, 1),
+      100
+    );
+    const offset = (page - 1) * pageSize;
 
-    if (!results?.length) {
-      res.send({});
+    const baseQuery = getSomeAddressBalance(db, { address: { address } });
+
+    const totalBalances = await db.Balance.count(baseQuery);
+
+    const rows = (await db.Balance.findAll({
+      ...baseQuery,
+      limit: pageSize,
+      offset,
+      order: [["id", "ASC"]],
+    })) as unknown as IJoinedBalanceInstance[];
+
+    if (!rows.length) {
+      res.send({
+        balances: [],
+        page,
+        pageSize,
+        totalBalances,
+        totalPages: Math.ceil(totalBalances / pageSize),
+      });
       return;
     }
 
-    const parsed = parseBalancesIntoAddress(results.map((b) => b.toJSON()));
-    res.send(parsed);
-    return;
+    const balances = parseBalancesIntoAddress(rows.map((b) => b.toJSON()));
+
+    res.send({
+      balances,
+      page,
+      limit: pageSize,
+      totalBalances,
+      totalPages: Math.ceil(totalBalances / pageSize),
+    });
   } catch (e) {
-    console.log(e);
+    console.error(e);
     res.status(500).send({ error: "Internal server error" });
-    return;
   }
 });
 
