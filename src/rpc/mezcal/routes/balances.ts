@@ -122,7 +122,8 @@ router.get("/address/:address", async function (req, res) {
     const balances = parseBalancesIntoAddress(rows.map((b) => b.toJSON()));
 
     res.send({
-      balances,
+      address: balances.address,
+      balances: balances.balances,
       page,
       limit: pageSize,
       totalBalances,
