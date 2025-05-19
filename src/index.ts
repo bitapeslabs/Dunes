@@ -39,9 +39,13 @@ import {
   BTC_RPC_USERNAME,
   BTC_RPC_PASSWORD,
   RPC_PORT,
+  RPC_WSS_ENABLED,
+  RPC_WSS_PORT,
+  RPC_CERT_PATH,
+  RPC_KEY_PATH,
 } from "@/lib/consts";
 import { WebSocketServer } from "ws";
-import { RPC_WSS_PORT } from "@/lib/consts";
+import https from "node:https";
 
 const rpcClient = createRpcClient({
   url: BTC_RPC_URL,
@@ -126,16 +130,17 @@ const emitEvents = async (storageInstance: IStorage): Promise<void> => {
    RPC server (express)
    ──────────────────────────────────────────────────────── */
 
-/* ───────────────────────  SHARED WS BROADCAST HANDLE  ──────────────────────── */
-let broadcastBlockTip: (height: number) => void = () => {}; // no-op until WS up
+let broadcastBlockTip: (height: number) => void = () => {};
 
-/* ──────────────────────────  WEBSOCKET BOOTSTRAP  ──────────────────────────── */
 const startWs = (): void => {
-  const wss = new WebSocketServer({ port: Number(RPC_WSS_PORT) });
-
-  wss.on("connection", (ws) => {
-    // Optional: immediately send current tip if you track it
+  const server = https.createServer({
+    cert: fs.readFileSync(RPC_CERT_PATH),
+    key: fs.readFileSync(RPC_KEY_PATH),
   });
+
+  const wss = new WebSocketServer({ server });
+
+  wss.on("connection", (ws) => {});
 
   broadcastBlockTip = (height: number) => {
     const payload = JSON.stringify({ type: "block_tip", height });
@@ -144,12 +149,13 @@ const startWs = (): void => {
     });
   };
 
-  log(`WSS “block_tip” running on :${RPC_WSS_PORT}`, "info");
+  server.listen(RPC_WSS_PORT, () => {
+    log(`WSS “block_tip” running on :${RPC_WSS_PORT}`, "info");
+  });
 };
 
 const startRpc = async (): Promise<void> => {
-  //Consitently keep a cache and update on every block using the block manager below
-  if (RPC_ENABLED) startWs(); // 👈 add this line
+  if (RPC_WSS_ENABLED) startWs();
 
   log("Connecting to DB  » rpc", "info");
   const db = await createConnection();
