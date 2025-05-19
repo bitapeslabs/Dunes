@@ -154,7 +154,7 @@ const populateResultsWithPrevoutData = async (
       results.flat().map((tx) =>
         tx.vin
           .map((v) => v.txid)
-          .flat()
+          .flat(2)
           .filter(Boolean)
       )
     ),
