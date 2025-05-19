@@ -87,7 +87,6 @@ router.get("/utxo/:utxo_index/:mezcal_protocol_id", async function (req, res) {
 });
 
 router.get("/address/:address", async function (req, res) {
-  //doesnt need pagination tbh
   try {
     const { address } = req.params;
 
@@ -117,6 +116,24 @@ router.get("/address/:address", async function (req, res) {
       limit: pageSize,
       totalBalances: addressBalances.length,
       totalPages: Math.ceil(addressBalances.length / pageSize),
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send({ error: "Internal server error" });
+  }
+});
+
+router.get("/address/all/:address", async function (req, res) {
+  try {
+    const { address } = req.params;
+
+    const addressBalances = cacheGetBalancesByAddress(address) ?? [];
+
+    const balances = parseBalancesIntoAddress(address, addressBalances);
+
+    res.send({
+      address: balances.address,
+      balances: balances.balances,
     });
   } catch (e) {
     console.error(e);
