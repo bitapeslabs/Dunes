@@ -44,10 +44,10 @@ export interface IndexedTx extends Transaction {
 const decipherMezcalstone = (txJson: Transaction) =>
   decipherMezcalstoneRaw(txJson);
 
-/*
-This was very wrong, because transactions may reference UTXOs that hod mezcals without it being included in the mezcalstone.
-We need to populate sender.
-
+/**
+ * A transaction is useful for the indexer if it contains a cenotaph, mint,
+ * or etching operation.
+ */
 const isUsefulMezcalTx = (tx: IndexedTx): boolean => {
   const { mezcalstone } = tx;
   if (mezcalstone?.cenotaph) return true; // burn happens
@@ -55,8 +55,10 @@ const isUsefulMezcalTx = (tx: IndexedTx): boolean => {
     return true;
   return false;
 };
-*/
 
+/**
+ * Fetch a block from RPC and hydrate every tx with its mezcalstone (if any).
+ */
 const getMezcalstonesInBlock = async (
   blockNumber: number,
   callRpc: RpcCall
@@ -151,12 +153,11 @@ const populateResultsWithPrevoutData = async (
       from what we have stored in db. */
   const transactionsInChunk = [
     ...new Set(
-      results.flat().map((tx) =>
-        tx.vin
-          .map((v) => v.txid)
-          .flat(2)
-          .filter(Boolean)
-      )
+      results
+        .flat()
+        .map((tx) => tx.vin.map((v) => v.txid))
+        .flat()
+        .filter(Boolean)
     ),
   ];
 
@@ -493,5 +494,6 @@ export {
   convertPartsToAmount,
   convertAmountToParts,
   prefetchTransactions,
+  isUsefulMezcalTx,
   isPriceTermsMet,
 };
