@@ -62,11 +62,11 @@ Even though protocol messages are raw json strings, the validator the indexer us
 {
   "etching": {
     "mezcal": "taco",
-    "symbol": "🌵",
+    "symbol": "🌮",
     "turbo": true,
     "terms": {
       "amount": "100",
-      "cap": "29746",
+      "cap": "25000",
       "height": [0, null],
       "offset": [null, null],
       "price": {
