@@ -33,13 +33,15 @@ import {
   ITransaction,
 } from "@/database/createConnection";
 import { processBlock, loadBlockIntoMemory } from "@/lib/indexer";
-import rpcCache, { clearAndPopulateRpcCache } from "@/rpc/mezcal/lib/cache";
+import { clearAndPopulateRpcCache } from "@/rpc/mezcal/lib/cache";
 import {
   BTC_RPC_URL,
   BTC_RPC_USERNAME,
   BTC_RPC_PASSWORD,
   RPC_PORT,
 } from "@/lib/consts";
+import { WebSocketServer } from "ws";
+import { RPC_WSS_PORT } from "@/lib/consts";
 
 const rpcClient = createRpcClient({
   url: BTC_RPC_URL,
@@ -123,8 +125,31 @@ const emitEvents = async (storageInstance: IStorage): Promise<void> => {
 /* ──────────────────────────────────────────────────────────
    RPC server (express)
    ──────────────────────────────────────────────────────── */
+
+/* ───────────────────────  SHARED WS BROADCAST HANDLE  ──────────────────────── */
+let broadcastBlockTip: (height: number) => void = () => {}; // no-op until WS up
+
+/* ──────────────────────────  WEBSOCKET BOOTSTRAP  ──────────────────────────── */
+const startWs = (): void => {
+  const wss = new WebSocketServer({ port: Number(RPC_WSS_PORT) });
+
+  wss.on("connection", (ws) => {
+    // Optional: immediately send current tip if you track it
+  });
+
+  broadcastBlockTip = (height: number) => {
+    const payload = JSON.stringify({ type: "block_tip", height });
+    wss.clients.forEach((client) => {
+      if (client.readyState === client.OPEN) client.send(payload);
+    });
+  };
+
+  log(`WSS “block_tip” running on :${RPC_WSS_PORT}`, "info");
+};
+
 const startRpc = async (): Promise<void> => {
   //Consitently keep a cache and update on every block using the block manager below
+  if (RPC_ENABLED) startWs(); // 👈 add this line
 
   log("Connecting to DB  » rpc", "info");
   const db = await createConnection();
@@ -283,6 +308,8 @@ const startServer = async (storage: IStorage): Promise<void> => {
           false
         )
       );
+
+      broadcastBlockTip(list[list.length - 1]);
 
       //Repopulate the cache with the new data because blocks may contain new Mezcalstone data rpc should know about
       if (RPC_ENABLED) {

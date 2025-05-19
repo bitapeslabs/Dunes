@@ -26,11 +26,13 @@
     "pg": "^8.12.0",
     "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.7",
+    "ws": "^8.18.2",
     "xxhashjs": "^0.2.2",
     "zod": "^3.24.4"
   },
   "devDependencies": {
     "@types/node": "^18.19.39",
+    "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2"
   }
 }

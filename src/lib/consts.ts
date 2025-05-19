@@ -70,3 +70,4 @@ export const GENESIS_MEZCALTONE = {
 export const RPC_ENABLED = process.argv.includes("--rpc");
 export const INDEXER_ENABLED = process.argv.includes("--server");
 export const CACHE_REFRESH_INTERVAL = 1000 * 60 * 10; // 10 minutes, or the avg block time for Bitcoin
+export const RPC_WSS_PORT = process.env.RPC_WSS_PORT ?? 4333;
