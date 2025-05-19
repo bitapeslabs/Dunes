@@ -46,6 +46,7 @@ import {
 } from "@/lib/consts";
 import { WebSocketServer } from "ws";
 import https from "node:https";
+import cors from "cors";
 
 const rpcClient = createRpcClient({
   url: BTC_RPC_URL,
@@ -162,6 +163,8 @@ const startRpc = async (): Promise<void> => {
 
   log("Starting RPC server", "info");
   const app: Application = express();
+  app.use(cors());
+
   app.use(bodyParser.urlencoded({ extended: false }));
   app.use(bodyParser.json());
 
