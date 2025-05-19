@@ -6,9 +6,9 @@
   "scripts": {
     "build-native": "wasm-pack build ./src/rpc/mezcal/lib/native --target nodejs --out-dir ../../../../../dist",
     "build": "node esbuild.config.mjs && npm run build-native",
-    "start-new": "node --expose-gc --max-old-space-size=32768 ./dist/index.js --new --server --rpc",
-    "resume": "node --expose-gc --max-old-space-size=32768 ./dist/index.js --server --rpc",
-    "resume-rpc": "node esbuild.config.mjs && node --expose-gc --max-old-space-size=32768 ./dist/index.js --rpc",
+    "start-new": "node --expose-gc --max-old-space-size=32768 ./dist/index.js --new --server --rpc --rpc-wss",
+    "resume": "node --expose-gc --max-old-space-size=32768 ./dist/index.js --server --rp --rpc-wss",
+    "resume-rpc": "node esbuild.config.mjs && node --expose-gc --max-old-space-size=32768 ./dist/index.js --rpc --rpc-wss",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
