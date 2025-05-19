@@ -49,8 +49,8 @@ export type ITransactionWhereOptions = WhereOptions<ITransaction> & {
 };
 
 export type IJoinedMezcal = IMezcal & {
-  etch_transaction: ITransaction;
-  deployer_address: IAddress | null;
+  etch_transaction: string;
+  deployer_address: string;
 };
 
 export type IJoinedMezcalInstance = Model<IJoinedMezcal> & IJoinedMezcal;
@@ -58,13 +58,13 @@ export type IJoinedMezcalInstance = Model<IJoinedMezcal> & IJoinedMezcal;
 export type IJoinedUtxo = IUtxo & {
   transaction: ITransaction | null;
   transaction_spent: ITransaction | null;
-  address: IAddress | null;
+  address: string;
 };
 
 export type IJoinedUtxoInstance = Model<IJoinedUtxo> & IJoinedUtxo;
 
 export type IJoinedUtxoBalance = IUtxoBalance & {
-  utxo: IUtxo & { address: IAddress | null };
+  utxo: IUtxo & { address: string };
   mezcal: IMezcal;
 };
 

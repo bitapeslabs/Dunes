@@ -11,6 +11,7 @@ import {
 import { getSomeUtxoBalance, getSomeAddressBalance } from "../lib/queries.js";
 import { IJoinedBalanceInstance } from "../lib/queries.js";
 import { IUtxoBalance, IUtxo, IAddress } from "@/database/models/types";
+import { cacheGetBalancesByAddress } from "../lib/cache.js";
 type testType = WhereOptions<IUtxo>;
 
 // — Get UTXO balances (all mezcals) —
@@ -86,8 +87,8 @@ router.get("/utxo/:utxo_index/:mezcal_protocol_id", async function (req, res) {
 });
 
 router.get("/address/:address", async function (req, res) {
+  //doesnt need pagination tbh
   try {
-    const { db } = req;
     const { address } = req.params;
 
     const page = Math.max(parseInt(String(req.query.page)) || 1, 1);
@@ -95,39 +96,27 @@ router.get("/address/:address", async function (req, res) {
       Math.max(parseInt(String(req.query.limit)) || 50, 1),
       100
     );
-    const offset = (page - 1) * pageSize;
-
-    const baseQuery = getSomeAddressBalance(db, { address: { address } });
-
-    const totalBalances = await db.Balance.count(baseQuery);
-
-    const rows = (await db.Balance.findAll({
-      ...baseQuery,
-      limit: pageSize,
-      offset,
-      order: [["id", "ASC"]],
-    })) as unknown as IJoinedBalanceInstance[];
-
-    if (!rows.length) {
-      res.send({
-        balances: [],
-        page,
-        pageSize,
-        totalBalances,
-        totalPages: Math.ceil(totalBalances / pageSize),
-      });
+    if (!pageSize || !page || pageSize < 1 || page < 1 || !address) {
+      res.status(400).send({ error: "Invalid params provided" });
       return;
     }
 
-    const balances = parseBalancesIntoAddress(rows.map((b) => b.toJSON()));
+    const offset = (page - 1) * pageSize;
+
+    const addressBalances = cacheGetBalancesByAddress(address) ?? [];
+
+    const balances = parseBalancesIntoAddress(
+      address,
+      addressBalances.slice(offset, offset + pageSize)
+    );
 
     res.send({
       address: balances.address,
       balances: balances.balances,
       page,
       limit: pageSize,
-      totalBalances,
-      totalPages: Math.ceil(totalBalances / pageSize),
+      totalBalances: addressBalances.length,
+      totalPages: Math.ceil(addressBalances.length / pageSize),
     });
   } catch (e) {
     console.error(e);
@@ -160,7 +149,10 @@ router.get("/address/:address/:mezcal_protocol_id", async function (req, res) {
       return;
     }
 
-    const parsed = parseBalancesIntoAddress(results.map((b) => b.toJSON()));
+    const parsed = parseBalancesIntoAddress(
+      address,
+      results.map((b) => b.toJSON())
+    );
     res.send(parsed);
     return;
   } catch (e) {

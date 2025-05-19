@@ -1,12 +1,12 @@
-import { simplify } from "../../../lib/utils";
+import { simplify, stripFields } from "../../../lib/utils";
 import {
   IUtxoBalance,
   IMezcal,
   IUtxo,
   IAddress,
 } from "@/database/createConnection";
-
-import { IJoinedBalance, IJoinedUtxoBalance } from "./queries";
+import { IMezcalBalance } from "./cache";
+import { IJoinedBalance, IJoinedMezcal, IJoinedUtxoBalance } from "./queries";
 
 let __debug_totalElapsedTime: Record<string, number> = {};
 let __timer = 0;
@@ -27,7 +27,9 @@ type ParsedBalance = {
   };
 };
 
-const parseBalances = <T extends IJoinedUtxoBalance | IJoinedBalance>(
+const parseBalances = <
+  T extends IJoinedUtxoBalance | IJoinedBalance | IMezcalBalance
+>(
   rawBalances: T[],
   excludeMezcal = false
 ): ParsedBalance => {
@@ -38,7 +40,9 @@ const parseBalances = <T extends IJoinedUtxoBalance | IJoinedBalance>(
     if (!acc[mezcalId]) {
       acc[mezcalId] = {
         balance: "0",
-        mezcal: entry.mezcal,
+        mezcal: stripFields(entry.mezcal, [
+          "holders" as keyof IMezcal,
+        ]) as IMezcal,
       };
     }
 
@@ -54,12 +58,14 @@ const parseBalances = <T extends IJoinedUtxoBalance | IJoinedBalance>(
   }, {});
 };
 
-const parseBalancesIntoAddress = (rawBalances: IJoinedBalance[]) => {
-  const address = rawBalances[0]?.address?.address;
-  return simplify({
+const parseBalancesIntoAddress = <T extends IMezcalBalance | IJoinedBalance>(
+  address: string,
+  rawBalances: T[]
+) => {
+  return {
     address,
     balances: parseBalances(rawBalances),
-  });
+  };
 };
 
 const parseBalancesIntoUtxo = (rawUtxoBalances: IJoinedUtxoBalance[]) => {
@@ -109,7 +115,7 @@ const parsePrevUtxoBalancesIntoAddress = (
   console.log(__debug_totalElapsedTime);
 
   return {
-    address: rawUtxoBalances[0]?.utxo?.address?.address ?? "UNKNOWN",
+    address: rawUtxoBalances[0]?.utxo?.address ?? "UNKNOWN",
     balances,
   };
 };

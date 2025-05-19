@@ -554,6 +554,13 @@ const processMint = (
       newMints
     );
 
+    updateAttribute(
+      "Mezcal",
+      mezcalToMint.mezcal_protocol_id,
+      "total_supply",
+      (BigInt(mezcalToMint.total_supply) + mintAmount).toString()
+    );
+
     return updateUnallocated(UnallocatedMezcals, {
       mezcal_id: mezcalToMint.mezcal_protocol_id,
       amount: BigInt(mintAmount),

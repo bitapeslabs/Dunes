@@ -1,11 +1,10 @@
 /* eslint‑disable @typescript-eslint/explicit-function-return-type */
 
 import { Router, Request, Response } from "express";
-import { Op, col, where, WhereOptions } from "sequelize";
 
-import { validators } from "../lib/validators"; // ← FIX #1
-import { simplify } from "../../../lib/utils";
-import { Models, IEvent, IAddress } from "@/database/createConnection";
+import { cacheGetEventsByAddress, IGenericFullMezcal } from "../lib/cache";
+import { stripFields } from "@/lib/utils";
+import { IJoinedMezcal } from "../lib/queries";
 
 const router = Router();
 
@@ -17,8 +16,52 @@ const TYPE_LABEL: Record<0 | 1 | 2 | 3, "ETCH" | "MINT" | "TRANSFER" | "BURN"> =
     3: "BURN",
   };
 
-/* ───────────────────── GET /block/:height ───────────────────── */
+router.get("/address/:address", async (req: Request, res: Response) => {
+  const { address } = req.params;
 
+  const page = Math.max(parseInt(String(req.query.page), 10) || 1, 1);
+  const limit = Math.min(
+    Math.max(parseInt(String(req.query.limit), 10) || 25, 1),
+    500
+  );
+  const offset = (page - 1) * limit;
+
+  try {
+    const addressEvents = cacheGetEventsByAddress(address);
+    if (!addressEvents) {
+      res.send([]);
+      return;
+    }
+
+    const data = addressEvents
+      .map((row) => ({
+        ...row,
+        type: TYPE_LABEL[row.type as 0 | 1 | 2 | 3],
+      }))
+      .slice(offset, offset + limit);
+
+    res.json({
+      page,
+      pageSize: limit,
+      total: addressEvents.length,
+      totalPages: Math.ceil(addressEvents.length / limit),
+      data: data
+        .filter((event) => event.mezcal !== null)
+        .map((event) => ({
+          ...event,
+          mezcal: stripFields(
+            event.mezcal as IGenericFullMezcal<IJoinedMezcal>,
+            ["holders"]
+          ),
+        })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/*
 router.get("/block/:height", async (req: Request, res: Response) => {
   try {
     const heightNum = Number.parseInt(req.params.height, 10);
@@ -40,7 +83,6 @@ router.get("/block/:height", async (req: Request, res: Response) => {
   }
 });
 
-/* ───────────────────── GET /tx/:hash ────────────────────────── */
 
 router.get("/tx/:hash", async (req: Request, res: Response) => {
   try {
@@ -64,95 +106,6 @@ router.get("/tx/:hash", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
-/* ───────────────────── GET /address/:addr ───────────────────── */
-
-router.get("/address/:address", async (req: Request, res: Response) => {
-  const { address } = req.params;
-
-  const page = Math.max(parseInt(String(req.query.page), 10) || 1, 1);
-  const limit = Math.min(
-    Math.max(parseInt(String(req.query.limit), 10) || 25, 1),
-    500
-  );
-  const offset = (page - 1) * limit;
-
-  try {
-    const { Event, Address, Transaction, Mezcal } = req.db;
-
-    const { rows, count } = await Event.findAndCountAll({
-      limit,
-      offset,
-      order: [["id", "DESC"]],
-      attributes: {
-        exclude: [
-          "createdAt",
-          "updatedAt",
-          "from_address_id",
-          "to_address_id",
-          "transaction_id",
-          "mezcal_id", // 🆕 exclude FK
-        ],
-      },
-      include: [
-        {
-          model: Address,
-          as: "from_address",
-          attributes: ["address"],
-          required: false,
-        },
-        {
-          model: Address,
-          as: "to_address",
-          attributes: ["address"],
-          required: false,
-        },
-        {
-          model: Transaction,
-          as: "transaction",
-          attributes: { exclude: ["id", "createdAt", "updatedAt"] }, // 🆕 no id
-          required: false,
-        },
-        {
-          model: Mezcal,
-          as: "mezcal", // 🆕 full mezcal object
-          attributes: { exclude: ["createdAt", "updatedAt"] },
-          required: false,
-        },
-      ],
-      where: {
-        [Op.or]: [
-          where(col("from_address.address"), address),
-          where(col("to_address.address"), address),
-        ],
-        [Op.and]: [
-          where(col("from_address.address"), {
-            [Op.ne]: col("to_address.address"),
-          }),
-        ],
-      } as any,
-      raw: true,
-      nest: true,
-    });
-
-    const data = (rows as any[]).map((row) =>
-      simplify({
-        ...row,
-        type: TYPE_LABEL[(row as IEvent).type as 0 | 1 | 2 | 3],
-      })
-    );
-
-    res.json({
-      page,
-      pageSize: limit,
-      total: count,
-      totalPages: Math.ceil(count / limit),
-      data,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+*/
 
 export default router;
