@@ -29,7 +29,13 @@ router.get("/address/:address", async (req: Request, res: Response) => {
   try {
     const addressEvents = cacheGetEventsByAddress(address);
     if (!addressEvents) {
-      res.send([]);
+      res.send({
+        page,
+        pageSize: limit,
+        total: 0,
+        totalPages: 0,
+        data: [],
+      });
       return;
     }
 
