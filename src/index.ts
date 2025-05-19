@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import express, {
   Application,
   Request,
@@ -8,7 +7,6 @@ import express, {
   RequestHandler,
 } from "express";
 import bodyParser from "body-parser";
-import axios from "axios";
 
 import { createRpcClient } from "@/lib/bitcoinrpc";
 import { log, sleep } from "@/lib/utils";
@@ -211,7 +209,6 @@ const startRpc = async (): Promise<void> => {
   app.listen(Number(RPC_PORT ?? 3030), () =>
     log(`RPC server running on :${RPC_PORT}`, "info")
   );
-
   setInterval(async () => {
     await clearAndPopulateRpcCache(db);
     log("Cache refreshed", "info");
@@ -259,6 +256,7 @@ const startServer = async (storage: IStorage): Promise<void> => {
     log(`Prefetching ${count} blocks for fast indexing …`, "info");
     await prefetchTransactions(heights, storage, callRpcBatch);
     await storage.commitChanges();
+    await clearAndPopulateRpcCache(storage.db);
 
     // Clear the cache and repopulate it because we processed a new block that has new data rpc should know about
     await writeInt("prefetch", 1);
@@ -282,7 +280,7 @@ const startServer = async (storage: IStorage): Promise<void> => {
 
       await processRange(current, tip);
       current = tip + 1;
-      log("Polling for new blocks... Last Processed: " + current, "info");
+      log("Polling for new blocks... Last Processed: " + (current - 1), "info");
     }
     await sleep(Number(process.env.BLOCK_CHECK_INTERVAL ?? "15000"));
   }
@@ -321,12 +319,12 @@ const startServer = async (storage: IStorage): Promise<void> => {
       broadcastBlockTip(list[list.length - 1]);
 
       //Repopulate the cache with the new data because blocks may contain new Mezcalstone data rpc should know about
+
+      await emitEvents(storage);
+      await storage.commitChanges();
       if (RPC_ENABLED) {
         await clearAndPopulateRpcCache(storage.db);
       }
-      await emitEvents(storage);
-      await storage.commitChanges();
-
       //
 
       await writeInt("last_block_processed", lastProcessed);

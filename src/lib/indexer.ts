@@ -5,13 +5,11 @@
    ────────────────────────────────────────────────────────────────────────── */
 import "dotenv/config";
 import { Op } from "sequelize";
-import { log, sleep, stripObject, toBigInt } from "./utils";
+import { log } from "./utils";
 import {
   isMintOpen,
   isPriceTermsMet,
   updateUnallocated,
-  minimumLengthAtHeight,
-  isUsefulMezcalTx,
   IndexedTx,
 } from "./mezcalutils";
 import { GENESIS_BLOCK, GENESIS_MEZCALTONE } from "./consts";

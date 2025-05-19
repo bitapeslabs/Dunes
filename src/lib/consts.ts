@@ -49,10 +49,10 @@ export const GENESIS_MEZCALTONE = {
     mezcal: "taco",
     symbol: "🌮", // cactus �
     premine: 0n,
-    divisibility: 0,
+    divisibility: 8,
     turbo: true,
     terms: {
-      amount: 100n,
+      amount: 10000000000n,
       cap: 29746n,
 
       height: [4326248, null],
