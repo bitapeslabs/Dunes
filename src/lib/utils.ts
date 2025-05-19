@@ -202,6 +202,15 @@ export function chunkify<T>(array: T[], size: number): T[][] {
   return result;
 }
 
+export function* chunkifyIter<T>(
+  arr: readonly T[],
+  size: number
+): Iterable<T[]> {
+  for (let i = 0; i < arr.length; i += size) {
+    yield arr.slice(i, i + size);
+  }
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

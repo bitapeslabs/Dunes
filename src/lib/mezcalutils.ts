@@ -22,6 +22,7 @@ import { GENESIS_BLOCK, UNLOCK_INTERVAL, INITIAL_AVAILABLE } from "./consts";
 import { IStorage } from "@/lib/storage";
 import { IAddress } from "@/database/models/types";
 import { IndexedTxExtended } from "./indexer";
+import { chunkifyIter } from "./utils";
 
 /* ── shared types ─────────────────────────────────────────────────────────── */
 type RpcCall = <T>(method: string, params?: unknown[]) => Promise<T>;
@@ -162,15 +163,17 @@ const populateResultsWithPrevoutData = async (
   ];
 
   // Load relevant vins into memory to avoid extra RPC
-  await loadManyIntoMemory("Transaction", {
-    hash: { [Op.in]: transactionsInChunk },
-  });
+  for (const chunk of chunkifyIter(transactionsInChunk, 50_000)) {
+    await loadManyIntoMemory("Transaction", { hash: { [Op.in]: chunk } });
+  }
 
-  await loadManyIntoMemory("Utxo", {
-    transaction_id: {
-      [Op.in]: Object.values(local.Transaction).map((tx) => tx.id),
-    },
-  });
+  let utxosToFetch = Object.values(local.Transaction).map((tx) => tx.id);
+
+  for (const chunk of chunkifyIter(utxosToFetch, 50_000)) {
+    await loadManyIntoMemory("Utxo", {
+      transaction_id: { [Op.in]: chunk },
+    });
+  }
 
   await loadManyIntoMemory("Address", {
     id: {
