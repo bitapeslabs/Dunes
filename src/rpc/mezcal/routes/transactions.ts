@@ -1,10 +1,12 @@
-import { Router, Request, Response } from "express";
+import e, { Router, Request, Response } from "express";
 import { Models } from "@/database/createConnection";
 import { esplora_getaddresstxs } from "@/lib/apis/esplora";
 import { isBoxedError } from "@/lib/boxed";
 import { regtestTransactionsIntoBlock } from "@/lib/regtestutils";
 import { getNoBigIntObject } from "@/lib/utils";
 import { EventDto } from "@/lib/regtestutils";
+import { mapToMezcalTransactions } from "@/lib/regtestutils";
+import { IEsploraTransaction } from "@/lib/apis/esplora/types";
 
 interface RequestWithDB extends Request {
   db: Models;
@@ -29,18 +31,32 @@ router.get(
       address,
       req.query.last_seen_txid as string
     );
+
     if (isBoxedError(esploraResponse)) {
       res.status(500).send({ error: "Failed to fetch transactions" });
       return;
     }
 
-    const events = (await regtestTransactionsIntoBlock(esploraResponse.data))
-      .map(getNoBigIntObject<EventDto, EventDto>)
-      .map((event) => ({
-        ...event,
-        type: TYPE_LABEL[event.type as 0 | 1 | 2 | 3],
-      }));
-    res.send(events.map(getNoBigIntObject));
+    const transactionMap = esploraResponse.data.reduce(
+      (acc: Record<string, IEsploraTransaction>, tx: IEsploraTransaction) => {
+        acc[tx.txid] = tx;
+        return acc;
+      },
+      {} as Record<string, IEsploraTransaction>
+    );
+
+    const events = mapToMezcalTransactions(
+      (await regtestTransactionsIntoBlock(esploraResponse.data))
+        .map(getNoBigIntObject<EventDto, EventDto>)
+        .filter((event) => event.transaction !== null)
+        .map((event) => ({
+          ...event,
+          owner_address: address,
+          type: TYPE_LABEL[event.type as 0 | 1 | 2 | 3],
+          tx: transactionMap[event.transaction as string],
+        }))
+    );
+    res.send(events);
   }
 );
 

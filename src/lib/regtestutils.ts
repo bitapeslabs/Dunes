@@ -7,8 +7,10 @@ import { getMezcalstonesFromBlock } from "@/lib/mezcalutils";
 import { storage as newStorage } from "@/lib/storage";
 import { IStorage } from "@/lib/storage";
 import { IJoinedEvent } from "@/rpc/mezcal/lib/cache";
+import { IJoinedMezcal } from "@/rpc/mezcal/lib/queries";
 import { populateResultsWithPrevoutData } from "@/lib/mezcalutils";
 import { loadBlockIntoMemory } from "@/lib/indexer";
+import { IMezcal } from "@/database/createConnection";
 /* ------------------------------------------------------------------
  * 1.  Type Definitions
  * ---------------------------------------------------------------- */
@@ -21,15 +23,6 @@ export interface RawAddress {
 export interface RawTransaction {
   id: string | number;
   hash: string;
-}
-
-export interface RawMezcal {
-  id: string | number;
-  mezcal_protocol_id: string;
-  // ── other Mezcal-specific columns you already have ───────────────
-  etch_transaction_id: string | number | null;
-  deployer_address_id: string | number | null;
-  // … (all the remaining fields from your Sequelize model)
 }
 
 export interface RawEvent {
@@ -46,15 +39,8 @@ export interface RawEvent {
 export interface RawDataShape {
   Address: Record<string, RawAddress>;
   Transaction: Record<string, RawTransaction>;
-  Mezcal: Record<string, RawMezcal>;
+  Mezcal: Record<string, IMezcal>;
   Event: Record<string, RawEvent>;
-}
-
-/** High-level DTOs expected by your application */
-export interface IMezcal extends RawMezcal {} // your Sequelize model
-export interface IJoinedMezcal extends IMezcal {
-  etch_transaction: string | null;
-  deployer_address: string | null;
 }
 
 export interface EventDto {
@@ -97,14 +83,9 @@ export function denormalizeEvents(raw: RawDataShape): EventDto[] {
   for (const rawMezcal of Object.values(raw.Mezcal)) {
     const joined: IJoinedMezcal = {
       ...rawMezcal,
-      etch_transaction:
-        rawMezcal.etch_transaction_id !== null
-          ? txHashById.get(String(rawMezcal.etch_transaction_id)) ?? null
-          : null,
-      deployer_address:
-        rawMezcal.deployer_address_id !== null
-          ? addressById.get(String(rawMezcal.deployer_address_id)) ?? null
-          : null,
+      etch_transaction: txHashById.get(String(rawMezcal.etch_transaction_id))!,
+
+      deployer_address: addressById.get(String(rawMezcal.deployer_address_id))!,
     };
     joinedMezcalById.set(String(rawMezcal.id), joined);
   }
@@ -221,3 +202,53 @@ export const regtestTransactionsIntoBlock = async (
   const events = denormalizeEvents(storage.local as unknown as RawDataShape);
   return events;
 };
+
+type IMezcalTransactionAsset = {
+  id: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+};
+
+type IMezcalTransaction = {
+  type: "ETCH" | "MINT" | "TRANSFER" | "BURN" | "AIRDROP";
+  target: "incoming" | "outgoing";
+  target_address: string;
+  confirmed: boolean;
+  asset: IMezcalTransactionAsset;
+  amount: string;
+  transaction_id: string;
+};
+
+export function mapToMezcalTransactions(
+  input: (Omit<EventDto, "type"> & {
+    owner_address: string;
+    type: "ETCH" | "MINT" | "TRANSFER" | "BURN" | "AIRDROP";
+    tx: IEsploraTransaction;
+  })[]
+): IMezcalTransaction[] {
+  return input.map((event): IMezcalTransaction => {
+    let target: "incoming" | "outgoing" = "incoming";
+    if (event.type === "TRANSFER") {
+      target =
+        event.owner_address === event.to_address ? "incoming" : "outgoing";
+    }
+
+    return {
+      type: event.type,
+      confirmed: event.tx.status.confirmed,
+      target,
+      target_address: String(
+        target === "incoming" ? event.from_address : event.to_address
+      ),
+      asset: {
+        id: String(event.mezcal?.mezcal_protocol_id),
+        name: String(event.mezcal?.name),
+        symbol: String(event.mezcal?.symbol),
+        decimals: Number(event.mezcal?.decimals),
+      },
+      amount: event.amount,
+      transaction_id: event.tx.txid,
+    };
+  });
+}
