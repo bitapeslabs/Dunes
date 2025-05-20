@@ -129,8 +129,12 @@ router.get("/address/:address", async (req: RequestWithDB, res: Response) => {
     ...confirmedMezcalEvents,
     ...unconfirmedEvents,
     ...btcMezcalEvents,
-  ].sort((a, b) => b.timestamp - a.timestamp);
-
+  ].sort((a, b) => {
+    if (a.confirmed !== b.confirmed) {
+      return a.confirmed ? 1 : -1; // unconfirmed (false) comes first
+    }
+    return b.timestamp - a.timestamp; // latest to oldest
+  });
   res.send(events);
 });
 
