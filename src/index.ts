@@ -8,7 +8,7 @@ import express, {
 } from "express";
 import bodyParser from "body-parser";
 
-import { createRpcClient } from "@/lib/bitcoinrpc";
+import { createRpcClient } from "@/lib/apis/bitcoinrpc";
 import { log, sleep } from "@/lib/utils";
 import { storage as newStorage, IStorage } from "@/lib/storage";
 import {
@@ -16,6 +16,7 @@ import {
   RPC_ENABLED,
   INDEXER_ENABLED,
   CACHE_REFRESH_INTERVAL,
+  ELECTRUM_API_URL,
 } from "@/lib/consts";
 import {
   blockManager as createBlockManager,
@@ -205,6 +206,13 @@ const startRpc = async (): Promise<void> => {
     "/mezcal/etchings",
     (await import("@/rpc/mezcal/routes/etchings")).default
   );
+
+  if (ELECTRUM_API_URL) {
+    app.use(
+      "/mezcal/transactions",
+      (await import("@/rpc/mezcal/routes/transactions")).default
+    );
+  }
 
   app.listen(Number(RPC_PORT ?? 3030), () =>
     log(`RPC server running on :${RPC_PORT}`, "info")

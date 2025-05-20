@@ -24,12 +24,12 @@ import {
   Transaction,
   Vin,
   Vout,
-} from "@/lib/bitcoinrpc/types";
+} from "@/lib/apis/bitcoinrpc/types";
 import { IMezcalstone, IMezcalstoneIndexed } from "@/lib/mezcalstone";
 import { IMezcal, IUtxo, IUtxoBalance } from "@/database/createConnection";
 import { isPromise } from "util/types";
-import { RpcClient } from "./bitcoinrpc";
-import { Block } from "@/lib/bitcoinrpc/types";
+import { RpcClient } from "./apis/bitcoinrpc";
+import { Block } from "@/lib/apis/bitcoinrpc/types";
 import { isValidResponse } from "@/lib/utils";
 /* ────────────────────────────────────────────────────────────────────────────
    SHARED TYPES

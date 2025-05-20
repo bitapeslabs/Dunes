@@ -18,6 +18,14 @@ export const isValidResponse = <T>(
   );
 };
 
+export function getNoBigIntObject<T extends object>(obj: T): string {
+  return JSON.parse(
+    JSON.stringify(obj, (_, value) =>
+      typeof value === "bigint" ? value.toString() : value
+    )
+  );
+}
+
 export function toBigInt(amountStr: string, decimals: number): string {
   const [integerPart, fractionalPart = ""] = amountStr.split(".");
   const integer = BigInt(integerPart);
@@ -213,4 +221,14 @@ export function* chunkifyIter<T>(
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Converts satoshis to BTC (1 BTC = 100,000,000 sats)
+ * @param sats - A number representing satoshis
+ * @returns number representing BTC (e.g. 100000000 -> 1.0)
+ */
+export function satsToBTC(sats: number): number {
+  if (!Number.isFinite(sats)) throw new Error("Invalid satoshi input");
+  return sats / 100_000_000;
 }

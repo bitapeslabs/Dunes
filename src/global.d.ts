@@ -1,5 +1,5 @@
 import { Models } from "@/database/createConnection";
-import { RpcClient } from "@/lib/bitcoinrpc";
+import { RpcClient } from "@/lib/apis/bitcoinrpc";
 declare global {
   namespace Express {
     interface Request {

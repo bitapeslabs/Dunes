@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Transaction } from "@/lib/bitcoinrpc/types";
+import { Transaction } from "@/lib/apis/bitcoinrpc/types";
 /* ── 1. shared helpers ───────────────────────── */
 const MAX_U128 = (1n << 128n) - 1n;
 const MAX_U32 = 0xffff_ffff;

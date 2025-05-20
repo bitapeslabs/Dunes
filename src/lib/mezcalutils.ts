@@ -2,8 +2,8 @@
 
 /* ── external deps ─────────────────────────────────────────────────────────── */
 import { Op } from "sequelize";
-import { Vin, Vout, Transaction, Block } from "@/lib/bitcoinrpc/types";
-import { RpcClient } from "./bitcoinrpc";
+import { Vin, Vout, Transaction, Block } from "@/lib/apis/bitcoinrpc/types";
+import { createRpcClient, RpcClient } from "./apis/bitcoinrpc";
 import {
   convertAmountToParts,
   convertPartsToAmount,
@@ -18,11 +18,25 @@ import {
 } from "./mezcalstone";
 import { IMezcal, ITransaction } from "@/database/models/types";
 /* ── constants ────────────────────────────────────────────────────────────── */
-import { GENESIS_BLOCK, UNLOCK_INTERVAL, INITIAL_AVAILABLE } from "./consts";
+import {
+  GENESIS_BLOCK,
+  UNLOCK_INTERVAL,
+  INITIAL_AVAILABLE,
+  BTC_RPC_PASSWORD,
+  BTC_RPC_USERNAME,
+  BTC_RPC_URL,
+} from "./consts";
 import { IStorage } from "@/lib/storage";
 import { IAddress } from "@/database/models/types";
-import { IndexedTxExtended } from "./indexer";
+import {
+  IndexedTxExtended,
+  loadBlockIntoMemory,
+  processBlock,
+} from "./indexer";
 import { chunkifyIter } from "./utils";
+import { IEsploraTransaction } from "./apis/esplora/types";
+import { storage as newStorage } from "@/lib/storage";
+import { get } from "http";
 
 /* ── shared types ─────────────────────────────────────────────────────────── */
 type RpcCall = <T>(method: string, params?: unknown[]) => Promise<T>;
@@ -67,24 +81,98 @@ const getMezcalstonesInBlock = async (
   const blockHash = await callRpc<string>("getblockhash", [blockNumber]);
   const block = await callRpc<Block>("getblock", [blockHash, 2]);
 
-  return Promise.all(
-    block.tx.map(
-      async (tx, txIndex): Promise<IndexedTx> => ({
-        mezcalstone: decipherMezcalstone(tx),
-        hash: tx.txid,
-        txIndex,
-        block: blockNumber,
-        vout: tx.vout,
-        vin: tx.vin,
-        full_tx: tx,
-        txid: tx.txid,
-        size: tx.size,
-        vsize: tx.vsize,
-        version: tx.version,
-        locktime: tx.locktime,
-      })
-    )
+  return getMezcalstonesFromBlock(block);
+};
+
+const getMezcalstonesFromBlock = (block: Block): IndexedTx[] => {
+  return block.tx.map((tx, txIndex) => ({
+    mezcalstone: decipherMezcalstone(tx),
+    hash: tx.txid,
+    txIndex,
+    block: block.height,
+    vout: tx.vout,
+    vin: tx.vin,
+    full_tx: tx,
+    txid: tx.txid,
+    size: tx.size,
+    vsize: tx.vsize,
+    version: tx.version,
+    locktime: tx.locktime,
+  }));
+};
+
+const esploraTxToRpcTx = (transaction: IEsploraTransaction): Transaction => {
+  const { vin, vout, txid, size, version, locktime } = transaction;
+  return {
+    vin: vin,
+
+    vout: vout.map((v, i) => ({
+      ...v,
+      n: i,
+      scriptPubKey: {
+        address: v.scriptpubkey_address,
+        asm: v.scriptpubkey_asm,
+        type: v.scriptpubkey_type,
+        hex: v.scriptpubkey,
+      },
+    })),
+    hash: txid,
+    vsize: size,
+    size,
+    version,
+    locktime,
+    txid,
+  };
+};
+
+const regtestBlock = async (
+  transactions: IEsploraTransaction[]
+): Promise<IStorage["local"]> => {
+  const rpcClient = createRpcClient({
+    url: BTC_RPC_URL,
+    username: BTC_RPC_USERNAME,
+    password: BTC_RPC_PASSWORD,
+  });
+
+  const storage = await newStorage();
+  const fakeBlock: Block = {
+    hash: "000",
+    confirmations: 1,
+    size: 0,
+    height: 0,
+    version: 0,
+    versionHex: "0x0",
+    merkleroot: "0x0",
+    tx: transactions.map(esploraTxToRpcTx),
+    time: Date.now(),
+    mediantime: Date.now(),
+    nonce: 0,
+    bits: "0x0",
+    difficulty: 1,
+    chainwork: "0x0",
+    nTx: transactions.length,
+    previousblockhash: "0x0",
+    nextblockhash: "0x0",
+  };
+
+  const indexedTxs = getMezcalstonesFromBlock(fakeBlock);
+
+  const [hydratedTxs] = await populateResultsWithPrevoutData(
+    [indexedTxs],
+    rpcClient.callRpc,
+    storage
   );
+
+  await loadBlockIntoMemory(hydratedTxs, storage);
+
+  processBlock(
+    { blockHeight: 0, blockData: hydratedTxs },
+    rpcClient,
+    storage,
+    false
+  );
+
+  return storage.local;
 };
 
 /**
@@ -489,6 +577,7 @@ function isPriceTermsMet(mezcal: IMezcal, transaction: Transaction): boolean {
 
 /* ── exports ─────────────────────────────────────────────────────────────── */
 export {
+  regtestBlock,
   updateUnallocated,
   isMintOpen,
   minimumLengthAtHeight,
