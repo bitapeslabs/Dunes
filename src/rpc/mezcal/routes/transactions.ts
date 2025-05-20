@@ -4,13 +4,21 @@ import { esplora_getaddresstxs } from "@/lib/apis/esplora";
 import { isBoxedError } from "@/lib/boxed";
 import { regtestTransactionsIntoBlock } from "@/lib/regtestutils";
 import { getNoBigIntObject } from "@/lib/utils";
-import { get } from "http";
+import { EventDto } from "@/lib/regtestutils";
 
 interface RequestWithDB extends Request {
   db: Models;
 }
 
 const router = Router();
+
+const TYPE_LABEL: Record<0 | 1 | 2 | 3, "ETCH" | "MINT" | "TRANSFER" | "BURN"> =
+  {
+    0: "ETCH",
+    1: "MINT",
+    2: "TRANSFER",
+    3: "BURN",
+  };
 
 router.get(
   "/address/regtest/:address",
@@ -26,7 +34,12 @@ router.get(
       return;
     }
 
-    const events = await regtestTransactionsIntoBlock(esploraResponse.data);
+    const events = (await regtestTransactionsIntoBlock(esploraResponse.data))
+      .map(getNoBigIntObject<EventDto, EventDto>)
+      .map((event) => ({
+        ...event,
+        type: TYPE_LABEL[event.type as 0 | 1 | 2 | 3],
+      }));
     res.send(events.map(getNoBigIntObject));
   }
 );

@@ -18,7 +18,9 @@ export const isValidResponse = <T>(
   );
 };
 
-export function getNoBigIntObject<T extends object>(obj: T): string {
+export function getNoBigIntObject<T extends object, K extends object>(
+  obj: T
+): K {
   return JSON.parse(
     JSON.stringify(obj, (_, value) =>
       typeof value === "bigint" ? value.toString() : value
