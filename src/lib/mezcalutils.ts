@@ -101,80 +101,6 @@ const getMezcalstonesFromBlock = (block: Block): IndexedTx[] => {
   }));
 };
 
-const esploraTxToRpcTx = (transaction: IEsploraTransaction): Transaction => {
-  const { vin, vout, txid, size, version, locktime } = transaction;
-  return {
-    vin: vin,
-
-    vout: vout.map((v, i) => ({
-      ...v,
-      n: i,
-      scriptPubKey: {
-        address: v.scriptpubkey_address,
-        asm: v.scriptpubkey_asm,
-        type: v.scriptpubkey_type,
-        hex: v.scriptpubkey,
-      },
-    })),
-    hash: txid,
-    vsize: size,
-    size,
-    version,
-    locktime,
-    txid,
-  };
-};
-
-const regtestBlock = async (
-  transactions: IEsploraTransaction[]
-): Promise<IStorage["local"]> => {
-  const rpcClient = createRpcClient({
-    url: BTC_RPC_URL,
-    username: BTC_RPC_USERNAME,
-    password: BTC_RPC_PASSWORD,
-  });
-
-  const storage = await newStorage();
-  const fakeBlock: Block = {
-    hash: "000",
-    confirmations: 1,
-    size: 0,
-    height: 0,
-    version: 0,
-    versionHex: "0x0",
-    merkleroot: "0x0",
-    tx: transactions.map(esploraTxToRpcTx),
-    time: Date.now(),
-    mediantime: Date.now(),
-    nonce: 0,
-    bits: "0x0",
-    difficulty: 1,
-    chainwork: "0x0",
-    nTx: transactions.length,
-    previousblockhash: "0x0",
-    nextblockhash: "0x0",
-  };
-
-  const indexedTxs = getMezcalstonesFromBlock(fakeBlock);
-
-  const [hydratedTxs] = await populateResultsWithPrevoutData(
-    [indexedTxs],
-    rpcClient.callRpc,
-    storage
-  );
-
-  await loadBlockIntoMemory(hydratedTxs, storage);
-
-  processBlock(
-    { blockHeight: 0, blockData: hydratedTxs },
-    rpcClient,
-    storage,
-    false
-  );
-
-  return storage.local;
-};
-
 /**
  * Prime local cache with historical data needed by later passes.
  */
@@ -577,7 +503,8 @@ function isPriceTermsMet(mezcal: IMezcal, transaction: Transaction): boolean {
 
 /* ── exports ─────────────────────────────────────────────────────────────── */
 export {
-  regtestBlock,
+  populateResultsWithPrevoutData,
+  getMezcalstonesFromBlock,
   updateUnallocated,
   isMintOpen,
   minimumLengthAtHeight,

@@ -2,8 +2,9 @@ import { Router, Request, Response } from "express";
 import { Models } from "@/database/createConnection";
 import { esplora_getaddresstxs } from "@/lib/apis/esplora";
 import { isBoxedError } from "@/lib/boxed";
-import { regtestBlock } from "@/lib/mezcalutils";
+import { regtestTransactionsIntoBlock } from "@/lib/regtestutils";
 import { getNoBigIntObject } from "@/lib/utils";
+import { get } from "http";
 
 interface RequestWithDB extends Request {
   db: Models;
@@ -25,8 +26,8 @@ router.get(
       return;
     }
 
-    const state = await regtestBlock(esploraResponse.data);
-    res.send(getNoBigIntObject(state));
+    const events = await regtestTransactionsIntoBlock(esploraResponse.data);
+    res.send(events.map(getNoBigIntObject));
   }
 );
 

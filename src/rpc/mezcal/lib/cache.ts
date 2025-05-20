@@ -60,7 +60,7 @@ type IMezcalEventsMappedByAddress = {
   [address: string]: IJoinedEvent[];
 };
 
-type IJoinedEvent = {
+export type IJoinedEvent = {
   id: string; // BIGINT → string
   type: number; // 0 = Etch, 1 = Mint, 2 = Transfer, 3 = Burn
   block: number;
