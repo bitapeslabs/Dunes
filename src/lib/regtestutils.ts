@@ -196,7 +196,7 @@ export const regtestTransactionsIntoBlock = async (
     { blockHeight: 0, blockData: hydratedTxs },
     rpcClient,
     storage,
-    false
+    true
   );
 
   const events = denormalizeEvents(storage.local as unknown as RawDataShape);

@@ -45,16 +45,17 @@ router.get(
       {} as Record<string, IEsploraTransaction>
     );
 
+    let regtestResult = await regtestTransactionsIntoBlock(
+      esploraResponse.data
+    );
+
     const events = mapToMezcalTransactions(
-      (await regtestTransactionsIntoBlock(esploraResponse.data))
-        .map(getNoBigIntObject<EventDto, EventDto>)
-        .filter((event) => event.transaction !== null)
-        .map((event) => ({
-          ...event,
-          owner_address: address,
-          type: TYPE_LABEL[event.type as 0 | 1 | 2 | 3],
-          tx: transactionMap[event.transaction as string],
-        }))
+      regtestResult.map(getNoBigIntObject<EventDto, EventDto>).map((event) => ({
+        ...event,
+        owner_address: address,
+        type: TYPE_LABEL[event.type as 0 | 1 | 2 | 3],
+        tx: transactionMap[event.transaction as string],
+      }))
     );
     res.send(events);
   }
