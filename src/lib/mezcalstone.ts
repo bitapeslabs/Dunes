@@ -142,23 +142,49 @@ export type IMezcalstoneIndexed = ToIndexed<IMezcalstone> & {
   cenotaph: boolean;
 };
 
-export const decipher = (tx: Transaction): IMezcalstoneIndexed => {
-  const op = tx.vout.find(
-    (v) =>
-      v.scriptPubKey?.type === "nulldata" ||
-      v.scriptPubKey?.asm?.startsWith("OP_RETURN")
-  );
-  if (!op) return { cenotaph: false };
+function getOpReturnData(tx: { vout: Array<Record<string, any>> }): {
+  cenotaph: boolean;
+  hex?: string;
+} {
+  const isOpReturn = (out: Record<string, any>): boolean => {
+    return (
+      out.scriptPubKey?.type === "nulldata" ||
+      out.scriptPubKey?.asm?.startsWith("OP_RETURN") ||
+      out.scriptpubkey_type === "op_return" ||
+      out.scriptpubkey_asm?.startsWith("OP_RETURN")
+    );
+  };
+
+  const opOut = tx.vout.find(isOpReturn);
+  if (!opOut) return { cenotaph: false };
+
+  const asmString: string | undefined =
+    opOut.scriptPubKey?.asm ?? opOut.scriptpubkey_asm;
 
   let hex = "";
-  if (op.scriptPubKey.asm?.startsWith("OP_RETURN")) {
-    hex = op.scriptPubKey.asm.split(" ")[1] ?? "";
-  } else if (op.scriptPubKey.hex?.startsWith("6a")) {
-    hex = op.scriptPubKey.hex.replace(
-      /^6a(?:4c[0-9a-f]{2}|4d[0-9a-f]{4}|4e[0-9a-f]{8})?/i,
-      ""
-    );
+  if (asmString?.startsWith("OP_RETURN")) {
+    const parts = asmString.split(" ");
+    hex = parts[parts.length - 1] ?? "";
   }
+
+  if (!hex) {
+    const scriptHex: string | undefined =
+      opOut.scriptPubKey?.hex ?? opOut.scriptpubkey;
+    if (scriptHex?.startsWith("6a")) {
+      hex = scriptHex.replace(
+        /^6a(?:4c[0-9a-f]{2}|4d[0-9a-f]{4}|4e[0-9a-f]{8})?/i,
+        ""
+      );
+    }
+  }
+
+  return hex ? { cenotaph: false, hex } : { cenotaph: false };
+}
+
+export const decipher = (tx: Transaction): IMezcalstoneIndexed => {
+  let opReturn = getOpReturnData(tx);
+  if (opReturn.cenotaph || !opReturn.hex) return { cenotaph: true };
+  const hex = opReturn.hex;
 
   let candidate: unknown;
   try {

@@ -157,7 +157,9 @@ export async function storage(useSync = false) {
   ): Promise<ModelRow[]> => {
     const Model: ModelStatic<any> = (db as any)[model];
     //console.log("Loading into memory", model, where);
-    const rows = (await Model.findAll({ raw: true, where })) as ModelRow[];
+    const rows = (await Model.findAll({ where })).map((row) =>
+      row.toJSON()
+    ) as ModelRow[];
 
     const pk = LOCAL_PRIMARY_KEYS[model as keyof typeof LOCAL_PRIMARY_KEYS];
     rows.forEach((raw) => {

@@ -60,6 +60,10 @@ type IMezcalEventsMappedByAddress = {
   [address: string]: IJoinedEvent[];
 };
 
+type IMezcalEventsMappedByTxid = {
+  [txid: string]: IJoinedEvent[];
+};
+
 export type IJoinedEvent = {
   id: string; // BIGINT → string
   type: number; // 0 = Etch, 1 = Mint, 2 = Transfer, 3 = Burn
@@ -85,6 +89,7 @@ type ICache = {
   "rpc:utxo_balances:mapped_by_address": IMezcalUtxoBalancesMappedByAddress;
   "rpc:events:all": IJoinedEvent[];
   "rpc:events:mapped_by_address": IMezcalEventsMappedByAddress;
+  "rpc:events:mapped_by_txid": IMezcalEventsMappedByTxid;
 };
 
 const getUpdatedEvents = async (db: Models): Promise<IJoinedEvent[]> => {
@@ -313,6 +318,20 @@ export const clearAndPopulateRpcCache = async (db: Models) => {
     },
     {} as IMezcalEventsMappedByAddress
   );
+  cache["rpc:events:mapped_by_txid"] = events.reduce(
+    (acc: IMezcalEventsMappedByTxid, event: IJoinedEvent) => {
+      if (!event.transaction) {
+        return acc;
+      }
+
+      if (!acc[event.transaction]) {
+        acc[event.transaction] = [];
+      }
+      acc[event.transaction].push(event);
+      return acc;
+    },
+    {} as IMezcalEventsMappedByTxid
+  );
 
   return;
 };
@@ -380,6 +399,13 @@ export const cacheGetEventsByAddress = (
 ): IJoinedEvent[] | null => {
   if (cache["rpc:events:mapped_by_address"][address]) {
     return cache["rpc:events:mapped_by_address"][address];
+  }
+  return null;
+};
+
+export const cacheGetEventsByTxid = (txid: string): IJoinedEvent[] | null => {
+  if (cache["rpc:events:mapped_by_txid"][txid]) {
+    return cache["rpc:events:mapped_by_txid"][txid];
   }
   return null;
 };

@@ -1122,16 +1122,20 @@ const loadBlockIntoMemory = async (
   ];
 
   await loadManyIntoMemory("Utxo", {
-    [Op.or]: utxosInBlock.map((utxo) => {
-      const { transaction_id, vout_index } = utxo;
-
-      return {
-        transaction_id,
-        vout_index,
-      };
-    }),
+    [Op.and]: [
+      {
+        [Op.or]: utxosInBlock.map(({ transaction_id, vout_index }) => ({
+          transaction_id,
+          vout_index,
+        })),
+      },
+      {
+        block_spent: {
+          [Op.is]: null,
+        },
+      },
+    ],
   });
-
   stopTimer("load_utxos");
 
   startTimer();

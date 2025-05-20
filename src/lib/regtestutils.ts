@@ -131,6 +131,7 @@ export function denormalizeEvents(raw: RawDataShape): EventDto[] {
 
 const esploraTxToRpcTx = (transaction: IEsploraTransaction): Transaction => {
   const { vin, vout, txid, size, version, locktime } = transaction;
+
   return {
     vin: vin,
 
@@ -155,18 +156,21 @@ const esploraTxToRpcTx = (transaction: IEsploraTransaction): Transaction => {
 export const regtestTransactionsIntoBlock = async (
   transactions: IEsploraTransaction[]
 ): Promise<EventDto[]> => {
+  const storage = await newStorage();
+
   const rpcClient = createRpcClient({
     url: BTC_RPC_URL,
     username: BTC_RPC_USERNAME,
     password: BTC_RPC_PASSWORD,
   });
 
-  const storage = await newStorage();
+  const blockTip = Number(await rpcClient.callRpc("getblockcount"));
+
   const fakeBlock: Block = {
     hash: "000",
     confirmations: 1,
     size: 0,
-    height: 0,
+    height: blockTip,
     version: 0,
     versionHex: "0x0",
     merkleroot: "0x0",
@@ -190,15 +194,15 @@ export const regtestTransactionsIntoBlock = async (
     storage
   );
 
-  await loadBlockIntoMemory(hydratedTxs, storage);
+  storage.local.Utxo = {};
 
+  await loadBlockIntoMemory(hydratedTxs, storage);
   processBlock(
-    { blockHeight: 0, blockData: hydratedTxs },
+    { blockHeight: blockTip, blockData: hydratedTxs },
     rpcClient,
     storage,
     true
   );
-
   const events = denormalizeEvents(storage.local as unknown as RawDataShape);
   return events;
 };
@@ -210,7 +214,7 @@ type IMezcalTransactionAsset = {
   decimals: number;
 };
 
-type IMezcalTransaction = {
+export type IMezcalTransaction = {
   type: "ETCH" | "MINT" | "TRANSFER" | "BURN" | "AIRDROP";
   target: "incoming" | "outgoing";
   target_address: string;
@@ -218,6 +222,7 @@ type IMezcalTransaction = {
   asset: IMezcalTransactionAsset;
   amount: string;
   transaction_id: string;
+  timestamp: number;
 };
 
 export function mapToMezcalTransactions(
@@ -227,20 +232,25 @@ export function mapToMezcalTransactions(
     tx: IEsploraTransaction;
   })[]
 ): IMezcalTransaction[] {
-  return input.map((event): IMezcalTransaction => {
+  return input.map((event, index): IMezcalTransaction => {
     let target: "incoming" | "outgoing" = "incoming";
     if (event.type === "TRANSFER") {
       target =
         event.owner_address === event.to_address ? "incoming" : "outgoing";
     }
 
+    let target_address = String(
+      target === "incoming" ? event.to_address : event.from_address
+    );
+    if (event.type === "ETCH" || event.type === "MINT") {
+      target_address = "COINBASE";
+    }
+
     return {
       type: event.type,
       confirmed: event.tx.status.confirmed,
       target,
-      target_address: String(
-        target === "incoming" ? event.from_address : event.to_address
-      ),
+      target_address,
       asset: {
         id: String(event.mezcal?.mezcal_protocol_id),
         name: String(event.mezcal?.name),
@@ -249,6 +259,7 @@ export function mapToMezcalTransactions(
       },
       amount: event.amount,
       transaction_id: event.tx.txid,
+      timestamp: Number(event.tx.status.block_time ?? event.tx.locktime),
     };
   });
 }
