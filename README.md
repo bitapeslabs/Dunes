@@ -29,7 +29,7 @@ the state of runes that the ORD client creates nad the highest barrier to entry 
 - Mezcal does not require commitments to etch. This means mezcal, unlike runes, does not require any copy of the witness layer! Mezcals works with any pre-segwit
   wallet and chain.
 
-- Any Mezcal name is valid, as long as the name contains only letters (A–Z, a–z), numbers (0–9), underscores \_, hyphens -, or periods . — and must be at least one character long, and less than 32 characters long. (names are case sensitive, so "Duni" and "duni" are NOT the same.)
+- Any Mezcal name is valid, as long as the name contains only lowercase letters (a–z), numbers (0–9), or — and must be at least one character long, and less than or equal to 15 characters long.
 
 - Because Mezcal names are described as strings, the "spacer" field from the original runes protocol is completely omitted.
 

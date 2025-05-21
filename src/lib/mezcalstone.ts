@@ -87,9 +87,9 @@ export const EtchingSchema = z.object({
   premine: mezcalAmount,
   mezcal: z
     .string()
-    .regex(/^[A-Za-z0-9_.-]{1,31}$/)
+    .regex(/^[a-z0-9-]+$/) // only lowercase alphanumeric and hyphens
     .min(1)
-    .max(31),
+    .max(15),
   symbol: z
     .string()
     .min(1)
