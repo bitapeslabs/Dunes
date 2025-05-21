@@ -116,13 +116,20 @@ router.get("/address/:address", async (req: RequestWithDB, res: Response) => {
     esploraResponse.data.filter((tx) => tx.status.confirmed === false)
   );
 
+  console.log("regtestResult", regtestResult);
+
   const unconfirmedEvents = mapToMezcalTransactions(
-    regtestResult.map(getNoBigIntObject<EventDto, EventDto>).map((event) => ({
-      ...event,
-      owner_address: address,
-      type: TYPE_LABEL[event.type as 0 | 1 | 2 | 3],
-      tx: transactionMap[event.transaction as string],
-    }))
+    regtestResult
+      .map(getNoBigIntObject<EventDto, EventDto>)
+      .map((event) => ({
+        ...event,
+        owner_address: address,
+        type: TYPE_LABEL[event.type as 0 | 1 | 2 | 3],
+        tx: transactionMap[event.transaction as string],
+      }))
+      .filter((event) => {
+        event.to_address === address || event.from_address === address;
+      })
   );
 
   let events = [
