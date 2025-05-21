@@ -127,9 +127,10 @@ router.get("/address/:address", async (req: RequestWithDB, res: Response) => {
         type: TYPE_LABEL[event.type as 0 | 1 | 2 | 3],
         tx: transactionMap[event.transaction as string],
       }))
-      .filter((event) => {
-        event.to_address === address || event.from_address === address;
-      })
+      .filter(
+        (event) =>
+          event.to_address === address || event.from_address === address
+      )
   );
 
   let events = [
