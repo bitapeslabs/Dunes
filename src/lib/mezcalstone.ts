@@ -45,12 +45,23 @@ export const PriceTermsSchema = z.object({
   pay_to: z.string().max(130, "pay_to address may be up to 130 chars"),
 });
 
-/* ── 3. existing schemas with additions/limits ───────── */
-export const EdictSchema = z.object({
+/* ── helpers already defined: mezcalAmount, u8() ──────────────── */
+const EdictTupleSchema = z
+  .tuple([
+    z.string().regex(/^\d+:\d+$/, "id must look like “0:0”"), // id
+    mezcalAmount, // amount
+    u8(), // output
+  ])
+  .transform(([id, amount, output]) => ({ id, amount, output })); // -> object
+
+const EdictObjectSchema = z.object({
   id: z.string().regex(/^\d+:\d+$/, "id must look like “0:0”"),
   amount: mezcalAmount,
   output: u8(),
 });
+
+/* ── replace the old EdictSchema with a union that normalises ─── */
+export const EdictSchema = z.union([EdictObjectSchema, EdictTupleSchema]);
 
 export const TermsSchema = z.object({
   price: PriceTermsSchema.optional(),
