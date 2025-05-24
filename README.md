@@ -143,14 +143,14 @@ If no price field is provided in a mezcal's etching, all functionality above is 
 
 ## What are flexible mints?
 
-If price terms are defined, and the amount per mint is set to 0, the Dune automatically enables "flex mint" mode.
-Essentially, when flex mint mode is enabled - the amount minted will be Math.floor(amount set to pay_to address / price). This was specifically added to enable decentralized wrapping of bitcoin into a dune (unwrapping would need to be custodian)
+If price terms are defined, and the amount per mint is set to 0, the Mezcal automatically enables "flex mint" mode.
+Essentially, when flex mint mode is enabled - the amount minted will be Math.floor(amount set to pay_to address / price). This was specifically added to enable decentralized wrapping of bitcoin into a mezcal (unwrapping would need to be custodian)
 
 In the following etch:
 
 ```json
 {
-  "p": "https://dunes.sh",
+  "p": "https://mezcal.sh",
   "etching": {
     "divisibility": 8,
     "premine": "0",
