@@ -152,35 +152,31 @@ type ToIndexed<T> = T extends (infer U)[] // recurse into arrays
 export type IMezcalstoneIndexed = ToIndexed<IMezcalstone> & {
   cenotaph: boolean;
 };
+type KeyType<T> = T extends Array<infer U> ? U : never;
 
-function getOpReturnData(tx: { vout: Array<Record<string, any>> }): {
+function getOpReturnData(tx: Transaction): {
   cenotaph: boolean;
   hex?: string;
 } {
-  const isOpReturn = (out: Record<string, any>): boolean => {
+  const isOpReturn = (out: KeyType<Transaction["vout"]>): boolean => {
     return (
-      out.scriptPubKey?.type === "nulldata" ||
-      out.scriptPubKey?.asm?.startsWith("OP_RETURN") ||
-      out.scriptpubkey_type === "op_return" ||
-      out.scriptpubkey_asm?.startsWith("OP_RETURN")
+      out.scriptPubKey.type === "nulldata" ||
+      out.scriptPubKey.asm?.includes("OP_RETURN")
     );
   };
 
   const opOut = tx.vout.find(isOpReturn);
   if (!opOut) return { cenotaph: false };
 
-  const asmString: string | undefined =
-    opOut.scriptPubKey?.asm ?? opOut.scriptpubkey_asm;
-
+  const asmString: string = opOut.scriptPubKey.asm;
   let hex = "";
-  if (asmString?.startsWith("OP_RETURN")) {
+  if (asmString?.includes("OP_RETURN")) {
     const parts = asmString.split(" ");
     hex = parts[parts.length - 1] ?? "";
   }
 
   if (!hex) {
-    const scriptHex: string | undefined =
-      opOut.scriptPubKey?.hex ?? opOut.scriptpubkey;
+    const scriptHex: string = opOut.scriptPubKey.hex;
     if (scriptHex?.startsWith("6a")) {
       hex = scriptHex.replace(
         /^6a(?:4c[0-9a-f]{2}|4d[0-9a-f]{4}|4e[0-9a-f]{8})?/i,
