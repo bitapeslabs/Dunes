@@ -10,6 +10,7 @@ import {
 export type ITransaction = {
   id: string; // BIGINT → string
   hash: string;
+  logs?: string; // TEXT → optional string
 };
 
 /* ── 2. Sequelize model ─────────────────────────── */
@@ -19,6 +20,7 @@ export class Transaction
 {
   declare id: CreationOptional<string>;
   declare hash: string;
+  declare logs?: string;
 
   static initialize(sequelize: Sequelize): typeof Transaction {
     Transaction.init(
@@ -31,6 +33,10 @@ export class Transaction
         hash: {
           type: DataTypes.TEXT,
           allowNull: false,
+        },
+        logs: {
+          type: DataTypes.TEXT,
+          allowNull: true,
         },
       },
       {

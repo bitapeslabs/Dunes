@@ -13,7 +13,6 @@ mezcal --help
 
 **Interactive minting through website:** https://mezcal.sh
 
-
 **More information on the commands you can use can be found here:** https://github.com/bitapeslabs/mezcal-cli
 
 **Mezcal explorer:** https://mezcal.sh/explorer

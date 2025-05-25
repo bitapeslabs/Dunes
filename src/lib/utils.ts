@@ -156,6 +156,10 @@ export function stripObject<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj, replacer));
 }
 
+export function safeStringify<T>(obj: T): string {
+  return JSON.stringify(obj, replacer);
+}
+
 export function convertAmountToParts(amount: bigint): {
   balance_0: string;
   balance_1: string;

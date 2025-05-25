@@ -20,6 +20,7 @@ export type EsploraUtxo = {
   txid: string;
   vout: number;
   value: number;
+  prevtx_hex: string;
   status: {
     confirmed: boolean;
     block_height?: number;
@@ -28,26 +29,21 @@ export type EsploraUtxo = {
   };
 };
 
-/* ────────────  Esplora TX types  ──────────── */
-
-/** Block-confirmation status for a tx */
 export type IEsploraTransactionStatus = {
   confirmed: boolean;
   block_height?: number;
   block_hash?: string;
-  block_time?: number; // UNIX epoch (s)
+  block_time?: number;
 };
 
-/** The prevout object that appears inside each `vin` */
 export type IEsploraPrevout = {
   scriptpubkey: string;
   scriptpubkey_asm: string;
   scriptpubkey_type: string;
   scriptpubkey_address: string;
-  value: number; // sats
+  value: number;
 };
 
-/** One input */
 export type IEsploraVin = {
   txid: string;
   vout: number;
@@ -59,24 +55,29 @@ export type IEsploraVin = {
   sequence: number;
 };
 
-/** One output */
 export type IEsploraVout = {
   scriptpubkey: string;
   scriptpubkey_asm: string;
   scriptpubkey_type: string;
   scriptpubkey_address: string;
-  value: number; // sats
+  value: number;
 };
 
-/** 👉  The main transaction object you’ll usually store */
 export type IEsploraTransaction = {
   txid: string;
   version: number;
   locktime: number;
   vin: IEsploraVin[];
   vout: IEsploraVout[];
-  size: number; // bytes
-  weight: number; // wu
-  fee: number; // sats
+  size: number;
+  weight: number;
+  fee: number;
   status: IEsploraTransactionStatus;
+};
+
+export type IEsploraSpendableUtxo = {
+  txid: string;
+  vout: number;
+  value: number;
+  prevTx: IEsploraTransaction & { hex: string };
 };

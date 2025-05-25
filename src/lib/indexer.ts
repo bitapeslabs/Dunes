@@ -12,7 +12,7 @@ import {
   updateUnallocated,
   IndexedTx,
 } from "./mezcalutils";
-import { GENESIS_BLOCK, GENESIS_MEZCALTONE } from "./consts";
+import { GENESIS_BLOCK, GENESIS_MEZCALTONE, VERBOSE_LOGGING } from "./consts";
 import {
   IAddress,
   IBalance,
@@ -29,8 +29,10 @@ import { IMezcalstone, IMezcalstoneIndexed } from "@/lib/mezcalstone";
 import { IMezcal, IUtxo, IUtxoBalance } from "@/database/createConnection";
 import { isPromise } from "util/types";
 import { RpcClient } from "./apis/bitcoinrpc";
+import { safeStringify } from "./utils";
 import { Block } from "@/lib/apis/bitcoinrpc/types";
 import { isValidResponse } from "@/lib/utils";
+
 /* ────────────────────────────────────────────────────────────────────────────
    SHARED TYPES
    ────────────────────────────────────────────────────────────────────────── */
@@ -60,17 +62,42 @@ type IMezcalBalances = BigDict;
 
 type IUnallocatedMezcals = BigDict;
 
-const coerceIntoValid = <T>(
-  call: (...args: any) => T | null | Promise<unknown>
-) => {
-  let response = call();
-  if (isValidResponse<T>(response)) {
-    return response;
-  } else {
-    throw new Error("Invalid response from local cache");
-  }
-};
+const getIndexerLogger = (storage: Storage, hash: string) => {
+  const { updateAttribute, findOne } = storage;
 
+  return {
+    logindex: (...args: string[]) => {
+      if (!VERBOSE_LOGGING) return;
+      if (args.length === 0) {
+        return;
+      }
+
+      let foundTransaction = findOne<ITransaction>(
+        "Transaction",
+        hash,
+        undefined,
+        true
+      );
+
+      if (!isValidResponse<ITransaction>(foundTransaction)) {
+        log(
+          `[INDEXER] Transaction with hash ${hash} not found in local cache, skipping log:`,
+          ...args
+        );
+        return;
+      }
+
+      updateAttribute(
+        "Transaction",
+        foundTransaction.hash,
+        "logs",
+        `${foundTransaction.logs ?? ""}\n${args.join(" ")}`
+      );
+
+      return;
+    },
+  };
+};
 /*  Runtime transaction shape used by the indexer
     — extends the raw Bitcoin‑RPC transaction                       */
 export interface IndexedTxExtended extends IndexedTx {
@@ -144,8 +171,19 @@ const createNewUtxoBodies = (
   storage: Storage
 ) => {
   const { findOrCreate } = storage;
+  const { logindex } = getIndexerLogger(storage, Transaction.txid);
 
+  logindex(
+    `(createNewUtxoBodies) Creating new UTXO bodies for transaction ${Transaction.txid}`
+  );
   return vout.map((out) => {
+    logindex(
+      `(createNewUtxoBodies) Creating new UTXO body for vout index ${
+        out.n
+      } with value ${out.value} and address ${
+        out.scriptPubKey.address ?? "OP_RETURN"
+      }`
+    );
     const addressRow = findOrCreate<IAddress>(
       "Address",
       out.scriptPubKey.address ?? "OP_RETURN",
@@ -183,6 +221,15 @@ const createNewUtxoBodies = (
 
 const burnAllFromUtxo = (utxo: IndexerUtxo, storage: Storage) => {
   const { updateAttribute, findOne } = storage;
+  const { logindex } = getIndexerLogger(storage, utxo.utxo_index);
+  logindex(
+    `(burnAllFromUtxo) Burning all mezcals from UTXO ${utxo.utxo_index}`
+  );
+  logindex(
+    `(burnAllFromUtxo) UTXO has mezcal balances: ${safeStringify(
+      utxo.mezcal_balances
+    )}`
+  );
 
   if (!utxo.mezcal_balances) {
     return;
@@ -191,7 +238,14 @@ const burnAllFromUtxo = (utxo: IndexerUtxo, storage: Storage) => {
   Object.entries(utxo.mezcal_balances).forEach(([mezcalId, amt]) => {
     const mezcal = findOne<IMezcal>("Mezcal", mezcalId, undefined, true);
 
+    logindex(
+      `(burnAllFromUtxo) Burning ${amt} of mezcal ${mezcalId} from UTXO ${utxo.utxo_index}`
+    );
+
     if (!isValidResponse<IMezcal>(mezcal)) {
+      logindex(
+        `(burnAllFromUtxo) Mezcal ${mezcalId} not found in local cache, skipping burn`
+      );
       throw new Error("Invalid response from local cache");
     }
 
@@ -211,10 +265,20 @@ const burnAllFromUtxo = (utxo: IndexerUtxo, storage: Storage) => {
 const updateOrCreateBalancesWithUtxo = (
   utxo: IndexerUtxo,
   storage: Storage,
-  direction: 1 | -1
+  direction: 1 | -1,
+  transaction: Transaction
 ): void => {
+  const { logindex } = getIndexerLogger(storage, transaction.txid);
+
+  logindex(
+    `(updateOrCreateBalancesWithUtxo) Updating or creating balances for UTXO ${utxo.utxo_index} with direction ${direction}`
+  );
+
   const { findManyInFilter, create, updateAttribute, findOne } = storage;
   if (!utxo.mezcal_balances) {
+    logindex(
+      `(updateOrCreateBalancesWithUtxo) UTXO ${utxo.utxo_index} has no mezcal balances, skipping balance update`
+    );
     return;
   }
   const entries = Object.entries(utxo.mezcal_balances);
@@ -227,8 +291,20 @@ const updateOrCreateBalancesWithUtxo = (
   );
 
   if (!isValidResponse<IMezcal[]>(mezcalsMapResponse)) {
+    logindex(
+      `(updateOrCreateBalancesWithUtxo) Invalid response from local cache for mezcals: ${safeStringify(
+        entries.map(([proto]) => proto)
+      )}`
+    );
+
     throw new Error("Invalid response from local cache");
   }
+
+  logindex(
+    `(updateOrCreateBalancesWithUtxo) Found mezcals: ${safeStringify(
+      mezcalsMapResponse.map((m) => m.mezcal_protocol_id)
+    )}`
+  );
 
   const mezcalsMap = mezcalsMapResponse.reduce<Record<string, any>>(
     (a, d: any) => {
@@ -239,8 +315,20 @@ const updateOrCreateBalancesWithUtxo = (
     {}
   );
 
+  logindex(
+    `(updateOrCreateBalancesWithUtxo) Mezcals map: ${safeStringify(
+      Object.keys(mezcalsMap)
+    )}`
+  );
+
   const balanceFilter = entries.map(
     ([proto]) => `${utxo.address_id}:${mezcalsMap[proto].id}`
+  );
+
+  logindex(
+    `(updateOrCreateBalancesWithUtxo) Balance filter: ${safeStringify(
+      balanceFilter
+    )}`
   );
 
   const existingBalancesResponse = findManyInFilter<IBalance>(
@@ -249,12 +337,27 @@ const updateOrCreateBalancesWithUtxo = (
     true
   );
 
+  logindex(
+    `(updateOrCreateBalancesWithUtxo) Existing balances response: ${safeStringify(
+      existingBalancesResponse
+    )}`
+  );
+
   if (!isValidResponse<IBalance[]>(existingBalancesResponse)) {
+    logindex(
+      `(updateOrCreateBalancesWithUtxo) Invalid response from local cache for existing balances: ${safeStringify(
+        balanceFilter
+      )}`
+    );
     throw new Error("Invalid response from local cache");
   }
 
   let existingBalances = existingBalancesResponse.reduce<Record<string, any>>(
     (acc, bal: any) => {
+      logindex(
+        `(updateOrCreateBalancesWithUtxo) Existing balance for ${bal.mezcal_id}: ${bal.balance}`
+      );
+
       acc[mezcalsMap[bal.mezcal_id].mezcal_protocol_id] = bal;
       return acc;
     },
@@ -264,10 +367,18 @@ const updateOrCreateBalancesWithUtxo = (
   for (const [proto, amt] of entries) {
     let bal = existingBalances[proto];
 
+    logindex(
+      `(updateOrCreateBalancesWithUtxo) Processing balance for mezcal ${proto} with amount ${amt}`
+    );
+
     if (!bal) {
       let mezcal = findOne<IMezcal>("Mezcal", proto, undefined, true);
 
       if (!isValidResponse<IMezcal>(mezcal)) {
+        logindex(
+          `(updateOrCreateBalancesWithUtxo) Mezcal ${proto} not found in local cache, skipping balance creation`
+        );
+
         throw new Error("Invalid response from local cache");
       }
 
@@ -278,10 +389,18 @@ const updateOrCreateBalancesWithUtxo = (
         address_id: utxo.address_id,
         balance: 0,
       });
+
+      logindex(
+        `(updateOrCreateBalancesWithUtxo) Created new balance for mezcal ${proto} with bal: ${safeStringify(
+          bal
+        )}`
+      );
     }
 
     const newBalance = BigInt(bal.balance) + BigInt(amt) * BigInt(direction);
-
+    logindex(
+      `(updateOrCreateBalancesWithUtxo) Updating balance for mezcal ${proto} to ${newBalance}`
+    );
     updateAttribute("Balance", bal.balance_index, "balance", newBalance);
   }
 };
@@ -293,12 +412,27 @@ const processEdicts = (
   transfers: ITransfers,
   storage: Storage
 ) => {
+  const { logindex } = getIndexerLogger(storage, Transaction.txid);
+
   const { block, txIndex, mezcalstone, vin } = Transaction;
   const { findManyInFilter, create, findOne, findOrCreate } = storage;
+
+  logindex(
+    `(processEdicts) Processing edicts for transaction ${Transaction.txid} at block ${block} and txIndex ${txIndex}`
+  );
+  logindex(`(processEdicts) Pending UTXOs: ${safeStringify(pendingUtxos)}`);
+  logindex(
+    `(processEdicts) Unallocated Mezcals: ${safeStringify(UnallocatedMezcals)}`
+  );
+  logindex(`(processEdicts) Mezcalstone: ${safeStringify(mezcalstone)}`);
+  logindex(`(processEdicts) Transaction vin: ${safeStringify(vin)}`);
 
   let { edicts, pointer } = mezcalstone;
 
   if (mezcalstone.cenotaph) {
+    logindex(
+      `(processEdicts) Transaction is a cenotaph, burning all unallocated mezcals`
+    );
     //Transaction is a cenotaph, input mezcals are burnt.
     //https://docs.ordinals.com/mezcals/specification.html#Transferring
 
@@ -306,6 +440,7 @@ const processEdicts = (
       acc[mezcalId] = UnallocatedMezcals[mezcalId];
       return acc;
     }, {} as Record<string, bigint>);
+
     return {};
   }
 
@@ -324,8 +459,14 @@ const processEdicts = (
       unallocated < amount || amount === 0n ? unallocated : amount;
 
     UnallocatedMezcals[mezcalId] = (unallocated ?? 0n) - withDefault;
+    logindex(
+      `(processEdicts) Allocating ${withDefault} of mezcal ${mezcalId} to UTXO ${utxo.utxo_index}`
+    );
 
     if (!utxo.mezcal_balances) {
+      logindex(
+        `(processEdicts) UTXO ${utxo.utxo_index} has no mezcal balances, initializing`
+      );
       utxo.mezcal_balances = {};
     }
 
@@ -333,15 +474,28 @@ const processEdicts = (
       (utxo.mezcal_balances[mezcalId] ?? 0n) + withDefault;
 
     //Dont save transfer events of amount "0"
-    if (withDefault === 0n) return;
+    if (withDefault === 0n) {
+      logindex(
+        `(processEdicts) Skipping transfer event for mezcal ${mezcalId} with amount 0`
+      );
+      return;
+    }
 
     let toAddress = utxo.address_id === 2 ? "burn" : utxo.address_id;
-
+    logindex(
+      `(processEdicts) Transferring ${withDefault} of mezcal ${mezcalId} to address ${toAddress}`
+    );
     if (!transfers[toAddress]) {
       transfers[toAddress] = {};
+      logindex(
+        `(processEdicts) Created new transfers entry for address ${toAddress}`
+      );
     }
     if (!transfers[toAddress][mezcalId]) {
       transfers[toAddress][mezcalId] = 0n;
+      logindex(
+        `(processEdicts) Created new transfer entry for mezcal ${mezcalId} to address ${toAddress}`
+      );
     }
 
     transfers[toAddress][mezcalId] += withDefault;
@@ -349,19 +503,27 @@ const processEdicts = (
 
   //References are kept because filter does not clone the array
   let nonOpReturnOutputs = pendingUtxos.filter((utxo) => utxo.address_id !== 2);
-
+  logindex(
+    `(processEdicts) Non-OP_RETURN outputs: ${safeStringify(
+      nonOpReturnOutputs
+    )}`
+  );
   if (edicts) {
     const transactionMezcalId = `${block}:${txIndex}`;
-
+    logindex(
+      `(processEdicts) Transaction Mezcal ID: ${transactionMezcalId} (block:${block}, txIndex:${txIndex})`
+    );
     //Replace all references of 0:0 with the actual mezcal id which we have stored on db (Transferring#5)
     edicts.forEach(
       (edict) =>
         (edict.id = edict.id === "0:0" ? transactionMezcalId : edict.id)
     );
 
+    logindex(`(processEdicts) Processed edicts: ${safeStringify(edicts)}`);
+
     //Get mezcal ids from edicts for filter below (the mezcal id is the PrimaryKey)
     let edictFilter = edicts.map((edict) => edict.id);
-
+    logindex(`(processEdicts) Edict filter: ${safeStringify(edictFilter)}`);
     //Cache all mezcals that are currently in DB in a hashmap, if a mezcal doesnt exist edict will be ignored
 
     //uses optimized lookup by using mezcal_protocol_id
@@ -370,7 +532,11 @@ const processEdicts = (
       edictFilter,
       true
     );
-
+    logindex(
+      `(processEdicts) Existing mezcals response: ${safeStringify(
+        existingMezcalsResponse
+      )}`
+    );
     if (!isValidResponse<IMezcal[]>(existingMezcalsResponse)) {
       throw new Error("Invalid response from local cache @ processEdicts:1");
     }
@@ -380,22 +546,47 @@ const processEdicts = (
       {} as Record<string, IMezcal>
     );
 
+    logindex(
+      `(processEdicts) Existing mezcals: ${safeStringify(
+        Object.keys(existingMezcals)
+      )}`
+    );
+
     for (let edictIndex in edicts) {
+      logindex(
+        `(processEdicts) Processing edict at index ${edictIndex}: ${safeStringify(
+          edicts[edictIndex]
+        )}`
+      );
       let edict = edicts[edictIndex];
       //A mezcalstone may contain any number of edicts, which are processed in sequence.
       if (!existingMezcals[edict.id]) {
+        logindex(
+          `(processEdicts) Mezcal with id ${edict.id} does not exist, ignoring edict`
+        );
         //If the mezcal does not exist, the edict is ignored
         continue;
       }
 
       if (!UnallocatedMezcals[edict.id]) {
+        logindex(
+          `(processEdicts) Mezcal with id ${edict.id} has no unallocated mezcals, ignoring edict`
+        );
         //If the mezcal is not in the unallocated mezcals, it is ignored
         continue;
       }
 
       if (edict.output === pendingUtxos.length) {
+        logindex(
+          `(processEdicts) Edict output is equal to the number of transaction outputs, allocating to all non-OP_RETURN outputs: `,
+          edict.output.toString(),
+          pendingUtxos.length.toString()
+        );
         //Edict amount is in string, not bigint
         if (edict.amount === 0n) {
+          logindex(
+            `(processEdicts) Edict amount is zero, allocating to all non-OP_RETURN outputs`
+          );
           /*
               An edict with amount zero and output equal to the number of transaction outputs divides all unallocated units of mezcal id between each non OP_RETURN output.
           */
@@ -409,11 +600,26 @@ const processEdicts = (
             https://twitter.com/raphjaph/status/1782581416716357998/photo/2
           */
           if (amountOutputs > 0) {
+            logindex(
+              `(processEdicts) Allocating ${
+                UnallocatedMezcals[edict.id]
+              } of mezcal ${edict.id} to ${amountOutputs} outputs`
+            );
             const amount = BigInt(UnallocatedMezcals[edict.id]) / amountOutputs;
             const remainder =
               BigInt(UnallocatedMezcals[edict.id]) % amountOutputs;
 
             const withRemainder = amount + BigInt(1);
+
+            logindex(
+              `(processEdicts) Allocating ${amount} of mezcal ${edict.id} to each output, with a remainder of ${remainder}`
+            );
+
+            logindex(
+              `(processEdicts) Using NONOPRETURN outputs: ${safeStringify(
+                nonOpReturnOutputs
+              )}`
+            );
 
             nonOpReturnOutputs.forEach((utxo, index) =>
               allocate(
@@ -422,19 +628,55 @@ const processEdicts = (
                 index < remainder ? withRemainder : amount
               )
             );
+
+            logindex(
+              `(processEdicts) New unallocated mezcals after allocation: ${safeStringify(
+                {
+                  [edict.id]: UnallocatedMezcals[edict.id],
+                }
+              )}`
+            );
           }
         } else {
+          logindex(
+            `(processEdicts) Edict amount is non-zero, allocating ${edict.amount} of mezcal ${edict.id} to all non-OP_RETURN outputs`
+          );
           //If an edict would allocate more mezcals than are currently unallocated, the amount is reduced to the number of currently unallocated mezcals. In other words, the edict allocates all remaining unallocated units of mezcal id.
-
+          logindex(
+            `(processEdicts) Using NONOPRETURN outputs: ${safeStringify(
+              nonOpReturnOutputs
+            )}`
+          );
           nonOpReturnOutputs.forEach((utxo) =>
             allocate(utxo, edict.id, BigInt(edict.amount))
+          );
+
+          logindex(
+            `(processEdicts) New unallocated mezcals after allocation: ${safeStringify(
+              {
+                [edict.id]: UnallocatedMezcals[edict.id],
+              }
+            )}`
           );
         }
         continue;
       }
 
+      logindex(
+        `(processEdicts) Edict output is ${edict.output}, allocating to specific output`
+      );
       //Transferring directly to op_return is allowed
       allocate(pendingUtxos[edict.output], edict.id, BigInt(edict.amount));
+      logindex(
+        `(processEdicts) Allocated ${edict.amount} of mezcal ${edict.id} to output ${edict.output}`
+      );
+      logindex(
+        `(processEdicts) New unallocated mezcals after allocation: ${safeStringify(
+          {
+            [edict.id]: UnallocatedMezcals[edict.id],
+          }
+        )}`
+      );
     }
   }
 
@@ -445,22 +687,44 @@ const processEdicts = (
     ? pendingUtxos[pointer] ?? nonOpReturnOutputs[0]
     : nonOpReturnOutputs[0];
 
+  logindex(`(processEdicts) Pointer output: ${safeStringify(pointerOutput)}`);
+
   //pointerOutput should never be undefined since there is always either a non-opreturn or an op-return output in a transaction
 
   if (!pointerOutput) {
+    logindex(
+      `(processEdicts) Pointer output is undefined, looking for a pending UTXO with address_id 2`
+    );
     //pointer is not provided and there are no non-OP_RETURN outputs
     let foundPendingUtxos = pendingUtxos.find((utxo) => utxo.address_id === 2);
 
     if (foundPendingUtxos) {
+      logindex(
+        `(processEdicts) Found pending UTXO with address_id 2: ${safeStringify(
+          foundPendingUtxos
+        )}`
+      );
       pointerOutput = foundPendingUtxos;
     } else {
+      logindex(`(processEdicts) No pointer output found, throwing error`);
       throw new Error("No pointer output found. This transaction is invalid.");
     }
   }
 
+  logindex(
+    `(processEdicts) Pointer output after check: ${safeStringify(
+      pointerOutput
+    )}`
+  );
   //move Unallocated mezcals to pointer output
   Object.entries(UnallocatedMezcals).forEach((allocationData) =>
     allocate(pointerOutput, allocationData[0], allocationData[1])
+  );
+
+  logindex(
+    `(processEdicts) Final unallocated mezcals after edict processing: ${safeStringify(
+      UnallocatedMezcals
+    )}`
   );
 
   //Function returns the burnt mezcals
@@ -472,40 +736,75 @@ const processMint = (
   Transaction: IndexedTxExtended,
   storage: Storage
 ) => {
+  const { logindex } = getIndexerLogger(storage, Transaction.txid);
   const { block, txIndex, mezcalstone } = Transaction;
   const mint = mezcalstone?.mint;
+
+  logindex(
+    `(processMint) Processing mint for transaction ${Transaction.txid} at block ${block} and txIndex ${txIndex}`
+  );
+  logindex(`(processMint) Mezcalstone: ${safeStringify(mezcalstone)}`);
+  logindex(`(processMint) Mint: ${mint}`);
 
   const { findOne, updateAttribute, create, findOrCreate } = storage;
 
   if (!mint) {
+    logindex(
+      `(processMint) No mint specified in mezcalstone, returning unallocated mezcals`
+    );
     return UnallocatedMezcals;
   }
   //We use the same  process used to calculate the Mezcal Id in the etch function if "0:0" is referred to
   const mezcalToMint = findOne<IMezcal>("Mezcal", mint, undefined, true);
 
   if (!isValidResponse<IMezcal>(mezcalToMint)) {
+    logindex(
+      `(processMint) Mezcal with id ${mint} not found in local cache, returning unallocated mezcals`
+    );
     //The mezcal requested to be minted does not exist.
     return UnallocatedMezcals;
   }
 
   if (!isPriceTermsMet(mezcalToMint, Transaction)) {
+    logindex(
+      `(processMint) Price terms not met for mezcal ${mezcalToMint.id}, returning unallocated mezcals`
+    );
     return UnallocatedMezcals;
   }
 
+  logindex(`(processMint) Mezcal to mint: ${safeStringify(mezcalToMint)}`);
+
   if (isMintOpen(block, txIndex, mezcalToMint, true)) {
+    logindex(
+      `(processMint) Mint is open for mezcal ${mezcalToMint.id}, processing mint`
+    );
     //Update new mints to count towards cap
     if (mezcalstone.cenotaph) {
+      logindex(
+        `(processMint) Transaction is a cenotaph, burning all unallocated mezcals`
+      );
       //If the mint is a cenotaph, the minted amount is burnt
       return UnallocatedMezcals;
     }
 
+    logindex(
+      `(processMint) Mint amount: ${mezcalToMint.mint_amount}, price amount: ${mezcalToMint.price_amount}`
+    );
+
     let mintAmount = BigInt(mezcalToMint.mint_amount ?? "0");
     let isFlex = mezcalToMint.price_amount != null && mintAmount == 0n;
 
+    logindex(
+      `(processMint) Is flex mint: ${isFlex}, mint amount: ${mintAmount}`
+    );
+
     if (isFlex) {
+      logindex(
+        `(processMint) Flex mint detected, calculating mint amount based on price terms`
+      );
       const payTo = mezcalToMint.price_pay_to;
       const priceAmount = mezcalToMint.price_amount;
-
+      logindex(`(processMint) Pay to: ${payTo}, Price amount: ${priceAmount}`);
       if (!payTo) throw new Error("Missing pay_to address in price terms");
       if (!priceAmount || BigInt(priceAmount) === 0n)
         throw new Error("Invalid price amount");
@@ -514,13 +813,28 @@ const processMint = (
         .filter((v) => v.scriptPubKey?.address === payTo)
         .map((v) => BigInt(Math.floor(v.value * 1e8)))
         .reduce((a, b) => a + b, 0n);
+      logindex(
+        `(processMint) Total received for pay_to address ${payTo}: ${totalRecv}`
+      );
 
       mintAmount = totalRecv / BigInt(priceAmount);
+      logindex(
+        `(processMint) Calculated mint amount based on price terms: ${mintAmount}`
+      );
     }
 
+    logindex(`(processMint) Final mint amount to be minted: ${mintAmount}`);
+
     if (mintAmount <= 0n) {
+      logindex(
+        `(processMint) Mint amount is zero or negative, returning unallocated mezcals`
+      );
       return UnallocatedMezcals;
     }
+
+    logindex(
+      `(processMint) finding from address for transaction ${Transaction.txid}`
+    );
 
     let fromAddressResponse = findOne<IAddress>(
       "Address",
@@ -530,9 +844,14 @@ const processMint = (
     );
 
     if (!isValidResponse<IAddress>(fromAddressResponse)) {
+      logindex(
+        `(processMint) From address not found in local cache for transaction ${Transaction.txid}, returning unallocated mezcals`
+      );
       throw new Error("Invalid response from local cache @ mint:1");
     }
-
+    logindex(
+      `(processMint) From address found: ${safeStringify(fromAddressResponse)}`
+    );
     //Emit MINT event on block
     create("Event", {
       type: 1,
@@ -545,6 +864,9 @@ const processMint = (
     });
 
     let newMints = (BigInt(mezcalToMint.mints) + BigInt(1)).toString();
+    logindex(
+      `(processMint) Updating mints for mezcal ${mezcalToMint.id} to ${newMints}`
+    );
     updateAttribute(
       "Mezcal",
       mezcalToMint.mezcal_protocol_id,
@@ -558,12 +880,28 @@ const processMint = (
       "total_supply",
       (BigInt(mezcalToMint.total_supply) + mintAmount).toString()
     );
+    logindex(
+      `(processMint) Updated total supply for mezcal ${mezcalToMint.id} to ${
+        BigInt(mezcalToMint.total_supply) + mintAmount
+      }`
+    );
 
-    return updateUnallocated(UnallocatedMezcals, {
+    let newUnallocated = updateUnallocated(UnallocatedMezcals, {
       mezcal_id: mezcalToMint.mezcal_protocol_id,
       amount: BigInt(mintAmount),
     });
+
+    logindex(
+      `(processMint) New unallocated mezcals after mint: ${safeStringify(
+        newUnallocated
+      )}`
+    );
+
+    return newUnallocated;
   } else {
+    logindex(
+      `(processMint) Mint is closed for mezcal ${mezcalToMint.id}, returning unallocated mezcals`
+    );
     //Minting is closed
     return UnallocatedMezcals;
   }
@@ -577,16 +915,28 @@ const processEtching = (
   isGenesis: boolean,
   useTest: boolean
 ) => {
+  const { logindex } = getIndexerLogger(storage, Transaction.txid);
   const { block, txIndex, mezcalstone } = Transaction;
 
   const etching = mezcalstone?.etching;
 
   const { findOne, create, local, findOrCreate } = storage;
 
+  logindex(
+    `(processEtching) Processing etching for transaction ${Transaction.txid} at block ${block} and txIndex ${txIndex}`
+  );
+
+  logindex(`(processEtching) Mezcalstone: ${safeStringify(mezcalstone)}`);
+
   //If no etching, return the input allocations
   if (!etching) {
+    logindex(
+      `(processEtching) No etching found in mezcalstone, returning unallocated mezcals`
+    );
     return UnallocatedMezcals;
   }
+
+  logindex(`(processEtching) Finding mezcal with id ${block}:${txIndex}`);
 
   let searchMezcal = findOne<IMezcal>(
     "Mezcal",
@@ -596,6 +946,9 @@ const processEtching = (
   );
 
   if (isValidResponse<IMezcal>(searchMezcal) || searchMezcal) {
+    logindex(
+      `(processEtching) Mezcal with id ${block}:${txIndex} already exists, returning unallocated mezcals`
+    );
     //If the mezcal is not in the unallocated mezcals, it is ignored
     return UnallocatedMezcals;
   }
@@ -607,6 +960,10 @@ const processEtching = (
 
   let mezcalName = etching.mezcal;
 
+  logindex(
+    `(processEtching) Mezcal name from etching: ${safeStringify(mezcalName)}`
+  );
+
   const isMezcalNameTakenResponse = findOne<IMezcal>(
     "Mezcal",
     mezcalName + "@REF@name",
@@ -614,22 +971,42 @@ const processEtching = (
     true
   );
 
+  logindex(
+    `(processEtching) Checking if mezcal name ${mezcalName} is already taken: ${safeStringify(
+      isMezcalNameTakenResponse
+    )}`
+  );
+
   if (
     isValidResponse<IMezcal>(isMezcalNameTakenResponse) ||
     !!isMezcalNameTakenResponse
   ) {
+    logindex(
+      `(processEtching) Mezcal name ${mezcalName} is already taken, returning unallocated mezcals`
+    );
+
     return UnallocatedMezcals;
   }
 
   let isFlex = etching?.terms?.amount == 0n && etching?.terms?.price;
   let hasMintcap = !!etching?.terms?.cap && etching?.terms?.cap !== 0n;
 
+  logindex(
+    `(processEtching) Is flex mode: ${isFlex}, Has mint cap: ${hasMintcap}`
+  );
+
   if (!isFlex && etching?.terms?.amount == 0n) {
+    logindex(
+      `(processEtching) Etching is not in flex mode but amount is zero, returning unallocated mezcals`
+    );
     //An etch attempting to use "flex mode" for mint that doesnt provide amount is invalid
     return UnallocatedMezcals;
   }
 
   if (isFlex && hasMintcap) {
+    logindex(
+      `(processEtching) Etching is in flex mode but has a mint cap, returning unallocated mezcals`
+    );
     //An etch attempting to use "flex mode" for mint that provides a mint cap is invalid
     return UnallocatedMezcals;
   }
@@ -649,7 +1026,15 @@ const processEtching = (
     "0x" + Buffer.from(etching.symbol ?? "").toString("hex")
   );
 
+  logindex(
+    `(processEtching) Is safe char for symbol: ${isSafeChar}, Symbol: ${etching.symbol}`
+  );
+
   const symbol = etching.symbol && isSafeChar ? etching.symbol : "¤";
+
+  logindex(
+    `(processEtching) Final symbol for mezcal: ${symbol} (isSafeChar: ${isSafeChar})`
+  );
 
   const etcherId = findOrCreate<IAddress>(
     "Address",
@@ -657,6 +1042,10 @@ const processEtching = (
     { address: Transaction.sender },
     true
   ).id;
+
+  logindex(
+    `(processEtching) Etcher address ID: ${etcherId} for transaction ${Transaction.txid}`
+  );
 
   const EtchedMezcal = create<IMezcal>("Mezcal", {
     mezcal_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
@@ -698,6 +1087,10 @@ const processEtching = (
     deployer_address_id: etcherId,
   });
 
+  logindex(
+    `(processEtching) Etched mezcal created: ${safeStringify(EtchedMezcal)}`
+  );
+
   //Emit Etch event on block
   create("Event", {
     type: 0,
@@ -712,14 +1105,25 @@ const processEtching = (
   //Add premine mezcals to input allocations
 
   if (mezcalstone.cenotaph) {
+    logindex(
+      `(processEtching) Transaction is a cenotaph, burning all unallocated mezcals`
+    );
     //No mezcals are premined if the tx is a cenotaph.
     return UnallocatedMezcals;
   }
 
-  return updateUnallocated(UnallocatedMezcals, {
+  let newUnallocated = updateUnallocated(UnallocatedMezcals, {
     mezcal_id: EtchedMezcal.mezcal_protocol_id,
     amount: BigInt(EtchedMezcal.premine),
   });
+
+  logindex(
+    `(processEtching) Updated unallocated mezcals after etching: ${safeStringify(
+      newUnallocated
+    )}`
+  );
+
+  return newUnallocated;
 };
 
 const emitTransferAndBurnEvents = (
@@ -727,13 +1131,33 @@ const emitTransferAndBurnEvents = (
   Transaction: IndexedTxExtended,
   storage: Storage
 ) => {
+  const { logindex } = getIndexerLogger(storage, Transaction.txid);
   const { create, findOrCreate, findOne } = storage;
 
+  logindex(
+    `(emitTransferAndBurnEvents) Emitting transfer and burn events for transaction ${Transaction.txid}`
+  );
   Object.keys(transfers).forEach((addressId) => {
+    logindex(
+      `(emitTransferAndBurnEvents) Processing transfers for address ${addressId}: ${safeStringify(
+        transfers[addressId]
+      )}`
+    );
     Object.keys(transfers[addressId]).forEach((mezcal_protocol_id) => {
+      logindex(
+        `(emitTransferAndBurnEvents) Processing transfer for mezcal ${mezcal_protocol_id} to address ${addressId}`
+      );
       let amount = transfers[addressId][mezcal_protocol_id];
-      if (!amount) return; //Ignore 0 balances
+      if (!amount) {
+        logindex(
+          `(emitTransferAndBurnEvents) Amount for mezcal ${mezcal_protocol_id} to address ${addressId} is zero, skipping`
+        );
+        return; //Ignore 0 balances
+      } //Ignore 0 balances
 
+      logindex(
+        `(emitTransferAndBurnEvents) Amount for mezcal ${mezcal_protocol_id} to address ${addressId}: ${amount}`
+      );
       let foundMezcalResponse = findOne<IMezcal>(
         "Mezcal",
         mezcal_protocol_id,
@@ -741,11 +1165,18 @@ const emitTransferAndBurnEvents = (
         true
       );
       if (!isValidResponse<IMezcal>(foundMezcalResponse)) {
+        logindex(
+          `(emitTransferAndBurnEvents) Mezcal with id ${mezcal_protocol_id} not found in local cache, throwing error`
+        );
         throw new Error(
           "Invalid response from local cache @ emitTransferAndBurnEvents:1"
         );
       }
-
+      logindex(
+        `(emitTransferAndBurnEvents) Found mezcal: ${safeStringify(
+          foundMezcalResponse
+        )}`
+      );
       create("Event", {
         type: addressId === "burn" ? 3 : 2,
         block: Transaction.block,
@@ -773,22 +1204,41 @@ const finalizeTransfers = (
   transfers: ITransfers,
   storage: Storage
 ) => {
+  const { logindex } = getIndexerLogger(storage, Transaction.txid);
   const { updateAttribute, create, local, findOne } = storage;
   const { block, mezcalstone } = Transaction;
-
+  logindex(
+    `(finalizeTransfers) Finalizing transfers for transaction ${Transaction.txid} at block ${block}`
+  );
+  logindex(`(finalizeTransfers) Input UTXOs: ${safeStringify(inputUtxos)}`);
+  logindex(`(finalizeTransfers) Pending UTXOs: ${safeStringify(pendingUtxos)}`);
+  logindex(`(finalizeTransfers) Transfers: ${safeStringify(transfers)}`);
   emitTransferAndBurnEvents(transfers, Transaction, storage);
 
   let opReturnOutput = pendingUtxos.find((utxo) => utxo.address_id === 2);
 
   //Burn all mezcals from cenotaphs or OP_RETURN outputs (if no cenotaph is present)
   if (mezcalstone.cenotaph) {
+    logindex(
+      `(finalizeTransfers) Transaction is a cenotaph, burning all mezcals from input UTXOs`
+    );
     inputUtxos.forEach((utxo) => burnAllFromUtxo(utxo, storage));
   } else if (opReturnOutput) {
+    logindex(
+      `(finalizeTransfers) Burning all mezcals from OP_RETURN output: ${safeStringify(
+        opReturnOutput
+      )}`
+    );
     burnAllFromUtxo(opReturnOutput, storage);
   }
 
   //Update all input UTXOs as spent
   inputUtxos.forEach((utxo) => {
+    logindex(
+      `(finalizeTransfers) Updating input UTXO ${utxo.utxo_index} as spent in block ${block}`
+    );
+    logindex(`(finalizeTransfers) Input UTXO details: ${safeStringify(utxo)}`);
+    logindex(`(finalizeTransfers) Transaction: ${safeStringify(Transaction)}`);
     updateAttribute("Utxo", utxo.utxo_index, "block_spent", block);
     updateAttribute(
       "Utxo",
@@ -800,6 +1250,10 @@ const finalizeTransfers = (
   //Filter out all OP_RETURN and zero mezcal balances. This also removes UTXOS that were in a cenotaph because they will have a balance of 0
   //We still save utxos incase we need to reference them in the future
   //Filter out all OP_RETURN and zero mezcal balances
+
+  logindex(
+    `(finalizeTransfers) Filtering pending UTXOs to remove OP_RETURN and zero mezcal balances`
+  );
   pendingUtxos = pendingUtxos.filter(
     (utxo) =>
       utxo.address_id !== 2 &&
@@ -808,9 +1262,24 @@ const finalizeTransfers = (
         0n
       ) > 0n
   );
+
+  logindex(
+    `(finalizeTransfers) Filtered pending UTXOs: ${safeStringify(pendingUtxos)}`
+  );
+
   //Create all new UTXOs and create a map of their ids (remove all OP_RETURN too as they are burnt). Ignore on cenotaphs
   pendingUtxos.forEach((utxo) => {
+    logindex(
+      `(finalizeTransfers) Creating new UTXO for pending UTXO: ${safeStringify(
+        utxo
+      )}`
+    );
     if (utxo.address_id !== 2) {
+      logindex(
+        `(finalizeTransfers) Creating UTXO for address_id ${
+          utxo.address_id
+        } with mezcal balances: ${safeStringify(utxo.mezcal_balances)}`
+      );
       let resultUtxo = { ...utxo };
       delete resultUtxo.mezcal_balances;
 
@@ -820,11 +1289,22 @@ const finalizeTransfers = (
       );
 
       let mezcalBalances = utxo.mezcal_balances;
-      if (!mezcalBalances) return;
+      if (!mezcalBalances) {
+        logindex(
+          `(finalizeTransfers) No mezcal balances found for UTXO ${utxo.utxo_index}, skipping mezcal balance creation`
+        );
+        return;
+      }
 
       Object.keys(mezcalBalances).forEach((mezcalProtocolId) => {
+        logindex(
+          `(finalizeTransfers) Creating UTXO balance for mezcal ${mezcalProtocolId} with balance ${mezcalBalances[mezcalProtocolId]}`
+        );
         if (!mezcalBalances[mezcalProtocolId]) return; //Ignore 0 balances
 
+        logindex(
+          `(finalizeTransfers) Finding mezcal with protocol id ${mezcalProtocolId}`
+        );
         let findMezcalResponse = findOne<IMezcal>(
           "Mezcal",
           mezcalProtocolId,
@@ -833,6 +1313,9 @@ const finalizeTransfers = (
         );
 
         if (!isValidResponse<IMezcal>(findMezcalResponse)) {
+          logindex(
+            `(finalizeTransfers) Mezcal with id ${mezcalProtocolId} not found in local cache, throwing error`
+          );
           return;
         }
 
@@ -853,11 +1336,25 @@ const finalizeTransfers = (
     ...pendingUtxos.map((utxo) => [utxo, 1]),
   ] as [IndexerUtxo, 1 | -1][];
 
+  logindex(
+    `(finalizeTransfers) All UTXOs to update balances: ${safeStringify(
+      allUtxos
+    )}`
+  );
+
   //Finally update balance store with new Utxos (we can call these at the same time because they are updated in memory, not on db)
 
-  allUtxos.map(([utxo, direction]) =>
-    updateOrCreateBalancesWithUtxo(utxo, storage, direction)
-  );
+  allUtxos.map(([utxo, direction]) => {
+    logindex(
+      `(finalizeTransfers) Updating balances for UTXO ${utxo.utxo_index} with direction ${direction}`
+    );
+    return updateOrCreateBalancesWithUtxo(
+      utxo,
+      storage,
+      direction,
+      Transaction
+    );
+  });
 
   return;
 };
@@ -867,6 +1364,10 @@ const handleGenesis = (
   rpc: RpcClient,
   storage: Storage
 ) => {
+  const { logindex } = getIndexerLogger(storage, Transaction.txid);
+  logindex(
+    `(handleGenesis) Handling genesis transaction for ${Transaction.txid}`
+  );
   processEtching(
     {},
     { ...Transaction, mezcalstone: GENESIS_MEZCALTONE },
@@ -963,6 +1464,14 @@ const processMezcalstone = (
 
   const parentTransaction = create<ITransaction>("Transaction", { hash });
 
+  const { logindex } = getIndexerLogger(storage, hash);
+  logindex(
+    `(processMezcalstone) Processing transaction ${hash} at block ${block}`
+  );
+  logindex(
+    `(processMezcalstone) Full transaction: ${safeStringify(Transaction)}`
+  );
+
   Transaction.virtual_id = Number(parentTransaction.id);
 
   let addressFound = findOne<IAddress>(
@@ -972,7 +1481,16 @@ const processMezcalstone = (
     true
   );
 
+  logindex(
+    `(processMezcalstone) Found address for transaction ${hash}: ${safeStringify(
+      addressFound
+    )}`
+  );
+
   if (!isValidResponse<IAddress>(addressFound)) {
+    logindex(
+      `(processMezcalstone) Address not found for transaction ${hash}, setting address to UNKNOWN`
+    );
     addressFound = { address: "UNKNOWN" } as IAddress;
   }
 
@@ -982,12 +1500,26 @@ const processMezcalstone = (
     //if it wasnt populated in check if its in db froma prev utxo
     addressFound.address;
 
-  if (vin[0].coinbase && block === GENESIS_BLOCK)
+  logindex(
+    `(processMezcalstone) Transaction sender: ${Transaction.sender} for transaction ${hash}`
+  );
+
+  if (vin[0].coinbase && block === GENESIS_BLOCK) {
+    logindex(
+      `(processMezcalstone) Transaction is a coinbase transaction at genesis block, handling genesis`
+    );
     handleGenesis(Transaction, rpc, storage);
+  }
 
   startTimer();
-
+  logindex(
+    `(processMezcalstone) Creating pending UTXOs for transaction ${hash}`
+  );
   let pendingUtxos = createNewUtxoBodies(vout, Transaction, storage);
+
+  logindex(
+    `(processMezcalstone) Created pending UTXOs: ${safeStringify(pendingUtxos)}`
+  );
 
   let UnallocatedMezcals = getUnallocatedMezcalsFromUtxos(inputUtxos);
 
@@ -1008,12 +1540,25 @@ const processMezcalstone = (
   stopTimer("body_init_pending_utxo_creation");
 
   startTimer();
+  logindex(
+    `(processMezcalstone) Processing etching for transaction ${hash} with UnallocatedMezcals: ${safeStringify(
+      UnallocatedMezcals
+    )}`
+  );
+
   processEtching(UnallocatedMezcals, Transaction, rpc, storage, false, useTest);
   stopTimer("etch");
 
   //Mints are processed next and added to the MezcalAllocations, with caps being updated (and burnt in case of cenotaphs)
 
   startTimer();
+
+  logindex(
+    `(processMezcalstone) Processing mint for transaction ${hash} with UnallocatedMezcals: ${safeStringify(
+      UnallocatedMezcals
+    )}`
+  );
+
   processMint(UnallocatedMezcals, Transaction, storage);
   stopTimer("mint");
 
@@ -1021,6 +1566,17 @@ const processMezcalstone = (
   startTimer();
 
   let transfers = {};
+
+  logindex(
+    `(processMezcalstone) Processing transfers for transaction ${hash} with UnallocatedMezcals: ${safeStringify(
+      UnallocatedMezcals
+    )}`
+  );
+  logindex(
+    `(processMezcalstone) Pending UTXOs before processing transfers: ${safeStringify(
+      pendingUtxos
+    )}, transfers: ${safeStringify(transfers)}`
+  );
 
   processEdicts(
     UnallocatedMezcals,
@@ -1032,9 +1588,21 @@ const processMezcalstone = (
   stopTimer("edicts");
 
   //Commit the utxos to storage and update Balances
-
+  logindex(
+    `(processMezcalstone) Finalizing transfers for transaction ${hash} with UnallocatedMezcals: ${safeStringify(
+      UnallocatedMezcals
+    )}, pendingUtxos: ${safeStringify(
+      pendingUtxos
+    )}, transfers: ${safeStringify(transfers)}`
+  );
   startTimer();
   finalizeTransfers(inputUtxos, pendingUtxos, Transaction, transfers, storage);
+
+  logindex(`(processMezcalstone) Finalized transfers for transaction ${hash}`);
+  logindex(
+    `(processMezcalstone) Finished processing transaction ${hash} at block ${block}`
+  );
+
   stopTimer("transfers");
   return;
 };

@@ -74,6 +74,8 @@ export const RPC_WSS_PORT = Number(process.env.RPC_WSS_PORT ?? 4333);
 export const RPC_CERT_PATH = process.env.RPC_CERT_PATH ?? "./rpc.cert";
 export const RPC_KEY_PATH = process.env.RPC_KEY_PATH ?? "./rpc.key";
 export const RPC_WSS_ENABLED = process.argv.includes("--rpc-wss");
+export const VERBOSE_LOGGING =
+  process.argv.includes("--verbose") || process.env.VERBOSE === "true";
 
 //if enabled, /transactions endpoint are served on rpc
 export const ELECTRUM_API_URL = process.env.ELECTRUM_API_URL;
