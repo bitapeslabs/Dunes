@@ -16,7 +16,7 @@ mezcal --help
 
 **More information on the commands you can use can be found here:** https://github.com/bitapeslabs/mezcal-cli
 
-**Mezcal explorer:** https://mezcal.sh
+**Mezcal explorer:** https://mezcal.sh/explorer
 
 ## What is Mezcal?
 
