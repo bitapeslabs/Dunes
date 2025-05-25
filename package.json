@@ -7,6 +7,7 @@
     "build-native": "wasm-pack build ./src/rpc/mezcal/lib/native --target nodejs --out-dir ../../../../../dist",
     "build": "node esbuild.config.mjs && npm run build-native",
     "start-new": "node esbuild.config.mjs & node --expose-gc --max-old-space-size=32768 ./dist/index.js --new --server --rpc --rpc-wss",
+    "start-new-debug": "node esbuild.config.mjs && node --expose-gc --max-old-space-size=32768 ./dist/index.js --new --server --rpc --rpc-wss --verbose",
     "start-new-local": "node esbuild.config.mjs & node --expose-gc --max-old-space-size=32768 ./dist/index.js --new --server --rpc --local",
     "start-new-local-debug": "node esbuild.config.mjs & node --expose-gc --max-old-space-size=32768 ./dist/index.js --new --server --rpc --local --verbose",
     "resume": "node esbuild.config.mjs & node --expose-gc --max-old-space-size=32768 ./dist/index.js --server --rpc --rpc-wss",
