@@ -2,14 +2,17 @@
 
 # mezcal
 
-**Want to interact with Mezcal? Use the CLI!**
+**Want to interact with Mezcal? Use the CLI or website**
 
-To install:
+To use cli install:
 
 ```bash
 npm i -g mezcal-cli
-mezcal-cli --help
+mezcal --help
 ```
+
+**Interactive minting through website:** https://mezcal.sh
+
 
 **More information on the commands you can use can be found here:** https://github.com/bitapeslabs/mezcal-cli
 
