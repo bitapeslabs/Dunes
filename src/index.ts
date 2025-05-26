@@ -297,10 +297,14 @@ const startServer = async (storage: IStorage): Promise<void> => {
     const tip = Number(await callRpc("getblockcount", []));
     if (current <= tip) {
       log(`Processing ${current}…${tip}`, "info");
-      await processRange(current, tip).catch((e) => {
+      let reorg = false;
+      try {
+        await processRange(current, tip);
+      } catch (e) {
         if (!(e instanceof ReorgHit)) throw e;
-      });
-      current = tip + 1;
+        reorg = true; // we rolled back
+      }
+      if (!reorg) current = tip + 1;
     }
     await sleep(Number(BLOCK_CHECK_INTERVAL ?? "15000"));
   }
