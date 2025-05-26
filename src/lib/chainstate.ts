@@ -1,9 +1,5 @@
 import { Models } from "@/database/createConnection";
 
-/**
- * Roll the DB back to the given height, then rebuild the balances table
- * and bump `last_block_processed` to height-1.
- */
 export async function resetTo(height: number, db: Models): Promise<void> {
   const { sequelize } = db;
 
@@ -44,25 +40,46 @@ export async function resetTo(height: number, db: Models): Promise<void> {
 
     await sequelize.query(
       `INSERT INTO balances (address_id, mezcal_id, balance)
-     SELECT u.address_id,
-            ub.mezcal_id,
-            SUM(COALESCE(ub.balance, 0)) AS balance
-       FROM utxo_balances AS ub
-       JOIN utxos         AS u ON u.id = ub.utxo_id
-      WHERE u.block_spent IS NULL              -- <-- filter out spent UTXOs
-   GROUP BY u.address_id, ub.mezcal_id`,
+         SELECT u.address_id,
+                ub.mezcal_id,
+                SUM(COALESCE(ub.balance, 0)) AS balance
+           FROM utxo_balances AS ub
+           JOIN utxos         AS u ON u.id = ub.utxo_id
+          WHERE u.block_spent IS NULL
+       GROUP BY u.address_id, ub.mezcal_id`,
       { transaction }
     );
+
     await sequelize.query(`DELETE FROM addresses WHERE block >= $1`, {
       bind: [height],
       transaction,
     });
 
+    await sequelize.query(`UPDATE mezcals SET mints = 0, burnt_amount = 0`, {
+      transaction,
+    });
+
+    await sequelize.query(
+      `UPDATE mezcals AS m
+          SET mints        = s.sum_mints,
+              burnt_amount = s.sum_burns
+         FROM (
+           SELECT
+             mezcal_id,
+             SUM(CASE WHEN type = 1 THEN amount ELSE 0 END) AS sum_mints,
+             SUM(CASE WHEN type = 3 THEN amount ELSE 0 END) AS sum_burns
+           FROM events
+           GROUP BY mezcal_id
+         ) AS s
+        WHERE m.id = s.mezcal_id`,
+      { transaction }
+    );
+
     await sequelize.query(
       `UPDATE settings
-      SET value      = $1::text,
-          "updatedAt" = NOW()
-    WHERE name = 'last_block_processed'`,
+          SET value      = $1::text,
+              "updatedAt" = NOW()
+        WHERE name = 'last_block_processed'`,
       { bind: [String(height - 1)], transaction }
     );
   });
