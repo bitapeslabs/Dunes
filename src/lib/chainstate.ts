@@ -55,6 +55,11 @@ export async function resetTo(height: number, db: Models): Promise<void> {
       transaction,
     });
 
+    await sequelize.query(`DELETE FROM mezcals WHERE block >= $1`, {
+      bind: [height],
+      transaction,
+    });
+
     await sequelize.query(
       `UPDATE mezcals
       SET mints         = 0,
@@ -65,15 +70,14 @@ export async function resetTo(height: number, db: Models): Promise<void> {
 
     await sequelize.query(
       `UPDATE mezcals AS m
-      SET mints         = s.cnt_mints,                          -- count of mint events
-          burnt_amount  = s.sum_burns,                          -- sum of burn amounts
-          total_supply  = (s.cnt_mints::numeric *               -- mints × mint_amount
-                           COALESCE(m.mint_amount, 0))          --  (mint_amount may be NULL)
-                         + m.premine                            -- + premine
-                         - s.sum_burns                          -- − burnt
+      SET mints         = s.cnt_mints,
+          burnt_amount  = s.sum_burns,
+          total_supply  = (s.cnt_mints::numeric * COALESCE(m.mint_amount, 0))
+                         + m.premine
+                         - s.sum_burns
      FROM (
        SELECT mezcal_id,
-              COUNT(*) FILTER (WHERE type = 1)        AS cnt_mints,
+              COUNT(*) FILTER (WHERE type = 1)                AS cnt_mints,
               COALESCE(SUM(CASE WHEN type = 3 THEN amount END), 0) AS sum_burns
          FROM events
         GROUP BY mezcal_id
