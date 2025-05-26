@@ -123,7 +123,9 @@ const getUpdatedEvents = async (db: Models): Promise<IJoinedEvent[]> => {
       {
         model: Transaction,
         as: "transaction",
-        attributes: { exclude: ["id", "createdAt", "updatedAt", "logs"] }, // 🆕 no id
+        attributes: {
+          exclude: ["id", "createdAt", "updatedAt", "logs", "block"],
+        },
         required: false,
       },
     ],

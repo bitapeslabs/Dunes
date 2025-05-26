@@ -93,7 +93,7 @@ const IncludeTransaction = (
   as: as ?? "transaction",
   where: safeWhere(where),
   attributes: {
-    exclude: ["id", "logs"],
+    exclude: ["id", "logs", "block"],
     include: ["hash"],
   },
 });
@@ -106,7 +106,10 @@ const IncludeAddress = (
   model: models.Address,
   as: as ?? "address",
   where: safeWhere(where),
-  attributes: ["address"],
+  attributes: {
+    exclude: ["id", "block"],
+    include: ["address"],
+  },
 });
 
 const IncludeMezcal = (
