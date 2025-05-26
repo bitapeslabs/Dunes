@@ -187,7 +187,10 @@ const createNewUtxoBodies = (
     const addressRow = findOrCreate<IAddress>(
       "Address",
       out.scriptPubKey.address ?? "OP_RETURN",
-      { address: out.scriptPubKey.address ?? "OP_RETURN" },
+      {
+        address: out.scriptPubKey.address ?? "OP_RETURN",
+        block: Transaction.block,
+      },
       true
     );
 
