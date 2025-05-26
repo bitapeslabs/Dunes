@@ -122,8 +122,6 @@ router.get("/address/:address", async (req: RequestWithDB, res: Response) => {
     esploraResponse.data.filter((tx) => tx.status.confirmed === false)
   );
 
-  console.log("regtestResult", regtestResult);
-
   const unconfirmedEvents = mapToMezcalTransactions(
     regtestResult
       .map(getNoBigIntObject<EventDto, EventDto>)
