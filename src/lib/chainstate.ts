@@ -60,9 +60,9 @@ export async function resetTo(height: number, db: Models): Promise<void> {
 
     await sequelize.query(
       `UPDATE settings
-          SET value     = $1::text,
-              updatedAt = NOW()
-        WHERE name = 'last_block_processed'`,
+      SET value      = $1::text,
+          "updatedAt" = NOW()
+    WHERE name = 'last_block_processed'`,
       { bind: [String(height - 1)], transaction }
     );
   });
