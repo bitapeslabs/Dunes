@@ -12,6 +12,7 @@ import { createRpcClient } from "@/lib/apis/bitcoinrpc";
 import { log, sleep } from "@/lib/utils";
 import { storage as newStorage, IStorage } from "@/lib/storage";
 import {
+  CONFIRM_DEPTH,
   GENESIS_BLOCK,
   RPC_ENABLED,
   INDEXER_ENABLED,
@@ -207,7 +208,6 @@ const startRpc = async (): Promise<void> => {
 /* ──────────────────────────────────────────────────────────
    indexer  (block‑sync loop)
    ──────────────────────────────────────────────────────── */
-const CONFIRM_DEPTH = 6; // blocks to consider “final”
 
 const startServer = async (storage: IStorage): Promise<void> => {
   if (!global.gc) {

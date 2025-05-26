@@ -82,3 +82,5 @@ export const ELECTRUM_API_URL = process.env.ELECTRUM_API_URL;
 export const BLOCK_CHECK_INTERVAL = Number(
   process.env.BLOCK_CHECK_INTERVAL ?? "15000"
 );
+
+export const CONFIRM_DEPTH = Number(process.env.CONFIRM_DEPTH ?? "6"); // default to 6 confirmations
