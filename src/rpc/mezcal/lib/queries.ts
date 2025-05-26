@@ -92,7 +92,10 @@ const IncludeTransaction = (
   model: models.Transaction,
   as: as ?? "transaction",
   where: safeWhere(where),
-  attributes: ["hash"],
+  attributes: {
+    exclude: ["id", "logs"],
+    include: ["hash"],
+  },
 });
 
 const IncludeAddress = (
