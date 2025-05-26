@@ -10,6 +10,7 @@ import {
 export type ITransaction = {
   id: string; // BIGINT → string
   hash: string;
+  block: number; // INTEGER → number
   logs?: string; // TEXT → optional string
 };
 
@@ -20,6 +21,7 @@ export class Transaction
 {
   declare id: CreationOptional<string>;
   declare hash: string;
+  declare block: number; // INTEGER → number
   declare logs?: string;
 
   static initialize(sequelize: Sequelize): typeof Transaction {
@@ -38,12 +40,17 @@ export class Transaction
           type: DataTypes.TEXT,
           allowNull: true,
         },
+        block: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+        },
       },
       {
         sequelize,
         tableName: "transactions",
         timestamps: false,
         indexes: [
+          { fields: ["block"], using: "BTREE" },
           {
             fields: ["hash"],
             using: "BTREE",

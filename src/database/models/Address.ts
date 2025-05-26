@@ -9,6 +9,7 @@ import {
 export type IAddress = {
   id: number;
   address: string;
+  block: number;
 };
 export class Address
   extends Model<IAddress, InferCreationAttributes<Address>>
@@ -16,6 +17,7 @@ export class Address
 {
   declare id: CreationOptional<number>;
   declare address: string;
+  declare block: number;
 
   static initialize(sequelize: Sequelize): typeof Address {
     Address.init(
@@ -29,12 +31,17 @@ export class Address
           type: DataTypes.TEXT,
           allowNull: false,
         },
+        block: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+        },
       },
       {
         sequelize,
         tableName: "addresses",
         timestamps: false,
         indexes: [
+          { fields: ["block"], using: "BTREE" },
           {
             fields: ["address"],
             using: "BTREE",

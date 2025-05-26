@@ -10,6 +10,7 @@ import {
 export type IMezcal = {
   id: number;
   mezcal_protocol_id: string;
+  block: number; // This field is not in the Sequelize model, but it's part of the type
   name: string;
   symbol: string;
   total_supply: string;
@@ -55,6 +56,7 @@ export class Mezcal
   declare etch_transaction_id: string | null;
   declare deployer_address_id: string | null;
   declare unmintable: number;
+  declare block: number; // This field is not in the Sequelize model, but it's part of the type
 
   static initialize(sequelize: Sequelize): typeof Mezcal {
     Mezcal.init(
@@ -68,6 +70,11 @@ export class Mezcal
           type: DataTypes.TEXT,
           allowNull: false,
         },
+        block: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+        }, // This field is not in the Sequelize model, but it's part of the type
+
         name: {
           type: DataTypes.TEXT,
           allowNull: false,
@@ -156,6 +163,7 @@ export class Mezcal
         indexes: [
           { fields: ["mezcal_protocol_id"], using: "BTREE" },
           { fields: ["deployer_address_id"], using: "BTREE" },
+          { fields: ["block"], using: "BTREE" },
           {
             name: "mezcals_lower_idx",
             using: "BTREE",

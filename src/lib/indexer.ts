@@ -1051,7 +1051,7 @@ const processEtching = (
   const etcherId = findOrCreate<IAddress>(
     "Address",
     Transaction.sender ?? "UNKNOWN",
-    { address: Transaction.sender },
+    { address: Transaction.sender, block: Transaction.block },
     true
   ).id;
 
@@ -1063,7 +1063,7 @@ const processEtching = (
     mezcal_protocol_id: !isGenesis ? `${block}:${txIndex}` : "1:0",
     name: mezcalName,
     symbol,
-
+    block,
     //ORD describes no decimals being set as default 0
     decimals: etching.divisibility ?? 0,
 
@@ -1198,7 +1198,7 @@ const emitTransferAndBurnEvents = (
         from_address_id: findOrCreate(
           "Address",
           Transaction.sender ?? "UNKNOWN",
-          { address: Transaction.sender },
+          { address: Transaction.sender, block: Transaction.block },
           true
         ).id,
         to_address_id: addressId === "burn" ? 2 : addressId,
@@ -1474,7 +1474,10 @@ const processMezcalstone = (
     if (!(vin[0].coinbase && block == GENESIS_BLOCK)) return;
   }
 
-  const parentTransaction = create<ITransaction>("Transaction", { hash });
+  const parentTransaction = create<ITransaction>("Transaction", {
+    hash,
+    block,
+  });
 
   const { logindex } = getIndexerLogger(storage, hash);
   logindex(

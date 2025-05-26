@@ -137,6 +137,9 @@ router.get("/address/:address", async (req: RequestWithDB, res: Response) => {
         (event) =>
           event.to_address === address || event.from_address === address
       )
+  ).filter(
+    //transfers to self are verbose
+    (event) => !(event.target_address === address && event.type === "TRANSFER")
   );
 
   let events = [

@@ -112,9 +112,24 @@ const prefetchTransactions = async (
   const { create, findOrCreate } = storage;
 
   // sentinel addresses
-  findOrCreate("Address", "COINBASE", { address: "COINBASE" }, true);
-  findOrCreate("Address", "OP_RETURN", { address: "OP_RETURN" }, true);
-  findOrCreate("Address", "UNKNOWN", { address: "UNKNOWN" }, true);
+  findOrCreate(
+    "Address",
+    "COINBASE",
+    { address: "COINBASE", block: GENESIS_BLOCK },
+    true
+  );
+  findOrCreate(
+    "Address",
+    "OP_RETURN",
+    { address: "OP_RETURN", block: GENESIS_BLOCK },
+    true
+  );
+  findOrCreate(
+    "Address",
+    "UNKNOWN",
+    { address: "UNKNOWN", block: GENESIS_BLOCK },
+    true
+  );
 
   const chunks = chunkify(
     block,
