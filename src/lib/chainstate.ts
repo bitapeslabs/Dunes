@@ -74,7 +74,6 @@ export async function resetTo(height: number, db: Models): Promise<void> {
           burnt_amount  = s.sum_burns,
           total_supply  = (s.cnt_mints::numeric * COALESCE(m.mint_amount, 0))
                          + m.premine
-                         - s.sum_burns
      FROM (
        SELECT mezcal_id,
               COUNT(*) FILTER (WHERE type = 1)                AS cnt_mints,
