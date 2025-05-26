@@ -221,7 +221,19 @@ const createNewUtxoBodies = (
 
 const burnAllFromUtxo = (utxo: IndexerUtxo, storage: Storage) => {
   const { updateAttribute, findOne } = storage;
-  const { logindex } = getIndexerLogger(storage, utxo.utxo_index);
+
+  const transaction = findOne<ITransaction>(
+    "Transaction",
+    utxo.transaction_id.toString() + "@REF@id",
+    undefined,
+    true
+  );
+
+  if (!isValidResponse<ITransaction>(transaction)) {
+    return;
+  }
+
+  const { logindex } = getIndexerLogger(storage, transaction.hash);
   logindex(
     `(burnAllFromUtxo) Burning all mezcals from UTXO ${utxo.utxo_index}`
   );

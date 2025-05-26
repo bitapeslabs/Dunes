@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { Transaction } from "@/lib/apis/bitcoinrpc/types";
+import { getOpReturnPayload } from "./crypto/utils";
+import { isBoxedError } from "./boxed";
+
 /* ── 1. shared helpers ───────────────────────── */
 const MAX_U128 = (1n << 128n) - 1n;
 const MAX_U32 = 0xffff_ffff;
@@ -152,46 +155,32 @@ type ToIndexed<T> = T extends (infer U)[] // recurse into arrays
 export type IMezcalstoneIndexed = ToIndexed<IMezcalstone> & {
   cenotaph: boolean;
 };
-type KeyType<T> = T extends Array<infer U> ? U : never;
 
-function getOpReturnData(tx: Transaction): {
-  cenotaph: boolean;
-  hex?: string;
-} {
-  const isOpReturn = (out: KeyType<Transaction["vout"]>): boolean => {
-    return (
+function getOpReturnData(tx: Transaction): { cenotaph: boolean; hex: string } {
+  const opOut = tx.vout.find(
+    (out): out is Transaction["vout"][number] =>
       out.scriptPubKey.type === "nulldata" ||
-      out.scriptPubKey.asm?.includes("OP_RETURN")
-    );
-  };
+      out.scriptPubKey.asm?.startsWith("OP_RETURN")
+  );
 
-  const opOut = tx.vout.find(isOpReturn);
-  if (!opOut) return { cenotaph: false };
+  if (!opOut?.scriptPubKey?.hex) return { cenotaph: false, hex: "" };
 
-  const asmString: string = opOut.scriptPubKey.asm;
-  let hex = "";
-  if (asmString?.includes("OP_RETURN")) {
-    const parts = asmString.split(" ");
-    hex = parts[parts.length - 1] ?? "";
-  }
+  const payload = getOpReturnPayload(opOut.scriptPubKey.hex);
 
-  if (!hex) {
-    const scriptHex: string = opOut.scriptPubKey.hex;
-    if (scriptHex?.startsWith("6a")) {
-      hex = scriptHex.replace(
-        /^6a(?:4c[0-9a-f]{2}|4d[0-9a-f]{4}|4e[0-9a-f]{8})?/i,
-        ""
-      );
-    }
-  }
+  if (isBoxedError(payload)) return { cenotaph: true, hex: "" };
 
-  return hex ? { cenotaph: false, hex } : { cenotaph: false };
+  return { cenotaph: false, hex: payload.data.toString("hex") };
 }
 
 export const decipher = (tx: Transaction): IMezcalstoneIndexed => {
   let opReturn = getOpReturnData(tx);
-  if (opReturn.cenotaph || !opReturn.hex) return { cenotaph: true };
+  if (opReturn.cenotaph) return { cenotaph: true };
+
   const hex = opReturn.hex;
+
+  if (hex.length < 2) {
+    return { cenotaph: false };
+  }
 
   let candidate: unknown;
   try {
