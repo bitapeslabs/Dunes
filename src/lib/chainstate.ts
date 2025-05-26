@@ -44,15 +44,15 @@ export async function resetTo(height: number, db: Models): Promise<void> {
 
     await sequelize.query(
       `INSERT INTO balances (address_id, mezcal_id, balance)
-         SELECT u.address_id,
-                ub.mezcal_id,
-                SUM(ub.balance) AS balance
-           FROM utxo_balances AS ub
-           JOIN utxos         AS u ON u.id = ub.utxo_id
-       GROUP BY u.address_id, ub.mezcal_id`,
+     SELECT u.address_id,
+            ub.mezcal_id,
+            SUM(COALESCE(ub.balance, 0)) AS balance
+       FROM utxo_balances AS ub
+       JOIN utxos         AS u ON u.id = ub.utxo_id
+      WHERE u.block_spent IS NULL              -- <-- filter out spent UTXOs
+   GROUP BY u.address_id, ub.mezcal_id`,
       { transaction }
     );
-
     await sequelize.query(`DELETE FROM addresses WHERE block >= $1`, {
       bind: [height],
       transaction,
