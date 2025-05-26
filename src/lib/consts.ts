@@ -79,3 +79,6 @@ export const VERBOSE_LOGGING =
 
 //if enabled, /transactions endpoint are served on rpc
 export const ELECTRUM_API_URL = process.env.ELECTRUM_API_URL;
+export const BLOCK_CHECK_INTERVAL = Number(
+  process.env.BLOCK_CHECK_INTERVAL ?? "15000"
+);

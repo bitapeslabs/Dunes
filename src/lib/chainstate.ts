@@ -1,6 +1,9 @@
 import { Models } from "@/database/createConnection";
 
-export async function resetTo(height: number, db: Models): Promise<void> {
+export async function rollbackIndexerStateTo(
+  height: number,
+  db: Models
+): Promise<void> {
   const { sequelize } = db;
 
   await sequelize.transaction(async (transaction) => {

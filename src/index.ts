@@ -17,6 +17,7 @@ import {
   INDEXER_ENABLED,
   CACHE_REFRESH_INTERVAL,
   ELECTRUM_API_URL,
+  BLOCK_CHECK_INTERVAL,
 } from "@/lib/consts";
 import {
   blockManager as createBlockManager,
@@ -25,8 +26,6 @@ import {
 import {
   databaseConnection as createConnection,
   Models,
-  ISetting,
-  IEvent,
   IAddress,
   IMezcal,
   ITransaction,
@@ -46,7 +45,7 @@ import {
 import { WebSocketServer } from "ws";
 import https from "node:https";
 import cors from "cors";
-import { resetTo } from "./lib/chainstate";
+import { rollbackIndexerStateTo } from "./lib/chainstate";
 
 const rpcClient = createRpcClient({
   url: BTC_RPC_URL,
@@ -55,25 +54,6 @@ const rpcClient = createRpcClient({
 });
 
 const { callRpc, callRpcBatch } = rpcClient;
-
-/* ──────────────────────────────────────────────────────────
-   extra local types
-   ──────────────────────────────────────────────────────── */
-interface RequestWithDB extends Request {
-  db: Models;
-  callRpc: typeof callRpc;
-}
-
-interface EventWithJoins {
-  id: number;
-  type: number;
-  block: number;
-  amount: string | bigint;
-  transaction: ITransaction | null;
-  mezcal: IMezcal | null;
-  from: IAddress | null;
-  to: IAddress | null;
-}
 
 const emitEvents = async (storageInstance: IStorage): Promise<void> => {
   const { local, findOne } = storageInstance;
@@ -227,17 +207,18 @@ const startRpc = async (): Promise<void> => {
 /* ──────────────────────────────────────────────────────────
    indexer  (block‑sync loop)
    ──────────────────────────────────────────────────────── */
+const CONFIRM_DEPTH = 6; // blocks to consider “final”
+
 const startServer = async (storage: IStorage): Promise<void> => {
   if (!global.gc) {
-    log("Run Node with  --expose-gc  to enable manual GC", "error");
+    log("Run Node with --expose-gc", "error");
     return;
   }
 
   const db = storage.db;
-  const Setting = db.Setting as unknown as ISetting;
 
-  /* helpers to read / write numeric settings */
-  const readInt = async (k: string, d = 0): Promise<number> =>
+  /* helpers */
+  const readInt = async (k: string, d = 0) =>
     Number(
       (
         await db.Setting.findOrCreate({
@@ -246,15 +227,21 @@ const startServer = async (storage: IStorage): Promise<void> => {
         })
       )[0].value ?? d
     );
-
   const writeInt = (k: string, v: number) =>
     db.Setting.update({ value: String(v) }, { where: { name: k } });
+  const readStr = async (k: string, d = "") =>
+    (
+      await db.Setting.findOrCreate({
+        where: { name: k },
+        defaults: { name: k, value: d },
+      })
+    )[0].value ?? d;
+  const writeStr = (k: string, v: string) =>
+    db.Setting.update({ value: v }, { where: { name: k } });
 
+  /* initial cursor setup */
   let lastProcessed = await readInt("last_block_processed");
   const prefetched = await readInt("prefetch");
-
-  // PREFECTH SETTINGS
-  // ==========================
 
   if (!prefetched) {
     const count = Number(process.env.PREFETCH_BLOCKS ?? "100");
@@ -267,55 +254,78 @@ const startServer = async (storage: IStorage): Promise<void> => {
     await storage.commitChanges();
     await clearAndPopulateRpcCache(storage.db);
 
-    // Clear the cache and repopulate it because we processed a new block that has new data rpc should know about
     await writeInt("prefetch", 1);
     log("Prefetch complete", "info");
   }
 
-  // ========================
-
   let current = lastProcessed ? lastProcessed + 1 : GENESIS_BLOCK;
-
   const blockStorage = await newStorage();
+  log(`Indexer starting at ${current}`, "info");
 
-  log(`Indexer starting at height ${current}`, "info");
+  /* — re-org detector — */
+  class ReorgHit extends Error {}
 
-  /* infinite sync loop */
-  // eslint-disable-next-line no-constant-condition
+  async function ensureNoReorg(height: number): Promise<void> {
+    const confirmedHeight = await readInt("last_confirmed_height");
+    if (confirmedHeight === 0 || height < confirmedHeight + CONFIRM_DEPTH)
+      return;
+
+    const ourHash = await readStr("last_confirmed_hash");
+    const chainHash = await callRpc("getblockhash", [confirmedHeight]);
+    if (ourHash === chainHash) return; // still on same chain
+
+    /* mismatch: roll back ONE block before the confirmed tip */
+    const forkPoint = confirmedHeight - 1;
+    log(`⚠️  Reorg detected → rolling back to ${forkPoint}`, "panic");
+
+    await rollbackIndexerStateTo(forkPoint, db);
+    await writeInt("last_block_processed", forkPoint - 1);
+    await writeInt("last_confirmed_height", forkPoint - 1);
+    await writeStr(
+      "last_confirmed_hash",
+      await callRpc("getblockhash", [forkPoint - 1])
+    );
+
+    if (RPC_ENABLED) await clearAndPopulateRpcCache(db);
+
+    current = forkPoint; // rewind main loop cursor
+    throw new ReorgHit(); // abort current chunk
+  }
+
+  /* — main sync loop — */
   while (true) {
     const tip = Number(await callRpc("getblockcount", []));
     if (current <= tip) {
-      log("Processing blocks " + current + " - " + tip, "info");
-
-      await processRange(current, tip);
+      log(`Processing ${current}…${tip}`, "info");
+      await processRange(current, tip).catch((e) => {
+        if (!(e instanceof ReorgHit)) throw e;
+      });
       current = tip + 1;
-      log("Polling for new blocks... Last Processed: " + (current - 1), "info");
     }
-    await sleep(Number(process.env.BLOCK_CHECK_INTERVAL ?? "15000"));
+    await sleep(Number(BLOCK_CHECK_INTERVAL ?? "15000"));
   }
-
   async function processRange(start: number, end: number): Promise<void> {
     const { getBlock } = await createBlockManager(
       callRpcBatch,
       end,
       blockStorage
     );
-
     const chunk = Number(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? "10");
-    for (let height = start; height <= end; height += chunk) {
-      const lastProcessed = Math.min(height + chunk - 1, end);
+    const safeStep = Math.min(chunk, CONFIRM_DEPTH);
+
+    for (let height = start; height <= end; height += safeStep) {
+      await ensureNoReorg(height); // <── re-org check
+
+      const lastProc = Math.min(height + chunk - 1, end);
       const list = Array.from(
-        { length: lastProcessed - height + 1 },
+        { length: lastProc - height + 1 },
         (_, i) => height + i
       );
 
       log("Fetching blocks: " + list.join(", "), "info");
+      const blocks = await Promise.all(list.map(getBlock));
 
-      const blocks = await Promise.all(list.map((v) => getBlock(v)));
-
-      await Promise.all(
-        blocks.map((block) => loadBlockIntoMemory(block, storage))
-      );
+      await Promise.all(blocks.map((b) => loadBlockIntoMemory(b, storage)));
       blocks.forEach((b, i) =>
         processBlock(
           { blockHeight: list[i], blockData: b },
@@ -325,23 +335,26 @@ const startServer = async (storage: IStorage): Promise<void> => {
         )
       );
 
-      broadcastBlockTip(list[list.length - 1]);
-
-      //Repopulate the cache with the new data because blocks may contain new Mezcalstone data rpc should know about
+      broadcastBlockTip(list.at(-1)!);
 
       await emitEvents(storage);
       await storage.commitChanges();
-      if (RPC_ENABLED) {
-        await clearAndPopulateRpcCache(storage.db);
-      }
-      //
+      if (RPC_ENABLED) await clearAndPopulateRpcCache(storage.db);
 
-      await writeInt("last_block_processed", lastProcessed);
-      log(`Processed ${height}…${lastProcessed}`, "info");
+      await writeInt("last_block_processed", lastProc);
+
+      /* update confirmed checkpoint */
+      const confirmTarget = lastProc - CONFIRM_DEPTH + 1;
+      if (confirmTarget >= GENESIS_BLOCK) {
+        const hash: string = await callRpc("getblockhash", [confirmTarget]);
+        await writeInt("last_confirmed_height", confirmTarget);
+        await writeStr("last_confirmed_hash", hash);
+      }
+
+      log(`Processed ${height}…${lastProc}`, "info");
     }
   }
 };
-
 const start = async (): Promise<void> => {
   const freshDb = process.argv.includes("--new");
 
@@ -352,7 +365,7 @@ const start = async (): Promise<void> => {
       process.argv[process.argv.indexOf("--rollback-to") + 1]
     );
 
-    await resetTo(rollbackBlock, storage.db);
+    await rollbackIndexerStateTo(rollbackBlock, storage.db);
     log(`Rolled back to block ${rollbackBlock}`, "info");
   }
 
