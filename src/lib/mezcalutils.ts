@@ -159,7 +159,10 @@ const prefetchTransactions = async (
               value_sats: BigInt(Math.round(utxo.value * 1e8)).toString(),
               block: blockNumber,
               transaction_id: TransactionModel.id,
-              address_id: findOrCreate("Address", address, { address }).id,
+              address_id: findOrCreate("Address", address, {
+                address,
+                block: blockNumber,
+              }).id,
               vout_index: utxo.n,
             });
           });
