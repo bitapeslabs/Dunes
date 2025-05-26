@@ -52,5 +52,16 @@ export async function resetTo(height: number, db: Models): Promise<void> {
      GROUP BY u.address_id, ub.mezcal_id`,
       { transaction }
     );
+
+    await sequelize.query(
+      `UPDATE settings
+      SET value      = $1::text,
+          updatedAt  = NOW()
+    WHERE name = 'last_block_processed'`,
+      {
+        bind: [String(height - 1)], // cast to text just like other settings
+        transaction,
+      }
+    );
   });
 }
