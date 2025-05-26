@@ -61,17 +61,17 @@ export async function resetTo(height: number, db: Models): Promise<void> {
 
     await sequelize.query(
       `UPDATE mezcals AS m
-          SET mints        = s.sum_mints,
-              burnt_amount = s.sum_burns
-         FROM (
-           SELECT
-             mezcal_id,
-             SUM(CASE WHEN type = 1 THEN amount ELSE 0 END) AS sum_mints,
-             SUM(CASE WHEN type = 3 THEN amount ELSE 0 END) AS sum_burns
-           FROM events
-           GROUP BY mezcal_id
-         ) AS s
-        WHERE m.id = s.mezcal_id`,
+      SET mints        = s.cnt_mints,         -- count of mint events
+          burnt_amount = s.sum_burns          -- sum of burn amounts
+     FROM (
+       SELECT
+         mezcal_id,
+         COUNT(*) FILTER (WHERE type = 1)             ::numeric AS cnt_mints,
+         SUM(CASE WHEN type = 3 THEN amount ELSE 0 END)        AS sum_burns
+       FROM events
+       GROUP BY mezcal_id
+     ) AS s
+    WHERE m.id = s.mezcal_id`,
       { transaction }
     );
 
