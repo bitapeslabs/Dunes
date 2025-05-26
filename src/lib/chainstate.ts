@@ -55,21 +55,28 @@ export async function resetTo(height: number, db: Models): Promise<void> {
       transaction,
     });
 
-    await sequelize.query(`UPDATE mezcals SET mints = 0, burnt_amount = 0`, {
-      transaction,
-    });
+    await sequelize.query(
+      `UPDATE mezcals
+      SET mints         = 0,
+          burnt_amount  = 0,
+          total_supply  = premine`,
+      { transaction }
+    );
 
     await sequelize.query(
       `UPDATE mezcals AS m
-      SET mints        = s.cnt_mints,         -- count of mint events
-          burnt_amount = s.sum_burns          -- sum of burn amounts
+      SET mints         = s.cnt_mints,                          -- count of mint events
+          burnt_amount  = s.sum_burns,                          -- sum of burn amounts
+          total_supply  = (s.cnt_mints::numeric *               -- mints × mint_amount
+                           COALESCE(m.mint_amount, 0))          --  (mint_amount may be NULL)
+                         + m.premine                            -- + premine
+                         - s.sum_burns                          -- − burnt
      FROM (
-       SELECT
-         mezcal_id,
-         COUNT(*) FILTER (WHERE type = 1)             ::numeric AS cnt_mints,
-         SUM(CASE WHEN type = 3 THEN amount ELSE 0 END)        AS sum_burns
-       FROM events
-       GROUP BY mezcal_id
+       SELECT mezcal_id,
+              COUNT(*) FILTER (WHERE type = 1)        AS cnt_mints,
+              COALESCE(SUM(CASE WHEN type = 3 THEN amount END), 0) AS sum_burns
+         FROM events
+        GROUP BY mezcal_id
      ) AS s
     WHERE m.id = s.mezcal_id`,
       { transaction }
