@@ -3,7 +3,7 @@ import { Models } from "@/database/createConnection";
 export async function resetTo(height: number, db: Models): Promise<void> {
   const { sequelize } = db;
 
-  await sequelize.transaction({ autocommit: false }, async (transaction) => {
+  await sequelize.transaction(async (transaction) => {
     await sequelize.query(
       `DELETE FROM utxo_balances AS ub
        USING utxos AS u

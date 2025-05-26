@@ -46,6 +46,7 @@ import {
 import { WebSocketServer } from "ws";
 import https from "node:https";
 import cors from "cors";
+import { resetTo } from "./lib/chainstate";
 
 const rpcClient = createRpcClient({
   url: BTC_RPC_URL,
@@ -345,6 +346,15 @@ const start = async (): Promise<void> => {
   const freshDb = process.argv.includes("--new");
 
   const storage = await newStorage(freshDb);
+
+  if (process.argv.includes("--rollback-to")) {
+    let rollbackBlock = Number(
+      process.argv[process.argv.indexOf("--rollback-to") + 1]
+    );
+
+    await resetTo(rollbackBlock, storage.db);
+    log(`Rolled back to block ${rollbackBlock}`, "info");
+  }
 
   if (INDEXER_ENABLED) startServer(storage);
   if (RPC_ENABLED) startRpc();
