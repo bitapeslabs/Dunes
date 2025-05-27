@@ -17,8 +17,13 @@ export type IMezcal = {
   decimals: number;
   premine: string;
   mints: string;
-  price_amount: number | null;
-  price_pay_to: string | null;
+  price:
+    | {
+        amount: number;
+        pay_to: string;
+      }[]
+    | null; // Postgres-only, can be null
+
   mint_cap: string | null;
   mint_start: number | null;
   mint_end: number | null;
@@ -44,13 +49,19 @@ export class Mezcal
   declare decimals: number;
   declare premine: string;
   declare mints: string;
-  declare price_amount: number | null;
-  declare price_pay_to: string | null;
+
   declare mint_cap: string | null;
   declare mint_start: number | null;
   declare mint_end: number | null;
   declare mint_offset_start: number | null;
   declare mint_offset_end: number | null;
+  declare price:
+    | {
+        amount: number;
+        pay_to: string;
+      }[]
+    | null; // Postgres-only, can be null
+
   declare mint_amount: string | null;
   declare burnt_amount: string | null;
   declare etch_transaction_id: string | null;
@@ -99,12 +110,8 @@ export class Mezcal
           type: DataTypes.DECIMAL,
           allowNull: false,
         },
-        price_amount: {
-          type: DataTypes.INTEGER, //expressed in satoshis so safe to use INTEGER
-          allowNull: true,
-        },
-        price_pay_to: {
-          type: DataTypes.TEXT,
+        price: {
+          type: DataTypes.ARRAY(DataTypes.JSONB), // Postgres-only
           allowNull: true,
         },
         mint_cap: {

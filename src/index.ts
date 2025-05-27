@@ -328,7 +328,7 @@ const startServer = async (storage: IStorage): Promise<void> => {
 
       log("Fetching blocks: " + list.join(", "), "info");
       const blocks = await Promise.all(list.map(getBlock));
-
+      log(`Fetched ${blocks.length} blocks from ${list[0]} to ${list.at(-1)}`);
       await Promise.all(blocks.map((b) => loadBlockIntoMemory(b, storage)));
       blocks.forEach((b, i) =>
         processBlock(

@@ -2,6 +2,9 @@ import * as bitcoin from "bitcoinjs-lib";
 import { BoxedResponse, BoxedSuccess, BoxedError } from "@/lib/boxed";
 import { IEsploraTransaction } from "@/lib/apis/esplora/types";
 import { Transaction as BitcoinJsTransaction } from "bitcoinjs-lib";
+import { ecc } from "./ecc";
+
+bitcoin.initEccLib(ecc);
 
 export enum ScriptParseError {
   NotOpReturn = "ScriptIsNotOpReturn",

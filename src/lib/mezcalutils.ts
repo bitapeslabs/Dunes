@@ -18,25 +18,11 @@ import {
 } from "./mezcalstone";
 import { IMezcal, ITransaction } from "@/database/models/types";
 /* ── constants ────────────────────────────────────────────────────────────── */
-import {
-  GENESIS_BLOCK,
-  UNLOCK_INTERVAL,
-  INITIAL_AVAILABLE,
-  BTC_RPC_PASSWORD,
-  BTC_RPC_USERNAME,
-  BTC_RPC_URL,
-} from "./consts";
+import { GENESIS_BLOCK } from "./consts";
 import { IStorage } from "@/lib/storage";
 import { IAddress } from "@/database/models/types";
-import {
-  IndexedTxExtended,
-  loadBlockIntoMemory,
-  processBlock,
-} from "./indexer";
+import { IndexedTxExtended } from "./indexer";
 import { chunkifyIter } from "./utils";
-import { IEsploraTransaction } from "./apis/esplora/types";
-import { storage as newStorage } from "@/lib/storage";
-import { get } from "http";
 
 /* ── shared types ─────────────────────────────────────────────────────────── */
 type RpcCall = <T>(method: string, params?: unknown[]) => Promise<T>;
@@ -80,7 +66,6 @@ const getMezcalstonesInBlock = async (
 ): Promise<IndexedTx[]> => {
   const blockHash = await callRpc<string>("getblockhash", [blockNumber]);
   const block = await callRpc<Block>("getblock", [blockHash, 2]);
-
   return getMezcalstonesFromBlock(block);
 };
 
@@ -353,7 +338,7 @@ const blockManager = (
   readBlockStorage: IStorage
 ) => {
   const MAX_BLOCK_CACHE_SIZE = Number.parseInt(
-    process.env.MAX_BLOCK_CACHE_SIZE ?? "20",
+    process.env.MAX_BLOCK_CACHE_SIZE ?? "10",
     10
   );
   const GET_BLOCK_CHUNK_SIZE = Number.parseInt(
@@ -424,10 +409,6 @@ const blockManager = (
 };
 
 /* ── mezcal‑specific helpers ────────────────────────────────────────────────── */
-const minimumLengthAtHeight = (block: number): number => {
-  const stepsPassed = Math.floor((block - GENESIS_BLOCK) / UNLOCK_INTERVAL);
-  return INITIAL_AVAILABLE - stepsPassed;
-};
 
 interface Allocation {
   mezcal_id: string;
@@ -504,19 +485,22 @@ const isMintOpen = (
  * Ensure a tx meets price terms (amount + pay_to).
  */
 function isPriceTermsMet(mezcal: IMezcal, transaction: Transaction): boolean {
-  if (mezcal?.price_amount == null) return true; // auto OK
+  if (mezcal?.price == null) return true; // auto OK
 
-  const price = BigInt(mezcal?.price_amount);
-  const payTo = mezcal?.price_pay_to;
+  for (const priceTerms of mezcal.price) {
+    const price = BigInt(priceTerms.amount);
+    const payTo = priceTerms.pay_to;
 
-  const payOutputs = transaction.vout.filter(
-    (v) => v.scriptPubKey?.address === payTo
-  );
+    const payOutputs = transaction.vout.filter(
+      (v) => v.scriptPubKey?.address === payTo
+    );
 
-  if (!payOutputs.length) return false;
+    if (!payOutputs.length) return false;
 
-  const paid = payOutputs.reduce((acc, v) => acc + btcToSats(v.value), 0n);
-  return paid >= price;
+    const paid = payOutputs.reduce((acc, v) => acc + btcToSats(v.value), 0n);
+    if (!(paid >= price)) return false;
+  }
+  return true;
 }
 
 /* ── exports ─────────────────────────────────────────────────────────────── */
@@ -525,7 +509,6 @@ export {
   getMezcalstonesFromBlock,
   updateUnallocated,
   isMintOpen,
-  minimumLengthAtHeight,
   blockManager,
   getMezcalstonesInBlock,
   convertPartsToAmount,
