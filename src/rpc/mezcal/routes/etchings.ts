@@ -17,18 +17,42 @@ router.get("/all", async (req: Request, res: Response): Promise<void> => {
   const limit = Math.min(Math.max(rawLimit || 100, 1), 500);
   const offset = (page - 1) * limit;
 
+  // validate / normalise the new `status` filter
+  const statusRaw =
+    (req.query.status as string | undefined)?.toLowerCase() ?? "all";
+  const status: "in-progress" | "completed" | "all" =
+    statusRaw === "in-progress" || statusRaw === "completed"
+      ? statusRaw
+      : "all";
+
   try {
     const allEtchings = cacheGetAllEtchings();
     if (!allEtchings) {
       res.status(500).json({ error: "Internal server error" });
       return;
     }
-    const etchings = allEtchings.etchings.slice(offset, offset + limit);
+
+    const filtered =
+      status === "all"
+        ? allEtchings.etchings
+        : allEtchings.etchings.filter((mezcal) => {
+            const mints = BigInt(mezcal.mints);
+            const mintCap =
+              mezcal.mint_cap !== null ? BigInt(mezcal.mint_cap) : null;
+
+            if (status === "in-progress") {
+              return mintCap === null || mints < mintCap;
+            }
+            return mintCap !== null && mints === mintCap;
+          });
+
+    const etchings = filtered.slice(offset, offset + limit);
 
     res.status(200).json({
-      total_etchings: allEtchings.total_etchings,
+      total_etchings: filtered.length, // count AFTER filtering
       page,
       limit,
+      status,
       etchings: etchings.map((mezcal) => stripFields(mezcal, ["holders"])),
     });
   } catch (err) {
