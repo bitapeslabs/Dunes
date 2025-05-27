@@ -803,22 +803,25 @@ const processMint = (
     }
 
     logindex(
-      `(processMint) Mint amount: ${mezcalToMint.mint_amount}, price amount: ${mezcalToMint.price_amount}`
+      `(processMint) Mint amount: ${
+        mezcalToMint.mint_amount
+      }, price amount: ${JSON.stringify(mezcalToMint.price)}`
     );
 
     let mintAmount = BigInt(mezcalToMint.mint_amount ?? "0");
-    let isFlex = mezcalToMint.price_amount != null && mintAmount == 0n;
+    let isFlex = mezcalToMint.price != null && mintAmount == 0n;
 
     logindex(
       `(processMint) Is flex mint: ${isFlex}, mint amount: ${mintAmount}`
     );
 
-    if (isFlex) {
+    if (isFlex && mezcalToMint.price) {
       logindex(
         `(processMint) Flex mint detected, calculating mint amount based on price terms`
       );
-      const payTo = mezcalToMint.price_pay_to;
-      const priceAmount = mezcalToMint.price_amount;
+      const priceTerms = mezcalToMint.price[0];
+      const payTo = priceTerms.pay_to;
+      const priceAmount = priceTerms.amount;
       logindex(`(processMint) Pay to: ${payTo}, Price amount: ${priceAmount}`);
       if (!payTo) throw new Error("Missing pay_to address in price terms");
       if (!priceAmount || BigInt(priceAmount) === 0n)
@@ -1003,7 +1006,8 @@ const processEtching = (
     return UnallocatedMezcals;
   }
 
-  let isFlex = etching?.terms?.amount == 0n && etching?.terms?.price;
+  let isFlex =
+    etching?.terms?.amount == 0n && etching?.terms?.price?.[0]?.pay_to.length;
   let hasMintcap = !!etching?.terms?.cap && etching?.terms?.cap !== 0n;
 
   logindex(
@@ -1023,6 +1027,14 @@ const processEtching = (
       `(processEtching) Etching is in flex mode but has a mint cap, returning unallocated mezcals`
     );
     //An etch attempting to use "flex mode" for mint that provides a mint cap is invalid
+    return UnallocatedMezcals;
+  }
+
+  if (isFlex && etching?.terms?.price?.length !== 1) {
+    logindex(
+      `(processEtching) Etching is in flex mode but has multiple price, returning unallocated mezcals`
+    );
+    //An etch attempting to use "flex mode" for mint that provides multiple price is invalid
     return UnallocatedMezcals;
   }
 
@@ -1091,8 +1103,7 @@ const processEtching = (
     mint_end: etching.terms?.height?.[1] ?? null,
     mint_offset_start: etching.terms?.offset?.[0] ?? null,
     mint_offset_end: etching.terms?.offset?.[1] ?? null,
-    price_amount: etching.terms?.price?.amount ?? null,
-    price_pay_to: etching.terms?.price?.pay_to ?? null,
+    price: etching.terms?.price ?? null,
     turbo: etching.turbo,
     burnt_amount: "0",
     //Unmintable is a flag internal to this indexer, and is set specifically for cenotaphs as per the mezcal spec (see above)
@@ -1401,6 +1412,9 @@ const processMezcalstone = (
   useTest: boolean
 ) => {
   const { vout, vin, block, hash } = Transaction;
+  if (block < GENESIS_BLOCK) {
+    return; //not valid until genesis block
+  }
 
   const { create, fetchGroupLocally, findOne, local, findOrCreate } = storage;
 

@@ -68,13 +68,9 @@ Even though protocol messages are raw json strings, the validator the indexer us
     "turbo": true,
     "terms": {
       "amount": "100",
-      "cap": "25000",
+      "cap": "21000",
       "height": [0, null],
-      "offset": [null, null],
-      "price": {
-        "amount": 21000,
-        "pay_to": "bc1qvn6ecmzd42ksa252tntu9yw358yhujcznq9zxs"
-      }
+      "offset": [null, null]
     }
   }
 }
@@ -134,7 +130,7 @@ TLDR: Priced mints are an optional setting to make all mints of a mezcal enforce
 Price is a u128 integer expressed in Satoshi. During an etch, IF the price field is present the following would be added as a requirement:
 
 ```
-all mints must include a cumulative amount of etching.terms.price satoshi sent in the tx's vouts to the etching.terms.pay_to address specified in a mezcal's etching terms.
+all mints must include a cumulative amount of  satoshi sent in the tx's vouts that satisfy sending "amount" to the "pay_to" address on each item in terms.price specified in a mezcal's etching terms
 
 IF price terms are not met, the mint is invalid.
 ```
@@ -159,10 +155,12 @@ In the following etch:
     "dune": "WBTC",
     "symbol": "₿",
     "terms": {
-      "price": {
-        "amount": "1",
-        "pay_to": "bcrt1pxya87gu5jnde0x72hp2l84tur62jl7yhkwnf7yc2hwgk2rnx9t2q6natl2"
-      },
+      "price": [
+        {
+          "amount": "1",
+          "pay_to": "bcrt1pxya87gu5jnde0x72hp2l84tur62jl7yhkwnf7yc2hwgk2rnx9t2q6natl2"
+        }
+      ],
       "amount": "0",
       "height": [0, null],
       "offset": [null, null]

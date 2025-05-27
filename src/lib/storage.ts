@@ -23,7 +23,14 @@ type SpecifiedModels = keyof typeof LOCAL_PRIMARY_KEYS;
 
 type IndexKey = string | number; // keys allowed for maps
 
-type Scalar = string | number | boolean | null | undefined | bigint; //
+type Scalar =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | bigint
+  | Array<object>; //
 export type ModelRow = Record<string, Scalar>; // plain row from Sequelize
 
 type LocalCache = Record<string, Record<IndexKey, ModelRow>>;
