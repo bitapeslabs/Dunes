@@ -53,7 +53,7 @@ router.get("/all", async (req: Request, res: Response): Promise<void> => {
 
     if (q !== "") {
       filtered = filtered.filter((mezcal) =>
-        mezcal.name.toLowerCase().startsWith(q)
+        mezcal.name.toLowerCase().includes(q)
       );
     }
 
