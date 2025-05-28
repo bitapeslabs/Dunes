@@ -334,7 +334,8 @@ router.post("/submitmara", async (req: Request, res: Response) => {
     );
 
     // Pass Slipstream’s response straight through
-    res.status(upstream.status).send(upstream.data);
+    res.status(200).json(upstream.data);
+    return;
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       // Bubble up Slipstream’s HTTP status / error payload
