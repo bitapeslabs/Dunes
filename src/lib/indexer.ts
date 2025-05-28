@@ -862,10 +862,20 @@ const processMint = (
     );
 
     if (!isValidResponse<IAddress>(fromAddressResponse)) {
-      logindex(
-        `(processMint) From address not found in local cache for transaction ${Transaction.txid}, returning unallocated mezcals`
+      fromAddressResponse = findOne<IAddress>(
+        "Address",
+        "UNKNOWN",
+        undefined,
+        true
       );
-      return UnallocatedMezcals;
+
+      if (!isValidResponse<IAddress>(fromAddressResponse)) {
+        logindex(
+          `(processMint) No from address found for transaction ${Transaction.txid}, returning unallocated mezcals`
+        );
+        //If no from address is found, we cannot process the mint
+        return UnallocatedMezcals;
+      }
     }
     logindex(
       `(processMint) From address found: ${safeStringify(fromAddressResponse)}`
