@@ -17,19 +17,55 @@ router.get("/all", async (req: Request, res: Response): Promise<void> => {
   const limit = Math.min(Math.max(rawLimit || 100, 1), 500);
   const offset = (page - 1) * limit;
 
+  const statusRaw =
+    (req.query.status as string | undefined)?.toLowerCase() ?? "all";
+  const status: "in-progress" | "completed" | "all" =
+    statusRaw === "in-progress" || statusRaw === "completed"
+      ? statusRaw
+      : "all";
+
+  const qRaw = (req.query.q as string | undefined)?.trim() ?? "";
+  const q = qRaw.toLowerCase();
+
   try {
     const allEtchings = cacheGetAllEtchings();
     if (!allEtchings) {
       res.status(500).json({ error: "Internal server error" });
       return;
     }
-    const etchings = allEtchings.etchings.slice(offset, offset + limit);
+
+    let filtered = allEtchings.etchings;
+
+    if (status !== "all") {
+      filtered = filtered.filter((mezcal) => {
+        const mints = BigInt(mezcal.mints);
+        const mintCap =
+          mezcal.mint_cap !== null ? BigInt(mezcal.mint_cap) : null;
+
+        if (status === "in-progress") {
+          return (
+            mezcal.unmintable === 0 && (mintCap === null || mints < mintCap)
+          );
+        }
+        return mintCap !== null && mints === mintCap;
+      });
+    }
+
+    if (q !== "") {
+      filtered = filtered.filter((mezcal) =>
+        mezcal.name.toLowerCase().includes(q)
+      );
+    }
+
+    const etchings = filtered.slice(offset, offset + limit);
 
     res.status(200).json({
-      total_etchings: allEtchings.total_etchings,
+      total_etchings: filtered.length,
       page,
       limit,
-      etchings: etchings.map((mezcal) => stripFields(mezcal, ["holders"])),
+      status,
+      q,
+      etchings: etchings.map((m) => stripFields(m, ["holders"])),
     });
   } catch (err) {
     console.error(err);

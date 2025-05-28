@@ -318,7 +318,7 @@ const startServer = async (storage: IStorage): Promise<void> => {
     const safeStep = Math.min(chunk, CONFIRM_DEPTH);
 
     for (let height = start; height <= end; height += safeStep) {
-      await ensureNoReorg(height); // <── re-org check
+      //await ensureNoReorg(height); // <── re-org check
 
       const lastProc = Math.min(height + chunk - 1, end);
       const list = Array.from(
