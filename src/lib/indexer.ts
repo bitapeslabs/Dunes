@@ -865,7 +865,7 @@ const processMint = (
       logindex(
         `(processMint) From address not found in local cache for transaction ${Transaction.txid}, returning unallocated mezcals`
       );
-      throw new Error("Invalid response from local cache @ mint:1");
+      return UnallocatedMezcals;
     }
     logindex(
       `(processMint) From address found: ${safeStringify(fromAddressResponse)}`
