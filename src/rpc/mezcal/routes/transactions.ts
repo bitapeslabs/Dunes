@@ -12,6 +12,7 @@ import {
 import { IEsploraTransaction } from "@/lib/apis/esplora/types";
 import { cacheGetEventsByTxid, IJoinedEvent } from "../lib/cache";
 import { ELECTRUM_API_URL } from "@/lib/consts";
+import axios from "axios";
 
 interface RequestWithDB extends Request {
   db: Models;
@@ -315,6 +316,33 @@ router.get("/nicelogs/:txid", async (req: RequestWithDB, res: Response) => {
   .json .null   { color:#569cd6 }
 </style></head><body>
 <div class="wrapper">${linesHtml}</div></body></html>`);
+});
+
+router.post("/submitmara", async (req: Request, res: Response) => {
+  const { tx_hex } = req.body as { tx_hex?: string };
+
+  // Basic validation
+  if (typeof tx_hex !== "string" || !/^[0-9a-fA-F]+$/.test(tx_hex)) {
+    res.status(400).json({ error: "Invalid or missing tx_hex" });
+    return;
+  }
+
+  try {
+    const upstream = await axios.post(
+      "https://slipstream.mara.com/rest-api/submit-tx",
+      { tx_hex }
+    );
+
+    // Pass Slipstream’s response straight through
+    res.status(upstream.status).send(upstream.data);
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      // Bubble up Slipstream’s HTTP status / error payload
+      res.status(err.response.status).send(err.response.data);
+    } else {
+      res.status(502).json({ error: "Failed to reach Slipstream" });
+    }
+  }
 });
 
 export default router;
