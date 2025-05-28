@@ -1422,7 +1422,6 @@ const processMezcalstone = (
   useTest: boolean
 ) => {
   const { vout, vin, block, hash } = Transaction;
-  console.log(Transaction);
   if (block < GENESIS_BLOCK) {
     console.warn(
       `(processMezcalstone) Transaction ${hash} is from block ${block}, which is before genesis block. Skipping processing.`
