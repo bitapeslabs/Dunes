@@ -339,6 +339,11 @@ router.post("/submitmara", async (req: Request, res: Response) => {
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       // Bubble up Slipstream’s HTTP status / error payload
+      console.error(
+        "Slipstream error:",
+        err.response.status,
+        err.response.data
+      );
       res.status(err.response.status).send(err.response.data);
     } else {
       res.status(502).json({ error: "Failed to reach Slipstream" });
