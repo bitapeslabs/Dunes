@@ -258,7 +258,7 @@ const startServer = async (storage: IStorage): Promise<void> => {
     log("Prefetch complete", "info");
   }
 
-  let current = lastProcessed ? lastProcessed + 1 : GENESIS_BLOCK;
+  let current = lastProcessed ? lastProcessed + 1 : GENESIS_BLOCK - 1;
   const blockStorage = await newStorage();
   log(`Indexer starting at ${current}`, "info");
 
