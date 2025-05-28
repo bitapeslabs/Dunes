@@ -36,7 +36,7 @@ export const DB_NAME = env.DB_NAME;
 export const PREFETCH_BLOCKS = env.PREFETCH_BLOCKS;
 export const RPC_PORT = env.RPC_PORT;
 
-export const GENESIS_BLOCK = env.GENESIS_BLOCK ?? 4326248;
+export const GENESIS_BLOCK = env.GENESIS_BLOCK ?? 898750;
 
 export const TAPROOT_ANNEX_PREFIX = 0x50;
 export const UNLOCK_INTERVAL = 17500; // as per mezcals spec
@@ -55,15 +55,8 @@ export const GENESIS_MEZCALTONE = {
       amount: 10000000000n,
       cap: 29746n,
 
-      height: [4326248, null],
+      height: [898750, null],
       offset: [null, null],
-      price: [
-        {
-          amount: 21000,
-          pay_to:
-            "tb1p8888zulc047mg3mf252tqeagc2feeh8a2pqn87arzd80t9qdkgcqkf8y5h",
-        },
-      ],
     },
   } as IMezcalstoneIndexed["etching"],
   cenotaph: false,
@@ -86,4 +79,4 @@ export const BLOCK_CHECK_INTERVAL = Number(
 );
 
 export const CONFIRM_DEPTH = Number(process.env.CONFIRM_DEPTH ?? "6"); // default to 6 confirmations
-export const BITCOINJS_NETWORK = bitcoin.networks.testnet;
+export const BITCOINJS_NETWORK = bitcoin.networks.bitcoin;

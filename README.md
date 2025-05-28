@@ -58,7 +58,7 @@ Even though protocol messages are raw json strings, the validator the indexer us
 
 # A new genesis mezcalstone
 
-"cactusseed" is the genesis etching of Mezcal. The following etching looks as follows (cap and amount are described as bigints >U128::MAX):
+"taco" is the genesis etching of Mezcal. The following etching looks as follows (cap and amount are described as bigints >U128::MAX):
 
 ```json
 {
@@ -75,8 +75,6 @@ Even though protocol messages are raw json strings, the validator the indexer us
   }
 }
 ```
-
-Each taco mint costs **21000 satoshis**, or roughly 20.29 USD (0.20 USD per cactusseed) at the time of writing.
 
 # Mezcalstone schema
 
@@ -152,7 +150,7 @@ In the following etch:
   "etching": {
     "divisibility": 8,
     "premine": "0",
-    "dune": "WBTC",
+    "mezcal": "wbtc",
     "symbol": "₿",
     "terms": {
       "price": [
