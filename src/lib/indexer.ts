@@ -1543,7 +1543,7 @@ const processMezcalstone = (
   );
 
   Transaction.sender =
-    Transaction.sender ?? addressesFound[0]?.address ?? "UNKNOWN";
+    addressesFound[0]?.address ?? Transaction.sender ?? "UNKNOWN";
 
   logindex(
     `(processMezcalstone) Transaction sender: ${Transaction.sender} for transaction ${hash}`
