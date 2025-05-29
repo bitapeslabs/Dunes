@@ -416,6 +416,12 @@ const updateOrCreateBalancesWithUtxo = (
     logindex(
       `(updateOrCreateBalancesWithUtxo) Updating balance for mezcal ${proto} to ${newBalance}`
     );
+    logindex(
+      `(updateOrCreateBalancesWithUtxo) Current balance: ${JSON.stringify(
+        bal
+      )}, direction: ${direction}`
+    );
+
     updateAttribute("Balance", bal.balance_index, "balance", newBalance);
   }
 };
