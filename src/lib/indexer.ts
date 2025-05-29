@@ -1525,7 +1525,7 @@ const processMezcalstone = (
   Transaction.virtual_id = Number(parentTransaction.id);
 
   let addressesFound = inputUtxos
-    .filter((input) => input.address_id !== 3)
+    .filter((input) => input.address_id !== 3 && input.address_id !== 2) //Ignore OP_RETURN and burn addresses
     .map((input) =>
       findOne<IAddress>(
         "Address",
