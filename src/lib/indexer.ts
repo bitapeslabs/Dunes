@@ -1524,31 +1524,26 @@ const processMezcalstone = (
 
   Transaction.virtual_id = Number(parentTransaction.id);
 
-  let addressFound = findOne<IAddress>(
-    "Address",
-    Transaction.sender ?? "UNKNOWN",
-    undefined,
-    true
-  );
+  let addressesFound = inputUtxos
+    .filter((input) => input.address_id !== 3)
+    .map((input) =>
+      findOne<IAddress>(
+        "Address",
+        input.address_id + "@REF@id",
+        undefined,
+        true
+      )
+    )
+    .filter(isValidResponse<IAddress>);
 
   logindex(
     `(processMezcalstone) Found address for transaction ${hash}: ${safeStringify(
-      addressFound
+      addressesFound
     )}`
   );
 
-  if (!isValidResponse<IAddress>(addressFound)) {
-    logindex(
-      `(processMezcalstone) Address not found for transaction ${hash}, setting address to UNKNOWN`
-    );
-    addressFound = { address: "UNKNOWN" } as IAddress;
-  }
-
   Transaction.sender =
-    //check if it was populated in
-    Transaction.sender ??
-    //if it wasnt populated in check if its in db froma prev utxo
-    addressFound.address;
+    Transaction.sender ?? addressesFound[0]?.address ?? "UNKNOWN";
 
   logindex(
     `(processMezcalstone) Transaction sender: ${Transaction.sender} for transaction ${hash}`

@@ -218,65 +218,7 @@ const populateResultsWithPrevoutData = async (
         block.map(async (tx) => {
           const { vin, mezcalstone } = tx;
 
-          // 1️⃣ coinbase → sender "COINBASE"
           if (vin[0].coinbase) return { ...tx, sender: "COINBASE" };
-
-          /* These two fields create new mezcals with no previous sender.
-             Use owner of first vout instead. */
-          if (
-            mezcalstone.etching?.mezcal &&
-            !process.argv.includes("--no-commitments")
-          ) {
-            const newVins = await Promise.all(
-              vin.map(async (v) => {
-                if (!v.txid) return v; // coinbase edge
-
-                const parentTx =
-                  txMapInChunk[v.txid]?.full_tx ??
-                  (await callRpc<Transaction>("getrawtransaction", [
-                    v.txid,
-                    true,
-                  ]));
-
-                const parentTxBlock =
-                  txMapInChunk[v.txid]?.block ??
-                  (
-                    await callRpc<{ height: number }>("getblockheader", [
-                      parentTx.blockhash,
-                    ])
-                  ).height;
-
-                return {
-                  ...v,
-                  parentTx: { ...parentTx, block: parentTxBlock },
-                };
-              })
-            );
-
-            type VinWithParent = Vin & {
-              parentTx: Transaction & { block: number };
-            };
-
-            /** narrows a Vin to VinWithParent */
-            function hasParentTx(v: Vin): v is VinWithParent {
-              return "parentTx" in v;
-            }
-
-            const senderVin = newVins.find(
-              (v): v is VinWithParent =>
-                hasParentTx(v) &&
-                v.parentTx.vout[v.vout].scriptPubKey.address !== undefined
-            );
-
-            if (!senderVin) return { ...tx, sender: null };
-
-            return {
-              ...tx,
-              vin: newVins,
-              sender:
-                senderVin.parentTx.vout[senderVin.vout].scriptPubKey.address,
-            };
-          }
 
           // 2️⃣ reference within current chunk
           const chunkVin = vin.find((v) => txMapInChunk[v.txid]);
