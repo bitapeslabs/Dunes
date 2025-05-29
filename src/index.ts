@@ -315,9 +315,8 @@ const startServer = async (storage: IStorage): Promise<void> => {
       blockStorage
     );
     const chunk = Number(process.env.MAX_STORAGE_BLOCK_CACHE_SIZE ?? "10");
-    const safeStep = Math.min(chunk, CONFIRM_DEPTH);
 
-    for (let height = start; height <= end; height += safeStep) {
+    for (let height = start; height <= end; height += chunk) {
       //await ensureNoReorg(height); // <── re-org check
 
       const lastProc = Math.min(height + chunk - 1, end);
