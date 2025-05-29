@@ -1519,6 +1519,8 @@ const processMezcalstone = (
   logindex(
     `(processMezcalstone) Full transaction: ${safeStringify(Transaction)}`
   );
+  logindex(`(processMezcalstone) Input UTXOs: ${safeStringify(inputUtxos)}`);
+  logindex(`(processMezcalstone) UTXO Filter: ${safeStringify(UtxoFilter)}`);
 
   Transaction.virtual_id = Number(parentTransaction.id);
 
