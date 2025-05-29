@@ -1526,7 +1526,7 @@ const processMezcalstone = (
 
   let addressFound = findOne<IAddress>(
     "Address",
-    inputUtxos[0]?.address_id + "@REF@id",
+    Transaction.sender ?? "UNKNOWN",
     undefined,
     true
   );
