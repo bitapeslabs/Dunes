@@ -204,7 +204,7 @@ const createNewUtxoBodies = (
 
         Therefore, we mark a utxo as an OP_RETURN by setting its address to such
       */
-      utxo_index: `${Transaction.virtual_id}:${out.n}`,
+      utxo_index: `${addressRow.id}:${out.n}`,
       address_id: addressRow.id,
       value_sats: BigInt(Math.round(out.value * 1e8)).toString(),
       transaction_id: Transaction.virtual_id!,
@@ -1473,7 +1473,7 @@ const processMezcalstone = (
 
     return {
       ...utxo,
-      utxo_index: `${utxo.id}:${utxo.vout_index}`,
+      utxo_index: utxoIndex,
       address_id: Number(utxo.address_id),
       transaction_id: Number(utxo.transaction_id),
       mezcal_balances: balances.reduce((acc, utxoBalance) => {
