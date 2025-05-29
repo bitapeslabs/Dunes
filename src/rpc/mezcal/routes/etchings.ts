@@ -103,7 +103,7 @@ router.get(
     const rawLimit = Number(req.query.limit ?? 100);
 
     const page = Math.max(rawPage || 1, 1);
-    const limit = Math.min(Math.max(rawLimit || 100, 1), 500);
+    const limit = Math.min(Math.max(rawLimit || 100, 1), 3000);
     const offset = (page - 1) * limit;
 
     try {
