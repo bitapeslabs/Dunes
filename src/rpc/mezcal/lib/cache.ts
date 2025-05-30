@@ -192,6 +192,7 @@ const getUpdatedEtchings = async (db: Models): Promise<IEtchingsResponse> => {
               SELECT COUNT(*)
               FROM "balances" AS "b"
               WHERE "b"."mezcal_id" = "_Mezcal"."id"
+              AND "b"."balance" > 0
             )
           `),
           "total_holders",
