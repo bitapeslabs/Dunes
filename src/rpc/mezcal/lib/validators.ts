@@ -1,6 +1,6 @@
 export const validators = {
-  validInt: (n: unknown): boolean => {
-    return typeof n === "number" && !isNaN(n) && n >= 0;
+  validInt: (n: string): boolean => {
+    return !isNaN(n as unknown as number) && Number(n) >= 0;
   },
 
   validTransactionHash: (hash: string): boolean => {

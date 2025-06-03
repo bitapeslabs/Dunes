@@ -12,7 +12,6 @@ import { getSomeUtxoBalance, getSomeAddressBalance } from "../lib/queries.js";
 import { IJoinedBalanceInstance } from "../lib/queries.js";
 import { IUtxoBalance, IUtxo, IAddress } from "@/database/models/types";
 import { cacheGetBalancesByAddress } from "../lib/cache.js";
-type testType = WhereOptions<IUtxo>;
 
 // — Get UTXO balances (all mezcals) —
 router.get("/utxo/:utxo_index", async function (req, res) {
